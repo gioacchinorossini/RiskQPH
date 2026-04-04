@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
 import 'providers/auth_provider.dart';
+import 'providers/event_provider.dart';
+import 'providers/attendance_provider.dart';
+import 'providers/survey_provider.dart';
 import 'utils/theme.dart';
 import 'screens/common/startup_screen.dart';
 import 'screens/auth/login_screen.dart';
@@ -20,8 +23,13 @@ class MyApp extends StatelessWidget {
   // This widget is the root of your application.
   @override
   Widget build(BuildContext context) {
-    return ChangeNotifierProvider(
-      create: (_) => AuthProvider(),
+    return MultiProvider(
+      providers: [
+        ChangeNotifierProvider(create: (_) => AuthProvider()),
+        ChangeNotifierProvider(create: (_) => EventProvider()),
+        ChangeNotifierProvider(create: (_) => AttendanceProvider()),
+        ChangeNotifierProvider(create: (_) => SurveyProvider()),
+      ],
       child: MaterialApp(
         title: 'Attendance App',
         theme: AppTheme.lightTheme,

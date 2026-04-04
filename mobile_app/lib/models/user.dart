@@ -2,13 +2,13 @@ enum UserRole { student, admin, officer }
 
 class User {
   final String id;
-  final String name;
+  final String? name;
   final String email;
-  final String studentId;
-  final String yearLevel;
-  final String department;
-  final String course;
-  final String gender;
+  final String? studentId;
+  final String? yearLevel;
+  final String? department;
+  final String? course;
+  final String? gender;
   final DateTime? birthdate;
   final UserRole role;
   final DateTime createdAt;
@@ -16,13 +16,13 @@ class User {
 
   User({
     required this.id,
-    required this.name,
+    this.name,
     required this.email,
-    required this.studentId,
-    required this.yearLevel,
-    required this.department,
-    required this.course,
-    required this.gender,
+    this.studentId,
+    this.yearLevel,
+    this.department,
+    this.course,
+    this.gender,
     this.birthdate,
     required this.role,
     required this.createdAt,
@@ -34,11 +34,11 @@ class User {
       id: json['id'],
       name: json['name'],
       email: json['email'],
-      studentId: json['studentId'] ?? '',
-      yearLevel: json['yearLevel'] ?? '',
-      department: json['department'] ?? '',
-      course: json['course'] ?? '',
-      gender: json['gender'] ?? '',
+      studentId: json['studentId'],
+      yearLevel: json['yearLevel'],
+      department: json['department'],
+      course: json['course'],
+      gender: json['gender'],
       birthdate: json['birthdate'] != null && (json['birthdate'] as String).isNotEmpty
           ? DateTime.parse(json['birthdate'])
           : null,

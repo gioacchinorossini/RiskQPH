@@ -69,17 +69,9 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<bool> register(
-    String name,
     String email,
     String password,
-    String studentId, {
-    required String yearLevel,
-    required String department,
-    required String course,
-    required String gender,
-    required String birthdate,
-    String role = 'student',
-  }) async {
+  ) async {
     setLoading(true);
     setError(null);
 
@@ -89,15 +81,8 @@ class AuthProvider extends ChangeNotifier {
         uri,
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
-          'name': name,
           'email': email,
           'password': password,
-          'studentId': studentId,
-          'yearLevel': yearLevel,
-          'department': department,
-          'course': course,
-          'gender': gender,
-          'birthdate': birthdate,
         }),
       );
 

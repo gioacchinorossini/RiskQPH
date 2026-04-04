@@ -9,14 +9,14 @@ datasource db {
 
 model User {
   id           String   @id @default(cuid())
-  name         String
+  name         String?
   email        String   @unique
   passwordHash String
-  studentId    String   @unique
-  yearLevel    String
-  department   String
-  course       String
-  gender       String
+  studentId    String?
+  yearLevel    String?
+  department   String?
+  course       String?
+  gender       String?
   birthdate    DateTime?
   role         String   @default("student")
   createdAt    DateTime @default(now())
