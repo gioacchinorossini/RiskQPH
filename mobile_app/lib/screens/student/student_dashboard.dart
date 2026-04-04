@@ -18,6 +18,10 @@ import 'offline_qr_code_screen.dart';
 import 'attendance_history_screen.dart';
 import 'take_survey_screen.dart';
 import '../common/calendar_events_screen.dart';
+import '../common/hazard_map_screen.dart';
+import 'package:flutter_map/flutter_map.dart';
+import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
 
 class StudentDashboard extends StatefulWidget {
   const StudentDashboard({super.key});
@@ -32,6 +36,8 @@ class _StudentDashboardState extends State<StudentDashboard> {
   double _scrollOffset = 0.0;
   Timer? _scrollThrottleTimer;
   bool _hasBeenCollapsed = false;
+  final MapController _previewMapController = MapController();
+  LatLng? _previewLocation;
 
   @override
   void initState() {
@@ -69,7 +75,23 @@ class _StudentDashboardState extends State<StudentDashboard> {
       }
       eventProvider.startConnectivityMonitoring();
       Provider.of<AttendanceProvider>(context, listen: false).loadAttendances();
+      _determinePreviewPosition();
     });
+  }
+
+  Future<void> _determinePreviewPosition() async {
+    try {
+      final permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.always || permission == LocationPermission.whileInUse) {
+        Position pos = await Geolocator.getCurrentPosition();
+        if (mounted) {
+          setState(() {
+            _previewLocation = LatLng(pos.latitude, pos.longitude);
+          });
+          _previewMapController.move(_previewLocation!, 16);
+        }
+      }
+    } catch (_) {}
   }
 
   @override
@@ -563,8 +585,8 @@ class _StudentDashboardState extends State<StudentDashboard> {
         },
         items: const [
           BottomNavigationBarItem(
-            icon: Icon(Icons.event),
-            label: 'Events',
+            icon: Icon(Icons.home),
+            label: 'Home',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.history),
@@ -630,7 +652,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Check Events!',
+                      'Welcome Home!',
                       style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
@@ -638,7 +660,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
                     ),
                     const SizedBox(height: 8),
                     Text(
-                      'Check your upcoming events and mark your attendance',
+                      'Stay safe with real-time hazard monitoring',
                       style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                         color: Colors.white.withOpacity(0.9),
                       ),
@@ -646,6 +668,168 @@ class _StudentDashboardState extends State<StudentDashboard> {
                   ],
                 ),
               ),
+              const SizedBox(height: 24),
+              Text(
+                'Live Hazard Monitoring',
+                style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 12),
+              GestureDetector(
+                onTap: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const HazardMapScreen(),
+                    ),
+                  );
+                },
+                child: AspectRatio(
+                  aspectRatio: 1,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(color: Colors.grey[200]!),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 10,
+                          offset: const Offset(0, 4),
+                        ),
+                      ],
+                    ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Stack(
+                      children: [
+                        AbsorbPointer(
+                          child: FlutterMap(
+                            mapController: _previewMapController,
+                            options: const MapOptions(
+                              initialCenter: LatLng(14.5995, 120.9842),
+                              initialZoom: 15,
+                            ),
+                            children: [
+                              TileLayer(
+                                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                userAgentPackageName: 'com.example.mobile_app',
+                              ),
+                              MarkerLayer(
+                                markers: [
+                                  if (_previewLocation != null)
+                                    Marker(
+                                      point: _previewLocation!,
+                                      width: 30,
+                                      height: 30,
+                                      child: const Icon(
+                                        Icons.person_pin_circle,
+                                        color: Colors.blueAccent,
+                                        size: 30,
+                                      ),
+                                    ),
+                                  // Add the main hazard markers for the preview
+                                  Marker(
+                                    point: const LatLng(14.5995, 120.9842),
+                                    width: 30,
+                                    height: 30,
+                                    child: const Icon(Icons.location_on, color: Colors.red, size: 20),
+                                  ),
+                                  Marker(
+                                    point: const LatLng(10.3157, 123.8854),
+                                    width: 30,
+                                    height: 30,
+                                    child: const Icon(Icons.location_on, color: Colors.orange, size: 20),
+                                  ),
+                                  Marker(
+                                    point: const LatLng(7.0736, 125.6128),
+                                    width: 30,
+                                    height: 30,
+                                    child: const Icon(Icons.location_on, color: Colors.blue, size: 20),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        Container(
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              begin: Alignment.topCenter,
+                              end: Alignment.bottomCenter,
+                              colors: [
+                                Colors.transparent,
+                                Colors.black.withOpacity(0.5),
+                              ],
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          bottom: 20,
+                          left: 20,
+                          right: 20,
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Hazard Tracking Active',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                  Text(
+                                    'Tap to expand full map',
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.8),
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              CircleAvatar(
+                                backgroundColor: Colors.white,
+                                child: Icon(Icons.fullscreen, color: AppTheme.primaryColor),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Positioned(
+                          top: 15,
+                          right: 15,
+                          child: Container(
+                            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            decoration: BoxDecoration(
+                              color: Colors.red,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Row(
+                              children: [
+                                Container(
+                                  width: 8,
+                                  height: 8,
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    shape: BoxShape.circle,
+                                  ),
+                                ),
+                                SizedBox(width: 5),
+                                Text(
+                                  'LIVE',
+                                  style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 32),
               const SizedBox(height: 24),
               Text(
                 'Available Events',
@@ -849,6 +1033,19 @@ class _StudentDashboardState extends State<StudentDashboard> {
                   title: const Text('Scan QR Code'),
                   subtitle: const Text('Mark attendance for an event'),
                   onTap: () {},
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.map_outlined),
+                  title: const Text('Live Hazard Map'),
+                  subtitle: const Text('View real-time hazard monitoring'),
+                  onTap: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const HazardMapScreen(),
+                      ),
+                    );
+                  },
                 ),
                 const Divider(height: 1),
                 ListTile(
