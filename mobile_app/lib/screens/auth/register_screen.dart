@@ -1,8 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../utils/theme.dart';
+import 'package:geolocator/geolocator.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -15,13 +14,55 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _firstNameController = TextEditingController();
+  final _lastNameController = TextEditingController();
+  final _middleNameController = TextEditingController();
+  final _addressController = TextEditingController();
+  
+  DateTime? _selectedBirthdate;
+  String? _selectedGender;
+  double? _latitude;
+  double? _longitude;
   bool _obscurePassword = true;
 
   @override
   void dispose() {
     _emailController.dispose();
     _passwordController.dispose();
+    _firstNameController.dispose();
+    _lastNameController.dispose();
+    _middleNameController.dispose();
+    _addressController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now().subtract(const Duration(days: 365 * 18)),
+      firstDate: DateTime(1900),
+      lastDate: DateTime.now(),
+    );
+    if (picked != null) {
+      setState(() => _selectedBirthdate = picked);
+    }
+  }
+
+  Future<void> _getCurrentLocation() async {
+    try {
+      final permission = await Geolocator.requestPermission();
+      if (permission == LocationPermission.denied) return;
+      
+      final pos = await Geolocator.getCurrentPosition();
+      setState(() {
+        _latitude = pos.latitude;
+        _longitude = pos.longitude;
+        _addressController.text = 'GPS: ${pos.latitude.toStringAsFixed(4)}, ${pos.longitude.toStringAsFixed(4)}';
+      });
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Location captured!')));
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    }
   }
 
   @override
@@ -29,7 +70,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Create Account'),
-        elevation: 0,
       ),
       body: SafeArea(
         child: SingleChildScrollView(
@@ -39,42 +79,88 @@ class _RegisterScreenState extends State<RegisterScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Icon(
-                  Icons.person_add,
-                  size: 60,
-                  color: AppTheme.primaryColor,
+                const Text(
+                  'Resident Registration',
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 24),
+                
+                // Name Section
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _firstNameController,
+                        decoration: const InputDecoration(labelText: 'First Name'),
+                        validator: (v) => v!.isEmpty ? 'Required' : null,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _lastNameController,
+                        decoration: const InputDecoration(labelText: 'Last Name'),
+                        validator: (v) => v!.isEmpty ? 'Required' : null,
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 16),
-                Text(
-                  'Sign up',
-                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.primaryColor,
-                  ),
-                  textAlign: TextAlign.center,
+                TextFormField(
+                  controller: _middleNameController,
+                  decoration: const InputDecoration(labelText: 'Middle Name (Optional)'),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  'Enter your email and password to create an account',
-                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                    color: Colors.grey[600],
-                  ),
-                  textAlign: TextAlign.center,
+                const SizedBox(height: 16),
+                
+                // Birthdate & Gender
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: _pickDate,
+                        icon: const Icon(Icons.cake),
+                        label: Text(_selectedBirthdate == null 
+                          ? 'Birthdate' 
+                          : '${_selectedBirthdate!.month}/${_selectedBirthdate!.day}/${_selectedBirthdate!.year}'),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: DropdownButtonFormField<String>(
+                        value: _selectedGender,
+                        decoration: const InputDecoration(labelText: 'Gender'),
+                        items: ['Male', 'Female', 'Other'].map((g) => 
+                          DropdownMenuItem(value: g, child: Text(g))).toList(),
+                        onChanged: (v) => setState(() => _selectedGender = v),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 32),
+                const SizedBox(height: 16),
+                
+                // Address & GPS
+                TextFormField(
+                  controller: _addressController,
+                  decoration: InputDecoration(
+                    labelText: 'Permanent Address',
+                    suffixIcon: IconButton(
+                      icon: const Icon(Icons.my_location),
+                      onPressed: _getCurrentLocation,
+                      tooltip: 'Use Current Location',
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                
+                // Auth Section
                 TextFormField(
                   controller: _emailController,
                   decoration: const InputDecoration(
-                    labelText: 'Email / Username',
-                    prefixIcon: Icon(Icons.person),
-                    hintText: 'Enter your email or username',
+                    labelText: 'Email Address',
+                    prefixIcon: Icon(Icons.email),
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter something';
-                    }
-                    return null;
-                  },
+                  validator: (v) => v!.isEmpty ? 'Email required' : null,
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
@@ -84,82 +170,34 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     labelText: 'Password',
                     prefixIcon: const Icon(Icons.lock),
                     suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword ? Icons.visibility : Icons.visibility_off,
-                      ),
-                      onPressed: () {
-                        setState(() {
-                          _obscurePassword = !_obscurePassword;
-                        });
-                      },
+                      icon: Icon(_obscurePassword ? Icons.visibility : Icons.visibility_off),
+                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
                     ),
-                    hintText: 'Enter your password',
                   ),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter your password';
-                    }
-                    if (value.length < 6) {
-                      return 'Password must be at least 6 characters';
-                    }
-                    return null;
-                  },
+                  validator: (v) => v!.length < 6 ? 'Min 6 characters' : null,
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: 32),
+                
                 Consumer<AuthProvider>(
-                  builder: (context, authProvider, child) {
+                  builder: (context, auth, _) {
                     return ElevatedButton(
-                      onPressed: authProvider.isLoading ? null : _handleRegister,
-                      child: authProvider.isLoading
-                          ? const SizedBox(
-                              height: 20,
-                              width: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                              ),
-                            )
-                          : const Text('Create Account'),
+                      onPressed: auth.isLoading ? null : _handleRegister,
+                      child: auth.isLoading 
+                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Text('Register Account'),
                     );
                   },
                 ),
-                const SizedBox(height: 16),
-                Consumer<AuthProvider>(
-                  builder: (context, authProvider, child) {
-                    if (authProvider.error != null) {
-                      return Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: AppTheme.errorColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppTheme.errorColor),
-                        ),
-                        child: Text(
-                          authProvider.error!,
-                          style: TextStyle(color: AppTheme.errorColor),
-                          textAlign: TextAlign.center,
-                        ),
-                      );
-                    }
-                    return const SizedBox.shrink();
-                  },
-                ),
-                const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Already have an account? ',
-                      style: Theme.of(context).textTheme.bodyMedium,
+                
+                if (Provider.of<AuthProvider>(context).error != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: Text(
+                      Provider.of<AuthProvider>(context).error!,
+                      style: const TextStyle(color: Colors.red),
+                      textAlign: TextAlign.center,
                     ),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.pop(context);
-                      },
-                      child: const Text('Sign In'),
-                    ),
-                  ],
-                ),
+                  ),
               ],
             ),
           ),
@@ -170,10 +208,23 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   Future<void> _handleRegister() async {
     if (_formKey.currentState!.validate()) {
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      final success = await authProvider.register(
-        _emailController.text.trim(),
-        _passwordController.text,
+      if (_selectedBirthdate == null) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please select birthdate')));
+        return;
+      }
+      
+      final auth = Provider.of<AuthProvider>(context, listen: false);
+      final success = await auth.register(
+        email: _emailController.text.trim(),
+        password: _passwordController.text,
+        firstName: _firstNameController.text.trim(),
+        lastName: _lastNameController.text.trim(),
+        middleName: _middleNameController.text.trim(),
+        birthdate: _selectedBirthdate!.toIso8601String(),
+        gender: _selectedGender,
+        address: _addressController.text.trim(),
+        latitude: _latitude,
+        longitude: _longitude,
       );
 
       if (success && mounted) {

@@ -9,17 +9,35 @@ datasource db {
 
 model User {
   id           String   @id @default(cuid())
-  name         String?
+  firstName    String
+  lastName     String
+  middleName   String?
+  birthdate    DateTime?
+  gender       String?
+  address      String?
+  latitude     Float?
+  longitude    Float?
   email        String   @unique
   passwordHash String
-  studentId    String?
-  yearLevel    String?
-  department   String?
-  course       String?
-  gender       String?
-  birthdate    DateTime?
-  role         String   @default("student")
+  role         String   @default("resident") // default to resident
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  reports      Report[]
+}
+
+model Report {
+  id          String   @id @default(cuid())
+  type        String
+  description String?
+  latitude    Float
+  longitude   Float
+  imageUrl    String?
+  userId      String?
+  user        User?    @relation(fields: [userId], references: [id])
+  upvotes     Int      @default(0)
+  downvotes   Int      @default(0)
+  isResolved  Boolean  @default(false)
+  isFalseInfo Boolean  @default(false)
+  createdAt   DateTime @default(now())
 }
 

@@ -668,7 +668,93 @@ class _StudentDashboardState extends State<StudentDashboard> {
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Quick Actions',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.03),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _buildQuickActionItem(
+                          icon: Icons.report_problem_outlined,
+                          label: 'Report',
+                          color: Colors.red,
+                          onTap: () {},
+                        ),
+                        _buildQuickActionItem(
+                          icon: Icons.emergency_outlined,
+                          label: 'Emergency',
+                          color: Colors.orange,
+                          onTap: () {},
+                        ),
+                        _buildQuickActionItem(
+                          icon: Icons.map_outlined,
+                          label: 'Full Map',
+                          color: Colors.blue,
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => const HazardMapScreen()),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceAround,
+                      children: [
+                        _buildQuickActionItem(
+                          icon: Icons.qr_code_scanner,
+                          label: 'QR Scan',
+                          color: Colors.purple,
+                          onTap: () {},
+                        ),
+                        _buildQuickActionItem(
+                          icon: Icons.offline_bolt_outlined,
+                          label: 'Offline',
+                          color: Colors.teal,
+                          onTap: _showOfflineQRCode,
+                        ),
+                        _buildQuickActionItem(
+                          icon: Icons.calendar_month_outlined,
+                          label: 'Events',
+                          color: Colors.indigo,
+                          onTap: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(builder: (_) => const CalendarEventsScreen()),
+                            );
+                          },
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
               Text(
                 'Live Hazard Monitoring',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
@@ -1018,77 +1104,17 @@ class _StudentDashboardState extends State<StudentDashboard> {
             ),
           ),
           const SizedBox(height: 24),
-          Text(
-            'Quick Actions',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 12),
           Card(
-            child: Column(
-              children: [
-                ListTile(
-                  leading: const Icon(Icons.qr_code_scanner),
-                  title: const Text('Scan QR Code'),
-                  subtitle: const Text('Mark attendance for an event'),
-                  onTap: () {},
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.map_outlined),
-                  title: const Text('Live Hazard Map'),
-                  subtitle: const Text('View real-time hazard monitoring'),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const HazardMapScreen(),
-                      ),
-                    );
-                  },
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.offline_bolt),
-                  title: const Text('Offline QR Code'),
-                  subtitle: const Text('Generate universal QR code for offline scanning'),
-                  onTap: () => _showOfflineQRCode(),
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.calendar_month),
-                  title: const Text('Calendar View'),
-                  subtitle: const Text('View events in calendar format'),
-                  onTap: () {
-                    Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const CalendarEventsScreen(),
-                      ),
-                    );
-                  },
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.history),
-                  title: const Text('Attendance History'),
-                  subtitle: const Text('View your attendance records'),
-                  onTap: () {
-                    setState(() {
-                      _selectedIndex = 1;
-                    });
-                  },
-                ),
-                const Divider(height: 1),
-                ListTile(
-                  leading: const Icon(Icons.logout),
-                  title: const Text('Logout'),
-                  subtitle: const Text('Sign out of your account'),
-                  onTap: _handleLogout,
-                ),
-              ],
+            child: ListTile(
+              leading: const Icon(Icons.logout, color: Colors.red),
+              title: const Text(
+                'Sign Out',
+                style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+              ),
+              onTap: _handleLogout,
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 48),
         ]),
       ),
     );
@@ -1335,6 +1361,44 @@ class _StudentDashboardState extends State<StudentDashboard> {
     } else {
       return 'Past';
     }
+  }
+
+  Widget _buildQuickActionItem({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: 65,
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 22),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[800],
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   bool _isEventActive(Event event) {

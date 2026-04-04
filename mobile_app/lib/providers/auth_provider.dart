@@ -68,10 +68,18 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<bool> register(
-    String email,
-    String password,
-  ) async {
+  Future<bool> register({
+    required String email,
+    required String password,
+    required String firstName,
+    required String lastName,
+    String? middleName,
+    String? birthdate,
+    String? gender,
+    String? address,
+    double? latitude,
+    double? longitude,
+  }) async {
     setLoading(true);
     setError(null);
 
@@ -83,6 +91,14 @@ class AuthProvider extends ChangeNotifier {
         body: jsonEncode({
           'email': email,
           'password': password,
+          'firstName': firstName,
+          'lastName': lastName,
+          'middleName': middleName,
+          'birthdate': birthdate,
+          'gender': gender,
+          'address': address,
+          'latitude': latitude,
+          'longitude': longitude,
         }),
       );
 

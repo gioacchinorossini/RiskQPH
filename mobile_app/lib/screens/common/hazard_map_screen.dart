@@ -1,8 +1,18 @@
+import 'dart:io';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:http_parser/http_parser.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:provider/provider.dart';
+import '../../providers/auth_provider.dart';
 import '../../utils/theme.dart';
+import '../../config/api_config.dart';
 
 class HazardMapScreen extends StatefulWidget {
   const HazardMapScreen({super.key});
@@ -13,7 +23,32 @@ class HazardMapScreen extends StatefulWidget {
 
 class _HazardMapScreenState extends State<HazardMapScreen> {
   final MapController _mapController = MapController();
+  final ImagePicker _picker = ImagePicker();
   LatLng? _userLocation;
+  LatLng _mapCenter = const LatLng(14.5995, 120.9842);
+  double _mapZoom = 15.0;
+  List<Map<String, dynamic>> _userReports = [];
+  bool _isLoading = false;
+
+  final String _baseUrl = ApiConfig.baseUrl;
+
+  final Map<String, IconData> _disasterIcons = {
+    'Flooding': Icons.water,
+    'Earthquake': Icons.terrain,
+    'Fire': Icons.local_fire_department,
+    'Typhoon': Icons.cyclone,
+    'Landslide': Icons.hiking,
+  };
+
+  final Map<String, Color> _disasterColors = {
+    'Flooding': Colors.blue,
+    'Earthquake': Colors.orange,
+    'Fire': Colors.red,
+    'Typhoon': Colors.cyan,
+    'Landslide': Colors.green,
+  };
+
+  bool _isReportsPanelOpen = false;
 
   final List<Map<String, dynamic>> _hazards = [
     {
@@ -42,7 +77,63 @@ class _HazardMapScreenState extends State<HazardMapScreen> {
   @override
   void initState() {
     super.initState();
+    _loadMapState();
+    _fetchReports();
     _determinePosition();
+  }
+
+  Future<void> _loadMapState() async {
+    final prefs = await SharedPreferences.getInstance();
+    final lastLat = prefs.getDouble('last_lat');
+    final lastLng = prefs.getDouble('last_lng');
+    final lastZoom = prefs.getDouble('last_zoom');
+    
+    if (lastLat != null && lastLng != null && lastZoom != null) {
+      setState(() {
+        _mapCenter = LatLng(lastLat, lastLng);
+        _mapZoom = lastZoom;
+      });
+      _mapController.move(_mapCenter, _mapZoom);
+    }
+  }
+
+  Future<void> _saveMapState() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble('last_lat', _mapController.camera.center.latitude);
+    await prefs.setDouble('last_lng', _mapController.camera.center.longitude);
+    await prefs.setDouble('last_zoom', _mapController.camera.zoom);
+  }
+
+  Future<void> _fetchReports() async {
+    setState(() => _isLoading = true);
+    try {
+      final response = await http.get(Uri.parse('$_baseUrl/api/reports'));
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        setState(() {
+          _userReports = data.map((r) => {
+            'id': r['id'],
+            'pos': LatLng(r['latitude'], r['longitude']),
+            'type': r['type'] ?? 'Unknown',
+            'title': r['type'] ?? 'Report',
+            'desc': r['description'] ?? 'No description provided.',
+            'imageUrl': r['imageUrl'] != null ? '$_baseUrl${r['imageUrl']}' : null,
+            'reporterName': r['reporterName'] ?? 'Anonymous',
+            'userId': r['userId'],
+            'upvotes': r['upvotes'] ?? 0,
+            'downvotes': r['downvotes'] ?? 0,
+            'isResolved': r['isResolved'] ?? false,
+            'isFalseInfo': r['isFalseInfo'] ?? false,
+            'level': 'User Report', // Critical for modal logic
+            'color': Colors.red, // Default color for user reports
+          }).toList();
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching reports: $e');
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
   }
 
   Future<void> _determinePosition() async {
@@ -94,76 +185,215 @@ class _HazardMapScreenState extends State<HazardMapScreen> {
             onPressed: _determinePosition,
             tooltip: 'Find My Location',
           ),
+          IconButton(
+            icon: const Icon(Icons.logout),
+            onPressed: () async {
+              final authProvider = Provider.of<AuthProvider>(context, listen: false);
+              await authProvider.logout();
+              if (mounted) Navigator.pushReplacementNamed(context, '/login');
+            },
+            tooltip: 'Sign Out',
+          ),
         ],
       ),
-      body: FlutterMap(
-        mapController: _mapController,
-        options: const MapOptions(
-          initialCenter: LatLng(12.8797, 121.7740),
-          initialZoom: 15,
-        ),
+      body: Stack(
         children: [
-          TileLayer(
-            urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-            userAgentPackageName: 'com.example.mobile_app',
-          ),
-          CircleLayer(
-            circles: _hazards.map((h) => CircleMarker(
-              point: h['pos'],
-              radius: 50000,
-              useRadiusInMeter: true,
-              color: (h['color'] as Color).withOpacity(0.3),
-              borderColor: h['color'],
-              borderStrokeWidth: 2,
-            )).toList(),
-          ),
-          MarkerLayer(
-            markers: [
-              if (_userLocation != null)
-                Marker(
-                  point: _userLocation!,
-                  width: 40,
-                  height: 40,
-                  child: const Icon(
-                    Icons.person_pin_circle,
-                    color: Colors.blueAccent,
-                    size: 40,
-                  ),
-                ),
-              ..._hazards.map((h) => Marker(
-                point: h['pos'],
-                width: 80,
-                height: 80,
-                child: GestureDetector(
-                  onTap: () => _showHazardDetail(h),
-                  child: Column(
-                    children: [
-                      Icon(
-                        Icons.location_on,
-                        color: h['color'],
+          FlutterMap(
+            mapController: _mapController,
+            options: MapOptions(
+              initialCenter: _mapCenter,
+              initialZoom: _mapZoom,
+              onTap: (tapPosition, point) => _showReportDisasterModal(point),
+              onPositionChanged: (pos, hasGesture) {
+                if (hasGesture) _saveMapState();
+              },
+            ),
+            children: [
+              TileLayer(
+                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                userAgentPackageName: 'com.example.mobile_app',
+              ),
+              CircleLayer(
+                circles: [
+                  ..._hazards.map((h) => CircleMarker(
+                    point: h['pos'],
+                    radius: 50000,
+                    useRadiusInMeter: true,
+                    color: (h['color'] as Color).withOpacity(0.3),
+                    borderColor: h['color'],
+                    borderStrokeWidth: 2,
+                  )),
+                ],
+              ),
+              MarkerLayer(
+                markers: [
+                  if (_userLocation != null)
+                    Marker(
+                      point: _userLocation!,
+                      width: 40,
+                      height: 40,
+                      child: const Icon(
+                        Icons.person_pin_circle,
+                        color: Colors.blueAccent,
                         size: 40,
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(4),
-                          boxShadow: const [BoxShadow(blurRadius: 4, color: Colors.black26)],
-                        ),
-                        child: Text(
-                          h['level'],
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.bold,
-                            color: h['color'],
+                    ),
+                  ..._userReports.where((r) => r['isResolved'] == false).map((r) {
+                    final color = _disasterColors[r['type']] ?? Colors.red;
+                    return Marker(
+                      point: r['pos'] as LatLng,
+                      width: 40,
+                      height: 40,
+                      child: GestureDetector(
+                        onTap: () => _showHazardDetail({
+                          ...r,
+                          'title': r['title'] ?? r['type'] ?? 'Report',
+                          'desc': r['desc'] ?? 'No description',
+                          'color': color,
+                        }),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            boxShadow: [BoxShadow(blurRadius: 4, color: Colors.black26)],
+                            border: Border.all(color: color, width: 2),
+                          ),
+                          child: Center(
+                            child: Icon(
+                              _disasterIcons[r['type']] ?? Icons.report,
+                              color: color,
+                              size: 20,
+                            ),
                           ),
                         ),
                       ),
-                    ],
-                  ),
-                ),
-              )).toList(),
+                    );
+                  }).toList(),
+                  ..._hazards.map((h) => Marker(
+                    point: h['pos'],
+                    width: 80,
+                    height: 80,
+                    child: GestureDetector(
+                      onTap: () => _showHazardDetail(h),
+                      child: Column(
+                        children: [
+                          Icon(
+                            Icons.location_on,
+                            color: h['color'],
+                            size: 40,
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(4),
+                              boxShadow: const [BoxShadow(blurRadius: 4, color: Colors.black26)],
+                            ),
+                            child: Text(
+                              h['level'],
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: h['color'],
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )).toList(),
+                ],
+              ),
             ],
+          ),
+          
+          // Floating Recent Reports Panel
+          Positioned(
+            top: 16,
+            right: 16,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                FloatingActionButton.small(
+                  onPressed: () => setState(() => _isReportsPanelOpen = !_isReportsPanelOpen),
+                  backgroundColor: _isReportsPanelOpen ? Colors.red : AppTheme.primaryColor,
+                  child: Icon(_isReportsPanelOpen ? Icons.close : Icons.history),
+                ),
+                if (_isReportsPanelOpen)
+                  Container(
+                    margin: const EdgeInsets.only(top: 12),
+                    width: 200,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.9),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [BoxShadow(blurRadius: 10, color: Colors.black26)],
+                    ),
+                    constraints: const BoxConstraints(maxHeight: 300),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          color: AppTheme.primaryColor,
+                          width: double.infinity,
+                          child: const Text(
+                            'Recent Reports',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                          ),
+                        ),
+                        if (_userReports.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.all(20),
+                            child: Text('No reports yet', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                          )
+                        else
+                          Flexible(
+                            child: ListView.separated(
+                              shrinkWrap: true,
+                              padding: EdgeInsets.zero,
+                              itemCount: _userReports.length,
+                              separatorBuilder: (_, __) => const Divider(height: 1),
+                              itemBuilder: (context, index) {
+                                final r = _userReports[index];
+                                final color = _disasterColors[r['type']] ?? Colors.grey;
+                                return ListTile(
+                                  dense: true,
+                                  leading: Icon(
+                                    _disasterIcons[r['type']] ?? Icons.report,
+                                    color: color,
+                                    size: 18,
+                                  ),
+                                  title: Text(
+                                    r['type'],
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                  ),
+                                  subtitle: Text(
+                                    r['desc'],
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(fontSize: 10),
+                                  ),
+                                  onTap: () {
+                                    // Preserve current zoom, but ensure it's at least 15
+                                    final currentZoom = _mapController.camera.zoom;
+                                    _mapController.move(r['pos'], currentZoom < 15 ? 15 : currentZoom);
+                                    setState(() => _isReportsPanelOpen = false);
+                                    _showHazardDetail({
+                                      ...r,
+                                      'title': r['title'] ?? r['type'] ?? 'Report',
+                                      'desc': r['desc'] ?? 'No description',
+                                      'color': color,
+                                    });
+                                  },
+                                );
+                              },
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
           ),
         ],
       ),
@@ -178,62 +408,430 @@ class _HazardMapScreenState extends State<HazardMapScreen> {
   void _showHazardDetail(Map<String, dynamic> hazard) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (context) {
-        return Container(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        final bool isUserReport = hazard['level'] == 'User Report';
+        final authProvider = Provider.of<AuthProvider>(context, listen: false);
+        final String? currentUserId = authProvider.currentUser?.id;
+        final String? reportUserId = hazard['userId']?.toString();
+        
+        final bool isOwnReport = reportUserId != null && reportUserId == currentUserId;
+
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Container(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    hazard['title'],
-                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-                  ),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: (hazard['color'] as Color).withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: hazard['color']),
-                    ),
-                    child: Text(
-                      hazard['level'],
-                      style: TextStyle(
-                        color: hazard['color'],
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            hazard['title'],
+                            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                          ),
+                          if (isUserReport)
+                            Text(
+                              'Reported by ${hazard['reporterName']}',
+                              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                            ),
+                        ],
                       ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: (hazard['isResolved'] == true 
+                            ? Colors.green 
+                            : (hazard['color'] as Color)).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: hazard['isResolved'] == true ? Colors.green : hazard['color']),
+                        ),
+                        child: Text(
+                          hazard['isResolved'] == true ? 'RESOLVED' : hazard['level'],
+                          style: TextStyle(
+                            color: hazard['isResolved'] == true ? Colors.green : hazard['color'],
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  if (hazard['imageUrl'] != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(12),
+                        child: Image.network(
+                          hazard['imageUrl'],
+                          height: 180,
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (context, error, stackTrace) => Container(
+                            height: 100,
+                            color: Colors.grey[200],
+                            child: const Center(child: Icon(Icons.broken_image, color: Colors.grey)),
+                          ),
+                        ),
+                      ),
+                    ),
+                  Text(
+                    hazard['desc'],
+                    style: const TextStyle(fontSize: 16, color: Colors.grey),
+                  ),
+                  if (isUserReport) ...[
+                    const SizedBox(height: 24),
+                    const Divider(),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        IgnorePointer(
+                          ignoring: isOwnReport,
+                          child: ActionChip(
+                            avatar: const Icon(Icons.check_circle_outline, size: 14, color: Colors.green),
+                            label: Text('Agree (${hazard['upvotes']})'),
+                            backgroundColor: Colors.green.withOpacity(0.05),
+                            onPressed: () => _handleReportAction(hazard['id'], 'upvote'),
+                          ),
+                        ),
+                        const Spacer(),
+                        IgnorePointer(
+                          ignoring: isOwnReport,
+                          child: TextButton.icon(
+                            onPressed: () => _handleReportAction(hazard['id'], 'flag'),
+                            icon: const Icon(Icons.flag_outlined, size: 16, color: Colors.orange),
+                            label: const Text('Flag', style: TextStyle(color: Colors.orange, fontSize: 12)),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    if (hazard['isResolved'] != true)
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => _handleReportAction(hazard['id'], 'resolve'),
+                          icon: const Icon(Icons.check_circle_outline),
+                          label: const Text('Mark as Resolved'),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.green,
+                            side: const BorderSide(color: Colors.green),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ),
+                  ],
+                  const SizedBox(height: 16),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryColor,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: const Text('Close'),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
-              Text(
-                hazard['desc'],
-                style: const TextStyle(fontSize: 16, color: Colors.grey),
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Navigator.pop(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppTheme.primaryColor,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                  ),
-                  child: const Text('View Full Report'),
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         );
       },
     );
+  }
+
+  Widget _buildVoteChip({required IconData icon, required String label, required Color color, required VoidCallback onPressed}) {
+    return InkWell(
+      onTap: onPressed,
+      borderRadius: BorderRadius.circular(20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          border: Border.all(color: Colors.grey[300]!),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 16, color: color),
+            const SizedBox(width: 4),
+            Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildActionChip({required IconData icon, required String label, required VoidCallback onPressed}) {
+    return ActionChip(
+      avatar: Icon(icon, size: 14, color: Colors.grey[600]),
+      label: Text(label, style: const TextStyle(fontSize: 11)),
+      onPressed: onPressed,
+      backgroundColor: Colors.grey[100],
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+    );
+  }
+
+  Future<void> _handleReportAction(String id, String action) async {
+    try {
+      final response = await http.patch(
+        Uri.parse('$_baseUrl/api/reports/$id'),
+        body: json.encode({'action': action}),
+        headers: {'Content-Type': 'application/json'},
+      );
+      if (response.statusCode == 200) {
+        Navigator.pop(context); // Close current detail modal
+        _fetchReports(); // Refresh data
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Report ${action}d successfully'), backgroundColor: Colors.green),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error action: $e');
+    }
+  }
+
+  void _showReportDisasterModal(LatLng point) {
+    String? selectedType;
+    final TextEditingController descController = TextEditingController();
+    XFile? pickedImage;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: MediaQuery.of(context).viewInsets.bottom,
+                left: 24,
+                right: 24,
+                top: 24,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'Report Disaster',
+                        style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close),
+                        onPressed: () => Navigator.pop(context),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    'Coordinates: ${point.latitude.toStringAsFixed(4)}, ${point.longitude.toStringAsFixed(4)}',
+                    style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                  ),
+                  const SizedBox(height: 20),
+                  const Text(
+                    'Disaster Type',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  const SizedBox(height: 8),
+                  DropdownButtonFormField<String>(
+                    decoration: InputDecoration(
+                      filled: true,
+                      fillColor: Colors.grey[100],
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                    items: _disasterIcons.keys
+                        .map((String value) => DropdownMenuItem(
+                              value: value,
+                              child: Row(
+                                children: [
+                                  Icon(_disasterIcons[value], size: 18, color: Colors.red),
+                                  const SizedBox(width: 8),
+                                  Text(value),
+                                ],
+                              ),
+                            ))
+                        .toList(),
+                    onChanged: (val) => selectedType = val,
+                    hint: const Text('Select disaster type'),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Description',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: descController,
+                    maxLines: 2,
+                    decoration: InputDecoration(
+                      hintText: 'Describe the situation...',
+                      filled: true,
+                      fillColor: Colors.grey[100],
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        borderSide: BorderSide.none,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Evidence (Phote)',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
+                  const SizedBox(height: 8),
+                  if (pickedImage != null)
+                    Stack(
+                      children: [
+                        Container(
+                          height: 150,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            borderRadius: BorderRadius.circular(12),
+                            image: DecorationImage(
+                              image: FileImage(File(pickedImage!.path)),
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
+                        Positioned(
+                          right: 8,
+                          top: 8,
+                          child: GestureDetector(
+                            onTap: () => setModalState(() => pickedImage = null),
+                            child: CircleAvatar(
+                              backgroundColor: Colors.black54,
+                              radius: 12,
+                              child: Icon(Icons.close, size: 16, color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  else
+                    InkWell(
+                      onTap: () async {
+                        final image = await _picker.pickImage(source: ImageSource.gallery);
+                        if (image != null) {
+                          setModalState(() => pickedImage = image);
+                        }
+                      },
+                      child: Container(
+                        height: 100,
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: Colors.grey[100],
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.grey[300]!, style: BorderStyle.solid),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.add_a_photo_outlined, color: Colors.grey[600]),
+                            const SizedBox(height: 4),
+                            Text('Attach Picture', style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                          ],
+                        ),
+                      ),
+                    ),
+                  const SizedBox(height: 24),
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton(
+                      onPressed: () {
+                        if (selectedType == null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(content: Text('Please select a disaster type')),
+                          );
+                          return;
+                        }
+                        _submitReport(point, selectedType!, descController.text, pickedImage);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red[600],
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      child: const Text('Submit Emergency Report', style: TextStyle(fontWeight: FontWeight.bold)),
+                    ),
+                  ),
+                  const SizedBox(height: 32),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _submitReport(LatLng point, String type, String desc, XFile? image) async {
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final String? userId = authProvider.currentUser?.id;
+
+      final request = http.MultipartRequest('POST', Uri.parse('$_baseUrl/api/reports'));
+      
+      request.fields['type'] = type;
+      request.fields['description'] = desc;
+      request.fields['latitude'] = point.latitude.toString();
+      request.fields['longitude'] = point.longitude.toString();
+      if (userId != null) {
+        request.fields['userId'] = userId;
+      }
+      
+      if (image != null) {
+        request.files.add(await http.MultipartFile.fromPath(
+          'file',
+          image.path,
+          contentType: MediaType('image', 'jpeg'),
+        ));
+      }
+
+      final streamedResponse = await request.send();
+      final response = await http.Response.fromStream(streamedResponse);
+
+      if (response.statusCode == 201) {
+        if (mounted) {
+          Navigator.pop(context); // Close modal
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Report published to all users!'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+        _fetchReports(); // Refresh markers
+      } else {
+        throw Exception('Failed to submit report');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
+    }
   }
 }
