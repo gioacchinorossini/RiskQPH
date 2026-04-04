@@ -9,17 +9,7 @@ class ApiConfig {
       return _definedBaseUrl;
     }
 
-    if (kIsWeb) {
-      // Next.js dev server for web
-      return 'http://10.242.107.183:3000';
-    }
-
-    if (defaultTargetPlatform == TargetPlatform.android) {
-      // Android emulator loopback to host machine
-      return 'http://192.168.254.102:3000';
-    }
-
-    // iOS simulator, Windows, macOS, Linux
-    return 'http://localhost:3000';
+    // Unified ngrok URL for mobile and web
+    return 'https://nonprohibitory-yu-unlenient.ngrok-free.dev';
   }
 }

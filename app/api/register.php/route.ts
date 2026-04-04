@@ -8,12 +8,13 @@ const RegisterSchema = z.object({
   password: z.string().min(6),
   firstName: z.string().min(1),
   lastName: z.string().min(1),
-  middleName: z.string().optional(),
-  birthdate: z.string().optional(),
-  gender: z.string().optional(),
-  address: z.string().optional(),
-  latitude: z.number().optional(),
-  longitude: z.number().optional(),
+  middleName: z.string().optional().nullable(),
+  birthdate: z.string().optional().nullable(),
+  gender: z.string().optional().nullable(),
+  barangay: z.string().optional().nullable(),
+  address: z.string().optional().nullable(),
+  latitude: z.number().optional().nullable(),
+  longitude: z.number().optional().nullable(),
 });
 
 export async function POST(req: NextRequest) {
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json({ message: 'Invalid input', errors: parsed.error.issues }, { status: 400 });
     }
-    const { email, password, firstName, lastName, middleName, birthdate, gender, address, latitude, longitude } = parsed.data;
+    const { email, password, firstName, lastName, middleName, birthdate, gender, barangay, address, latitude, longitude } = parsed.data;
 
     const existing = await prisma.user.findFirst({
       where: { email }
@@ -42,6 +43,7 @@ export async function POST(req: NextRequest) {
         middleName: middleName || null,
         birthdate: birthdate ? new Date(birthdate) : null,
         gender: gender || null,
+        barangay: barangay || null,
         address: address || null,
         latitude: latitude || null,
         longitude: longitude || null,
@@ -55,6 +57,8 @@ export async function POST(req: NextRequest) {
       firstName: user.firstName,
       lastName: user.lastName,
       middleName: user.middleName,
+      barangay: user.barangay,
+      address: user.address,
       role: user.role,
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString()

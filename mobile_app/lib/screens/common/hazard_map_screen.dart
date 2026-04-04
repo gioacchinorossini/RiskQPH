@@ -49,6 +49,9 @@ class _HazardMapScreenState extends State<HazardMapScreen> {
   };
 
   bool _isReportsPanelOpen = false;
+  bool _isLayersPanelOpen = false;
+  bool _showBarangayBoundaries = true;
+  List<Polygon> _barangayPolygons = [];
 
   final List<Map<String, dynamic>> _hazards = [
     {
@@ -80,6 +83,72 @@ class _HazardMapScreenState extends State<HazardMapScreen> {
     _loadMapState();
     _fetchReports();
     _determinePosition();
+    _loadBarangayBoundaries();
+  }
+
+  Future<void> _loadBarangayBoundaries() async {
+    // Mocking sample barangay data for Manila for demonstration
+    // In a real app, this would fetch from a GeoJSON or API
+    final List<Map<String, dynamic>> samples = [
+      {
+        'name': 'Barangay 649 (Baseco)',
+        'points': [
+          const LatLng(14.5930, 120.9600),
+          const LatLng(14.5960, 120.9600),
+          const LatLng(14.5960, 120.9650),
+          const LatLng(14.5930, 120.9650),
+        ],
+        'risk': 0.9, // High risk
+      },
+      {
+        'name': 'Barangay 20 (Parola)',
+        'points': [
+          const LatLng(14.6040, 120.9580),
+          const LatLng(14.6080, 120.9580),
+          const LatLng(14.6080, 120.9630),
+          const LatLng(14.6040, 120.9630),
+        ],
+        'risk': 0.7, // Moderate risk
+      },
+      {
+        'name': 'Barangay 128 (Smokey Mountain)',
+        'points': [
+          const LatLng(14.6280, 120.9610),
+          const LatLng(14.6320, 120.9610),
+          const LatLng(14.6320, 120.9660),
+          const LatLng(14.6280, 120.9660),
+        ],
+        'risk': 0.8, // High risk
+      },
+      {
+        'name': 'Intramuros',
+        'points': [
+          const LatLng(14.5880, 120.9730),
+          const LatLng(14.5940, 120.9730),
+          const LatLng(14.5940, 120.9780),
+          const LatLng(14.5880, 120.9780),
+        ],
+        'risk': 0.2, // Low risk
+      },
+    ];
+
+    setState(() {
+      _barangayPolygons = samples.map((s) {
+        final double risk = s['risk'] as double;
+        final Color color = risk > 0.8 
+          ? Colors.red 
+          : risk > 0.5 
+            ? Colors.orange 
+            : Colors.green;
+        
+        return Polygon(
+          points: s['points'] as List<LatLng>,
+          color: color.withOpacity(0.3),
+          borderColor: color,
+          borderStrokeWidth: 2,
+        );
+      }).toList();
+    });
   }
 
   Future<void> _loadMapState() async {
@@ -216,6 +285,10 @@ class _HazardMapScreenState extends State<HazardMapScreen> {
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                 userAgentPackageName: 'com.example.mobile_app',
               ),
+              if (_showBarangayBoundaries)
+                PolygonLayer(
+                  polygons: _barangayPolygons,
+                ),
               CircleLayer(
                 circles: [
                   ..._hazards.map((h) => CircleMarker(
@@ -398,9 +471,66 @@ class _HazardMapScreenState extends State<HazardMapScreen> {
               ],
             ),
           ),
+
+          // Floating Layers Panel
+          Positioned(
+            top: 16,
+            left: 16,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                FloatingActionButton.small(
+                  onPressed: () => setState(() => _isLayersPanelOpen = !_isLayersPanelOpen),
+                  backgroundColor: _isLayersPanelOpen ? Colors.grey[800] : Colors.white,
+                  child: Icon(
+                    _isLayersPanelOpen ? Icons.close : Icons.layers,
+                    color: _isLayersPanelOpen ? Colors.white : AppTheme.primaryColor,
+                  ),
+                ),
+                if (_isLayersPanelOpen)
+                  Container(
+                    margin: const EdgeInsets.only(top: 12),
+                    width: 220,
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.9),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [BoxShadow(blurRadius: 10, color: Colors.black26)],
+                    ),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryColor,
+                            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                          ),
+                          width: double.infinity,
+                          child: const Text(
+                            'Map Layers',
+                            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                          ),
+                        ),
+                        SwitchListTile(
+                          dense: true,
+                          title: const Text('Barangay Boundaries', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+                          subtitle: const Text('Risk vicinity color coding', style: TextStyle(fontSize: 10)),
+                          value: _showBarangayBoundaries,
+                          activeColor: AppTheme.primaryColor,
+                          onChanged: (val) => setState(() => _showBarangayBoundaries = val),
+                        ),
+                        // You can add more layers here e.g. Traffic, Shelters etc
+                        const SizedBox(height: 8),
+                      ],
+                    ),
+                  ),
+              ],
+            ),
+          ),
         ],
       ),
       floatingActionButton: FloatingActionButton(
+        heroTag: 'map_report_add',
         onPressed: _determinePosition,
         backgroundColor: AppTheme.primaryColor,
         child: const Icon(Icons.my_location),

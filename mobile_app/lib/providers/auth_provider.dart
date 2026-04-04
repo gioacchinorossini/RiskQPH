@@ -37,7 +37,10 @@ class AuthProvider extends ChangeNotifier {
       final uri = Uri.parse(ApiConfig.baseUrl + '/api/login.php');
       final response = await http.post(
         uri,
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
+        },
         body: jsonEncode({
           'email': email,
           'password': password,
@@ -76,6 +79,7 @@ class AuthProvider extends ChangeNotifier {
     String? middleName,
     String? birthdate,
     String? gender,
+    String? barangay,
     String? address,
     double? latitude,
     double? longitude,
@@ -87,7 +91,10 @@ class AuthProvider extends ChangeNotifier {
       final uri = Uri.parse(ApiConfig.baseUrl + '/api/register.php');
       final response = await http.post(
         uri,
-        headers: {'Content-Type': 'application/json'},
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
+        },
         body: jsonEncode({
           'email': email,
           'password': password,
@@ -96,6 +103,7 @@ class AuthProvider extends ChangeNotifier {
           'middleName': middleName,
           'birthdate': birthdate,
           'gender': gender,
+          'barangay': barangay,
           'address': address,
           'latitude': latitude,
           'longitude': longitude,
@@ -121,6 +129,63 @@ class AuthProvider extends ChangeNotifier {
       }
     } catch (e) {
       setError('Registration failed: $e');
+      setLoading(false);
+      return false;
+    }
+  }
+
+  Future<bool> updateProfile({
+    required String firstName,
+    required String lastName,
+    String? middleName,
+    String? birthdate,
+    String? gender,
+    String? barangay,
+    String? address,
+  }) async {
+    if (_currentUser == null) return false;
+    setLoading(true);
+    setError(null);
+
+    try {
+      final uri = Uri.parse(ApiConfig.baseUrl + '/api/profile.php');
+      final response = await http.post(
+        uri,
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
+        },
+        body: jsonEncode({
+          'id': _currentUser!.id,
+          'firstName': firstName,
+          'lastName': lastName,
+          'middleName': middleName,
+          'birthdate': birthdate,
+          'gender': gender,
+          'barangay': barangay,
+          'address': address,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final userJson = data['user'] as Map<String, dynamic>;
+        _currentUser = User.fromJson(userJson);
+        await _saveUserToStorage();
+        setLoading(false);
+        return true;
+      } else {
+        String message = 'Update failed';
+        try {
+          final data = jsonDecode(response.body) as Map<String, dynamic>;
+          if (data['message'] is String) message = data['message'];
+        } catch (_) {}
+        setError(message);
+        setLoading(false);
+        return false;
+      }
+    } catch (e) {
+      setError('Update failed: $e');
       setLoading(false);
       return false;
     }
@@ -165,7 +230,10 @@ class AuthProvider extends ChangeNotifier {
     try {
       // Lightweight connectivity check by hitting API base root
       final uri = Uri.parse(ApiConfig.baseUrl);
-      final resp = await http.get(uri).timeout(const Duration(seconds: 5));
+      final resp = await http.get(
+        uri,
+        headers: {'ngrok-skip-browser-warning': 'true'},
+      ).timeout(const Duration(seconds: 5));
       _isConnected = resp.statusCode >= 200 && resp.statusCode < 500;
       _connectionStatus = _isConnected ? 'Connected' : 'Connection failed';
       setLoading(false);

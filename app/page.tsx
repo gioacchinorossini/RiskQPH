@@ -1,8 +1,13 @@
+'use client';
+
+import { useState } from "react";
 import MapWrapper from "../components/MapWrapper";
 
 export default function Home() {
+  const [showBarangays, setShowBarangays] = useState(true);
+
   return (
-    <div className="flex min-h-screen flex-col bg-white dark:bg-black font-sans antialiased Selection:bg-zinc-900 selection:text-white">
+    <div className="flex min-h-screen flex-col bg-white dark:bg-black font-sans antialiased selection:bg-zinc-900 selection:text-white">
       <header className="fixed top-0 z-50 w-full border-b border-zinc-200 bg-white/80 dark:bg-black/80 backdrop-blur-md dark:border-zinc-800">
         <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
           <div className="flex items-center gap-2">
@@ -94,13 +99,22 @@ export default function Home() {
                 <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">Organized Shelters</span>
               </label>
               <label className="flex items-center gap-3 cursor-pointer">
+                <input 
+                  type="checkbox" 
+                  checked={showBarangays}
+                  onChange={(e) => setShowBarangays(e.target.checked)}
+                  className="h-4 w-4 rounded border-zinc-300 accent-red-600" 
+                />
+                <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">Barangay Boundaries</span>
+              </label>
+              <label className="flex items-center gap-3 cursor-pointer">
                 <input type="checkbox" className="h-4 w-4 rounded border-zinc-300 accent-red-600" />
                 <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">Real-time Traffic</span>
               </label>
             </div>
           </div>
           
-          <MapWrapper />
+          <MapWrapper showBarangays={showBarangays} />
           
           <div className="absolute bottom-6 left-6 z-40 bg-red-600 text-white px-4 py-2 rounded-full shadow-lg text-xs font-bold animate-pulse">
             LIVE SIGNAL: Regional Monitoring Active

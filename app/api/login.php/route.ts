@@ -28,12 +28,12 @@ export async function POST(req: NextRequest) {
 
     const responseUser = {
       id: user.id,
-      name: user.name,
       email: user.email,
-      studentId: user.studentId,
-      yearLevel: user.yearLevel,
-      department: user.department,
-      course: user.course,
+      firstName: user.firstName,
+      lastName: user.lastName,
+      middleName: user.middleName,
+      barangay: user.barangay,
+      address: user.address,
       gender: user.gender,
       birthdate: user.birthdate ? user.birthdate.toISOString().slice(0, 10) : null,
       role: user.role,

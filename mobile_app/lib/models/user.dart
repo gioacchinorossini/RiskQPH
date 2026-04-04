@@ -1,9 +1,13 @@
-enum UserRole { student, admin, officer }
+enum UserRole { student, admin, officer, resident, barangay_head, responder }
 
 class User {
   final String id;
-  final String? name;
+  final String? firstName;
+  final String? lastName;
+  final String? middleName;
   final String email;
+  final String? barangay;
+  final String? address;
   final String? studentId;
   final String? yearLevel;
   final String? department;
@@ -14,10 +18,16 @@ class User {
   final DateTime createdAt;
   final DateTime updatedAt;
 
+  String get name => '${firstName ?? ""} ${lastName ?? ""}'.trim();
+
   User({
     required this.id,
-    this.name,
+    this.firstName,
+    this.lastName,
+    this.middleName,
     required this.email,
+    this.barangay,
+    this.address,
     this.studentId,
     this.yearLevel,
     this.department,
@@ -32,8 +42,12 @@ class User {
   factory User.fromJson(Map<String, dynamic> json) {
     return User(
       id: json['id'],
-      name: json['name'],
+      firstName: json['firstName'],
+      lastName: json['lastName'],
+      middleName: json['middleName'],
       email: json['email'],
+      barangay: json['barangay'],
+      address: json['address'],
       studentId: json['studentId'],
       yearLevel: json['yearLevel'],
       department: json['department'],
@@ -44,7 +58,7 @@ class User {
           : null,
       role: UserRole.values.firstWhere(
         (role) => role.toString().split('.').last == json['role'],
-        orElse: () => UserRole.student,
+        orElse: () => UserRole.resident,
       ),
       createdAt: DateTime.parse(json['createdAt']),
       updatedAt: DateTime.parse(json['updatedAt'] ?? json['createdAt']),
@@ -54,8 +68,12 @@ class User {
   Map<String, dynamic> toJson() {
     return {
       'id': id,
-      'name': name,
+      'firstName': firstName,
+      'lastName': lastName,
+      'middleName': middleName,
       'email': email,
+      'barangay': barangay,
+      'address': address,
       'studentId': studentId,
       'yearLevel': yearLevel,
       'department': department,
@@ -70,8 +88,12 @@ class User {
 
   User copyWith({
     String? id,
-    String? name,
+    String? firstName,
+    String? lastName,
+    String? middleName,
     String? email,
+    String? barangay,
+    String? address,
     String? studentId,
     String? yearLevel,
     String? department,
@@ -84,8 +106,12 @@ class User {
   }) {
     return User(
       id: id ?? this.id,
-      name: name ?? this.name,
+      firstName: firstName ?? this.firstName,
+      lastName: lastName ?? this.lastName,
+      middleName: middleName ?? this.middleName,
       email: email ?? this.email,
+      barangay: barangay ?? this.barangay,
+      address: address ?? this.address,
       studentId: studentId ?? this.studentId,
       yearLevel: yearLevel ?? this.yearLevel,
       department: department ?? this.department,

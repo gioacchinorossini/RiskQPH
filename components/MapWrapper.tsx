@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 
-const Map = dynamic(() => import("./Map"), {
+const Map = dynamic< { showBarangays?: boolean }>(() => import("./Map"), {
   ssr: false,
   loading: () => <div className="map-container flex items-center justify-center bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
     <div className="flex flex-col items-center gap-2">
@@ -12,8 +12,8 @@ const Map = dynamic(() => import("./Map"), {
   </div>
 });
 
-const MapWrapper = () => {
-  return <Map />;
+const MapWrapper = ({ showBarangays }: { showBarangays?: boolean }) => {
+  return <Map showBarangays={showBarangays} />;
 };
 
 export default MapWrapper;

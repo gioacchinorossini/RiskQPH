@@ -15,11 +15,11 @@ import '../../utils/theme.dart';
 import 'qr_code_screen.dart';
 import 'attendance_history_screen.dart';
 import 'take_survey_screen.dart';
-import '../common/calendar_events_screen.dart';
 import '../common/hazard_map_screen.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import 'edit_profile_screen.dart';
 
 class StudentDashboard extends StatefulWidget {
   const StudentDashboard({super.key});
@@ -257,7 +257,13 @@ class _StudentDashboardState extends State<StudentDashboard> {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
-        actions: [],
+        title: const Text('RiskQPH', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.logout, color: Colors.white),
+            onPressed: _handleLogout,
+          ),
+        ],
       ),
       body: Stack(
         children: [
@@ -403,7 +409,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                user?.yearLevel ?? 'N/A',
+                                user?.barangay != null ? 'Brgy. ${user!.barangay}' : 'N/A',
                                 style: TextStyle(
                                   color: AppTheme.primaryColor.withOpacity(0.8),
                                   fontSize: is600PLUS ? 16 : 12,
@@ -467,7 +473,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
                   opacity: (1 - (_scrollOffset / 200)).clamp(0, 1),
                   child: Center(
                     child: Text(
-                      user?.yearLevel ?? 'N/A',
+                      user?.barangay != null ? 'Brgy. ${user!.barangay}' : 'N/A',
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.9),
                         fontSize: is600PLUS ? 24 : 18,
@@ -710,14 +716,13 @@ class _StudentDashboardState extends State<StudentDashboard> {
                           onTap: () {},
                         ),
                         _buildQuickActionItem(
-                          icon: Icons.map_outlined,
-                          label: 'Full Map',
+                          icon: Icons.edit_note,
+                          label: 'Edit Profile',
                           color: Colors.blue,
                           onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const HazardMapScreen(),
-                              ),
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => const EditProfileScreen()),
                             );
                           },
                         ),
@@ -744,15 +749,11 @@ class _StudentDashboardState extends State<StudentDashboard> {
                           },
                         ),
                         _buildQuickActionItem(
-                          icon: Icons.calendar_month_outlined,
-                          label: 'Events',
+                          icon: Icons.person_add_outlined,
+                          label: 'Add Family',
                           color: Colors.indigo,
                           onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => const CalendarEventsScreen(),
-                              ),
-                            );
+                            // Navigate to Add Family or handle action
                           },
                         ),
                       ],
@@ -763,9 +764,9 @@ class _StudentDashboardState extends State<StudentDashboard> {
               const SizedBox(height: 16),
               Text(
                 'Live Hazard Monitoring',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
               ),
               const SizedBox(height: 12),
               GestureDetector(
@@ -946,9 +947,9 @@ class _StudentDashboardState extends State<StudentDashboard> {
               const SizedBox(height: 24),
               Text(
                 'Available Events',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
               ),
               Text(
                 'Upcoming and ongoing events (sorted by latest created)',
@@ -991,9 +992,9 @@ class _StudentDashboardState extends State<StudentDashboard> {
               const SizedBox(height: 24),
               Text(
                 'Past Events',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.bold,
+                    ),
               ),
               Text(
                 'Sorted by latest created',

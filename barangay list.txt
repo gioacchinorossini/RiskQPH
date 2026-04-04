@@ -1,0 +1,601 @@
+Abuanan, Bago
+Alianza, Bago
+Atipuluan, Bago
+Bacong-Montilla, Bago
+Bagroy, Bago
+Balingasag, Bago
+Binubuhan, Bago
+Busay, Bago
+Calumangan, Bago
+Caridad, Bago
+Dulao, Bago
+Ilijan, Bago
+Jorge L. Araneta, Bago
+Lag-asan, Bago
+Ma-ao Barrio, Bago
+Mailum, Bago
+Malingin, Bago
+Napoles, Bago
+Pacol, Bago
+Poblacion, Bago
+Sagasa, Bago
+Sampinit, Bago
+Tabunan, Bago
+Taloc, Bago
+Amontay, Binalbagan
+Bagroy, Binalbagan
+Bi-ao, Binalbagan
+Canmoros, Binalbagan
+Enclaro, Binalbagan
+Marina, Binalbagan
+Paglaum, Binalbagan
+Payao, Binalbagan
+Progreso, Binalbagan
+San Jose, Binalbagan
+San Juan, Binalbagan
+San Pedro, Binalbagan
+San Teodoro, Binalbagan
+San Vicente, Binalbagan
+Santo Rosario, Binalbagan
+Santol, Binalbagan
+Andres Bonifacio, Cadiz
+Banquerohan, Cadiz
+Barangay 1 Poblacion, Cadiz
+Barangay 2 Poblacion, Cadiz
+Barangay 3 Poblacion, Cadiz
+Barangay 4 Poblacion, Cadiz
+Barangay 5 Poblacion, Cadiz
+Barangay 6 Poblacion, Cadiz
+Burgos, Cadiz
+Cabahug, Cadiz
+Cadiz Viejo, Cadiz
+Caduha-an, Cadiz
+Celestino Villacin, Cadiz
+Daga, Cadiz
+Jerusalem, Cadiz
+Luna, Cadiz
+Mabini, Cadiz
+Magsaysay, Cadiz
+Sicaba, Cadiz
+Tiglawigan, Cadiz
+Tinampa-an, Cadiz
+V. F. Gustilo, Cadiz
+Agpangi, Calatrava
+Ani-e, Calatrava
+Bagacay, Calatrava
+Bantayanon, Calatrava
+Buenavista, Calatrava
+Cabungahan, Calatrava
+Calampisawan, Calatrava
+Cambayobo, Calatrava
+Castellano, Calatrava
+Cruz, Calatrava
+Dolis, Calatrava
+Hilub-ang, Calatrava
+Hinab-ongan, Calatrava
+Ilaya, Calatrava
+Laga-an, Calatrava
+Lalong, Calatrava
+Lemery, Calatrava
+Lipat-on, Calatrava
+Lo-ok, Calatrava
+Ma-aslob, Calatrava
+Macasilao, Calatrava
+Mahilum, Calatrava
+Malanog, Calatrava
+Malatas, Calatrava
+Marcelo, Calatrava
+Menchaca, Calatrava
+Mina-utok, Calatrava
+Minapasuk, Calatrava
+Paghumayan, Calatrava
+Pantao, Calatrava
+Patun-an, Calatrava
+Pinocutan, Calatrava
+Refugio, Calatrava
+San Benito, Calatrava
+San Isidro, Calatrava
+Suba, Calatrava
+Telim, Calatrava
+Tigbao, Calatrava
+Tigbon, Calatrava
+Winaswasan, Calatrava
+Agboy, Candoni
+Banga, Candoni
+Cabia-an, Candoni
+Caningay, Candoni
+Gatuslao, Candoni
+Haba, Candoni
+Payauan, Candoni
+Poblacion East, Candoni
+Poblacion West, Candoni
+Abaca, Cauayan
+Baclao, Cauayan
+Basak, Cauayan
+Bulata, Cauayan
+Caliling, Cauayan
+Camalanda-an, Cauayan
+Camindangan, Cauayan
+Elihan, Cauayan
+Guiljungan, Cauayan
+Inayawan, Cauayan
+Isio, Cauayan
+Linaon, Cauayan
+Lumbia, Cauayan
+Mambugsay, Cauayan
+Man-Uling, Cauayan
+Masaling, Cauayan
+Molobolo, Cauayan
+Poblacion, Cauayan
+Sura, Cauayan
+Talacdan, Cauayan
+Tambad, Cauayan
+Tiling, Cauayan
+Tomina, Cauayan
+Tuyom, Cauayan
+Yao-yao, Cauayan
+Alacaygan, Enrique B. Magalona
+Alicante, Enrique B. Magalona
+Batea, Enrique B. Magalona
+Canlusong, Enrique B. Magalona
+Consing, Enrique B. Magalona
+Cudangdang, Enrique B. Magalona
+Damgo, Enrique B. Magalona
+Gahit, Enrique B. Magalona
+Latasan, Enrique B. Magalona
+Madalag, Enrique B. Magalona
+Manta-angan, Enrique B. Magalona
+Nanca, Enrique B. Magalona
+Pasil, Enrique B. Magalona
+Poblacion I, Enrique B. Magalona
+Poblacion II, Enrique B. Magalona
+Poblacion III, Enrique B. Magalona
+San Isidro, Enrique B. Magalona
+San Jose, Enrique B. Magalona
+Santo Niño, Enrique B. Magalona
+Tabigue, Enrique B. Magalona
+Tanza, Enrique B. Magalona
+Tomongtong, Enrique B. Magalona
+Tuburan, Enrique B. Magalona
+Alimango, Escalante
+Balintawak, Escalante
+Binaguiohan, Escalante
+Buenavista, Escalante
+Cervantes, Escalante
+Dian-ay, Escalante
+Hacienda Fe, Escalante
+Japitan, Escalante
+Jonobjonob, Escalante
+Langub, Escalante
+Libertad, Escalante
+Mabini, Escalante
+Magsaysay, Escalante
+Malasibog, Escalante
+Old Poblacion, Escalante
+Paitan, Escalante
+Pinapugasan, Escalante
+Rizal, Escalante
+Tamlang, Escalante
+Udtongan, Escalante
+Washington, Escalante
+Aguisan, Himamaylan
+Barangay I, Himamaylan
+Barangay II, Himamaylan
+Barangay III, Himamaylan
+Barangay IV, Himamaylan
+Buenavista, Himamaylan
+Cabadiangan, Himamaylan
+Cabanbanan, Himamaylan
+Carabalan, Himamaylan
+Caradio-an, Himamaylan
+Libacao, Himamaylan
+Mahalang, Himamaylan
+Mambagaton, Himamaylan
+Nabali-an, Himamaylan
+San Antonio, Himamaylan
+Sara-et, Himamaylan
+Su-ay, Himamaylan
+Talaban, Himamaylan
+To-oy, Himamaylan
+Anahaw, Hinigaran
+Aranda, Hinigaran
+Baga-as, Hinigaran
+Barangay I, Hinigaran
+Barangay II, Hinigaran
+Barangay III, Hinigaran
+Barangay IV, Hinigaran
+Bato, Hinigaran
+Calapi, Hinigaran
+Camalobalo, Hinigaran
+Camba-og, Hinigaran
+Cambugsa, Hinigaran
+Candumarao, Hinigaran
+Gargato, Hinigaran
+Himaya, Hinigaran
+Miranda, Hinigaran
+Nanunga, Hinigaran
+Narauis, Hinigaran
+Palayog, Hinigaran
+Paticui, Hinigaran
+Pilar, Hinigaran
+Quiwi, Hinigaran
+Tagda, Hinigaran
+Tuguis, Hinigaran
+Alim, Hinoba-an
+Asia, Hinoba-an
+Bacuyangan, Hinoba-an
+Barangay I, Hinoba-an
+Barangay II, Hinoba-an
+Bulwangan, Hinoba-an
+Culipapa, Hinoba-an
+Damutan, Hinoba-an
+Daug, Hinoba-an
+Po-ok, Hinoba-an
+San Rafael, Hinoba-an
+Sangke, Hinoba-an
+Talacagay, Hinoba-an
+Andulauan, Ilog
+Balicotoc, Ilog
+Barangay I, Ilog
+Barangay II, Ilog
+Bocana, Ilog
+Calubang, Ilog
+Canlamay, Ilog
+Consuelo, Ilog
+Dancalan, Ilog
+Delicioso, Ilog
+Galicia, Ilog
+Manalad, Ilog
+Pinggot, Ilog
+Tabu, Ilog
+Vista Alegre, Ilog
+Amin, Isabela
+Banogbanog, Isabela
+Barangay 1, Isabela
+Barangay 2, Isabela
+Barangay 3, Isabela
+Barangay 4, Isabela
+Barangay 5, Isabela
+Barangay 6, Isabela
+Barangay 7, Isabela
+Barangay 8, Isabela
+Barangay 9, Isabela
+Bulad, Isabela
+Bungahin, Isabela
+Cabcab, Isabela
+Camangcamang, Isabela
+Camp Clark, Isabela
+Cansalongon, Isabela
+Guintubhan, Isabela
+Libas, Isabela
+Limalima, Isabela
+Makilignit, Isabela
+Mansablay, Isabela
+Maytubig, Isabela
+Panaquiao, Isabela
+Riverside, Isabela
+Rumirang, Isabela
+San Agustin, Isabela
+Sebucawan, Isabela
+Sikatuna, Isabela
+Tinongan, Isabela
+Bantayan, Kabankalan
+Barangay 1, Kabankalan
+Barangay 2, Kabankalan
+Barangay 3, Kabankalan
+Barangay 4, Kabankalan
+Barangay 5, Kabankalan
+Barangay 6, Kabankalan
+Barangay 7, Kabankalan
+Barangay 8, Kabankalan
+Barangay 9, Kabankalan
+Binicuil, Kabankalan
+Camansi, Kabankalan
+Camingawan, Kabankalan
+Camugao, Kabankalan
+Carol-an, Kabankalan
+Daan Banua, Kabankalan
+Hilamonan, Kabankalan
+Inapoy, Kabankalan
+Linao, Kabankalan
+Locotan, Kabankalan
+Magballo, Kabankalan
+Oringao, Kabankalan
+Orong, Kabankalan
+Pinaguinpinan, Kabankalan
+Salong, Kabankalan
+Tabugon, Kabankalan
+Tagoc, Kabankalan
+Tagukon, Kabankalan
+Talubangi, Kabankalan
+Tampalon, Kabankalan
+Tan-awan, Kabankalan
+Tapi, Kabankalan
+Ara-al, La Carlota
+Ayungon, La Carlota
+Balabag, La Carlota
+Barangay I, La Carlota
+Barangay II, La Carlota
+Barangay III, La Carlota
+Batuan, La Carlota
+Cubay, La Carlota
+Haguimit, La Carlota
+La Granja, La Carlota
+Nagasi, La Carlota
+Roberto S. Benedicto, La Carlota
+San Miguel, La Carlota
+Yubo, La Carlota
+Biaknabato, La Castellana
+Cabacungan, La Castellana
+Cabagnaan, La Castellana
+Camandag, La Castellana
+Lalagsan, La Castellana
+Manghanoy, La Castellana
+Mansalanao, La Castellana
+Masulog, La Castellana
+Nato, La Castellana
+Puso, La Castellana
+Robles, La Castellana
+Sag-ang, La Castellana
+Talaptap, La Castellana
+Barangay I, Manapla
+Barangay I-A, Manapla
+Barangay I-B, Manapla
+Barangay II, Manapla
+Barangay II-A, Manapla
+Chambery, Manapla
+Punta Mesa, Manapla
+Punta Salong, Manapla
+Purisima, Manapla
+San Pablo, Manapla
+Santa Teresa, Manapla
+Tortosa, Manapla
+Barangay 1, Moises Padilla
+Barangay 2, Moises Padilla
+Barangay 3, Moises Padilla
+Barangay 4, Moises Padilla
+Barangay 5, Moises Padilla
+Barangay 6, Moises Padilla
+Barangay 7, Moises Padilla
+Crossing Magallon, Moises Padilla
+Guinpana-an, Moises Padilla
+Inolingan, Moises Padilla
+Macagahay, Moises Padilla
+Magallon Cadre, Moises Padilla
+Montilla, Moises Padilla
+Odiong, Moises Padilla
+Quintin Remo, Moises Padilla
+Abo-abo, Murcia
+Alegria, Murcia
+Amayco, Murcia
+Blumentritt, Murcia
+Buenavista, Murcia
+Caliban, Murcia
+Canlandog, Murcia
+Cansilayan, Murcia
+Damsite, Murcia
+Iglau-an, Murcia
+Lopez Jaena, Murcia
+Minoyan, Murcia
+Pandanon, Murcia
+Salvacion, Murcia
+San Miguel, Murcia
+Santa Cruz, Murcia
+Santa Rosa, Murcia
+Talotog, Murcia
+Zone I, Murcia
+Zone II, Murcia
+Zone III, Murcia
+Zone IV, Murcia
+Zone V, Murcia
+Antipolo, Pontevedra
+Barangay I, Pontevedra
+Barangay II, Pontevedra
+Barangay III, Pontevedra
+Buenavista Gibong, Pontevedra
+Buenavista Rizal, Pontevedra
+Burgos, Pontevedra
+Cambarus, Pontevedra
+Canroma, Pontevedra
+Don Salvador Benedicto, Pontevedra
+General Malvar, Pontevedra
+Gomez, Pontevedra
+M. H. del Pilar, Pontevedra
+Mabini, Pontevedra
+Miranda, Pontevedra
+Pandan, Pontevedra
+Recreo, Pontevedra
+San Isidro, Pontevedra
+San Juan, Pontevedra
+Zamora, Pontevedra
+Barangay Zone 1, Pulupandan
+Barangay Zone 1-A, Pulupandan
+Barangay Zone 2, Pulupandan
+Barangay Zone 3, Pulupandan
+Barangay Zone 4, Pulupandan
+Barangay Zone 4-A, Pulupandan
+Barangay Zone 5, Pulupandan
+Barangay Zone 6, Pulupandan
+Barangay Zone 7, Pulupandan
+Canjusa, Pulupandan
+Crossing Pulupandan, Pulupandan
+Culo, Pulupandan
+Mabini, Pulupandan
+Pag-ayon, Pulupandan
+Palaka Norte, Pulupandan
+Palaka Sur, Pulupandan
+Patic, Pulupandan
+Tapong, Pulupandan
+Ubay, Pulupandan
+Utod, Pulupandan
+Andres Bonifacio, Sagay
+Bato, Sagay
+Baviera, Sagay
+Bulanon, Sagay
+Campo Himoga-an, Sagay
+Campo Santiago, Sagay
+Colonia Divina, Sagay
+Fabrica, Sagay
+General Luna, Sagay
+Himoga-an Baybay, Sagay
+Lopez Jaena, Sagay
+Makiling, Sagay
+Malubon, Sagay
+Molocaboc, Sagay
+Old Sagay, Sagay
+Paraiso, Sagay
+Plaridel, Sagay
+Poblacion I, Sagay
+Poblacion II, Sagay
+Puey, Sagay
+Rafaela Barrera, Sagay
+Rizal, Sagay
+Taba-ao, Sagay
+Tadlong, Sagay
+Vito, Sagay
+Bago, Salvador Benedicto
+Bagong Silang, Salvador Benedicto
+Bunga, Salvador Benedicto
+Igmaya-an, Salvador Benedicto
+Kumaliskis, Salvador Benedicto
+Pandanon, Salvador Benedicto
+Pinowayan, Salvador Benedicto
+Bagonbon, San Carlos
+Barangay I, San Carlos
+Barangay II, San Carlos
+Barangay III, San Carlos
+Barangay IV, San Carlos
+Barangay V, San Carlos
+Barangay VI, San Carlos
+Buluangan, San Carlos
+Codcod, San Carlos
+Ermita, San Carlos
+Guadalupe, San Carlos
+Nataban, San Carlos
+Palampas, San Carlos
+Prosperidad, San Carlos
+Punao, San Carlos
+Quezon, San Carlos
+Rizal, San Carlos
+San Juan, San Carlos
+Bagonawa, San Enrique
+Baliwagan, San Enrique
+Batuan, San Enrique
+Guintorilan, San Enrique
+Nayon, San Enrique
+Poblacion, San Enrique
+Sibucao, San Enrique
+Tabao Baybay, San Enrique
+Tabao Rizal, San Enrique
+Tibsoc, San Enrique
+Bagtic, Silay
+Balaring, Silay
+Barangay I, Silay
+Barangay II, Silay
+Barangay III, Silay
+Barangay IV, Silay
+Barangay V, Silay
+Barangay VI Poblacion, Silay
+Eustaquio Lopez, Silay
+Guimbala-on, Silay
+Guinhalaran, Silay
+Kapitan Ramon, Silay
+Lantad, Silay
+Mambulac, Silay
+Patag, Silay
+Rizal, Silay
+Barangay 1, Sipalay
+Barangay 2, Sipalay
+Barangay 3, Sipalay
+Barangay 4, Sipalay
+Barangay 5, Sipalay
+Cabadiangan, Sipalay
+Camindangan, Sipalay
+Canturay, Sipalay
+Cartagena, Sipalay
+Cayhagan, Sipalay
+Gil Montilla, Sipalay
+Mambaroto, Sipalay
+Manlucahoc, Sipalay
+Maricalum, Sipalay
+Nabulao, Sipalay
+Nauhang, Sipalay
+San Jose, Sipalay
+Bubog, Talisay
+Cabatangan, Talisay
+Concepcion, Talisay
+Dos Hermanas, Talisay
+Efigenio Lizares, Talisay
+Katilingban, Talisay
+Matab-ang, Talisay
+San Fernando, Talisay
+Zone 1, Talisay
+Zone 10, Talisay
+Zone 11, Talisay
+Zone 12, Talisay
+Zone 12-A, Talisay
+Zone 14, Talisay
+Zone 14-A, Talisay
+Zone 14-B, Talisay
+Zone 15, Talisay
+Zone 16, Talisay
+Zone 2, Talisay
+Zone 3, Talisay
+Zone 4, Talisay
+Zone 4-A, Talisay
+Zone 5, Talisay
+Zone 6, Talisay
+Zone 7, Talisay
+Zone 8, Talisay
+Zone 9, Talisay
+Bandila, Toboso
+Bug-ang, Toboso
+General Luna, Toboso
+Magticol, Toboso
+Poblacion, Toboso
+Salamanca, Toboso
+San Isidro, Toboso
+San Jose, Toboso
+Tabun-ac, Toboso
+Alijis, Valladolid
+Ayungon, Valladolid
+Bagumbayan, Valladolid
+Batuan, Valladolid
+Bayabas, Valladolid
+Central Tabao, Valladolid
+Doldol, Valladolid
+Guintorilan, Valladolid
+Lacaron, Valladolid
+Mabini, Valladolid
+Pacol, Valladolid
+Palaka, Valladolid
+Paloma, Valladolid
+Poblacion, Valladolid
+Sagua Banua, Valladolid
+Tabao Proper, Valladolid
+Barangay I, Victorias
+Barangay II, Victorias
+Barangay III, Victorias
+Barangay IV, Victorias
+Barangay IX, Victorias
+Barangay V, Victorias
+Barangay VI, Victorias
+Barangay VI-A, Victorias
+Barangay VII, Victorias
+Barangay VIII, Victorias
+Barangay X, Victorias
+Barangay XI, Victorias
+Barangay XII, Victorias
+Barangay XIII, Victorias
+Barangay XIV, Victorias
+Barangay XIX, Victorias
+Barangay XIX-A, Victorias
+Barangay XV, Victorias
+Barangay XV-A, Victorias
+Barangay XVI, Victorias
+Barangay XVI-A, Victorias
+Barangay XVII, Victorias
+Barangay XVIII, Victorias
+Barangay XVIII-A, Victorias
+Barangay XX, Victorias
+Barangay XXI, Victorias
