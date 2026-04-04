@@ -12,9 +12,7 @@ import '../../providers/survey_provider.dart';
 import '../../models/user.dart';
 import '../../models/event.dart';
 import '../../utils/theme.dart';
-import '../../widgets/offline_indicator.dart';
 import 'qr_code_screen.dart';
-import 'offline_qr_code_screen.dart';
 import 'attendance_history_screen.dart';
 import 'take_survey_screen.dart';
 import '../common/calendar_events_screen.dart';
@@ -48,7 +46,8 @@ class _StudentDashboardState extends State<StudentDashboard> {
         if (mounted) {
           setState(() {
             _scrollOffset = _scrollController.offset;
-            final double collapseThreshold = MediaQuery.of(context).size.height * 1;
+            final double collapseThreshold =
+                MediaQuery.of(context).size.height * 1;
             if (_scrollOffset >= collapseThreshold && !_hasBeenCollapsed) {
               _hasBeenCollapsed = true;
               WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -82,7 +81,8 @@ class _StudentDashboardState extends State<StudentDashboard> {
   Future<void> _determinePreviewPosition() async {
     try {
       final permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.always || permission == LocationPermission.whileInUse) {
+      if (permission == LocationPermission.always ||
+          permission == LocationPermission.whileInUse) {
         Position pos = await Geolocator.getCurrentPosition();
         if (mounted) {
           setState(() {
@@ -167,15 +167,25 @@ class _StudentDashboardState extends State<StudentDashboard> {
       qrSize = finalCollapsedSize;
     } else {
       if (is600PLUS) {
-        qrSize = maxQrSize - (_scrollOffset * 0.4).clamp(0, maxQrSize - finalCollapsedSize);
+        qrSize =
+            maxQrSize -
+            (_scrollOffset * 0.4).clamp(0, maxQrSize - finalCollapsedSize);
       } else if (is500PLUS) {
-        qrSize = maxQrSize - (_scrollOffset * 0.35).clamp(0, maxQrSize - finalCollapsedSize);
+        qrSize =
+            maxQrSize -
+            (_scrollOffset * 0.35).clamp(0, maxQrSize - finalCollapsedSize);
       } else if (is300PLUS) {
-        qrSize = maxQrSize - (_scrollOffset * 0.3).clamp(0, maxQrSize - finalCollapsedSize);
+        qrSize =
+            maxQrSize -
+            (_scrollOffset * 0.3).clamp(0, maxQrSize - finalCollapsedSize);
       } else if (is700PLUS) {
-        qrSize = maxQrSize - (_scrollOffset * 0.25).clamp(0, maxQrSize - finalCollapsedSize);
+        qrSize =
+            maxQrSize -
+            (_scrollOffset * 0.25).clamp(0, maxQrSize - finalCollapsedSize);
       } else {
-        qrSize = maxQrSize - (_scrollOffset * 0.3).clamp(0, maxQrSize - finalCollapsedSize);
+        qrSize =
+            maxQrSize -
+            (_scrollOffset * 0.3).clamp(0, maxQrSize - finalCollapsedSize);
       }
     }
     double startingTopPosition;
@@ -211,12 +221,15 @@ class _StudentDashboardState extends State<StudentDashboard> {
       startingTopPosition = (screenHeight * 0.50).clamp(100, 150);
     }
     final double collapsedHeight = MediaQuery.of(context).size.height * 0.15;
-    final double maxUpwardMovement = startingTopPosition - (collapsedHeight * 0.1);
+    final double maxUpwardMovement =
+        startingTopPosition - (collapsedHeight * 0.1);
     double qrTopPosition;
     if (_hasBeenCollapsed) {
       qrTopPosition = collapsedHeight * 0.1;
     } else {
-      qrTopPosition = startingTopPosition - (_scrollOffset * 0.3).clamp(0, maxUpwardMovement);
+      qrTopPosition =
+          startingTopPosition -
+          (_scrollOffset * 0.3).clamp(0, maxUpwardMovement);
     }
     final double maxScrollForLeftTransition = 300.0;
     final double centeredExpandedLeft = (screenWidth - qrSize) / 2;
@@ -233,31 +246,36 @@ class _StudentDashboardState extends State<StudentDashboard> {
       qrHorizontalPosition = finalLeftPosition;
     } else if (_scrollOffset <= maxScrollForLeftTransition) {
       double t = _scrollOffset / maxScrollForLeftTransition;
-      qrHorizontalPosition = centeredExpandedLeft * (1 - t) + finalLeftPosition * t;
+      qrHorizontalPosition =
+          centeredExpandedLeft * (1 - t) + finalLeftPosition * t;
     } else {
       qrHorizontalPosition = finalLeftPosition;
     }
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Student Dashboard'),
         backgroundColor: AppTheme.primaryColor,
         elevation: 0,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.offline_bolt),
-            onPressed: () => _showOfflineQRCode(),
-            tooltip: 'Offline QR Code',
-          ),
-        ],
+        scrolledUnderElevation: 0,
+        centerTitle: true,
+        actions: [],
       ),
       body: Stack(
         children: [
           RefreshIndicator(
             onRefresh: () async {
-              final authProvider = Provider.of<AuthProvider>(context, listen: false);
+              final authProvider = Provider.of<AuthProvider>(
+                context,
+                listen: false,
+              );
               final isConnected = await authProvider.testConnection();
-              final eventProvider = Provider.of<EventProvider>(context, listen: false);
-              final attendanceProvider = Provider.of<AttendanceProvider>(context, listen: false);
+              final eventProvider = Provider.of<EventProvider>(
+                context,
+                listen: false,
+              );
+              final attendanceProvider = Provider.of<AttendanceProvider>(
+                context,
+                listen: false,
+              );
               if (isConnected) {
                 await Future.wait([
                   eventProvider.loadEvents(),
@@ -276,8 +294,8 @@ class _StudentDashboardState extends State<StudentDashboard> {
               slivers: [
                 SliverAppBar(
                   expandedHeight: _hasBeenCollapsed
-                    ? MediaQuery.of(context).size.height * 0.15
-                    : MediaQuery.of(context).size.height * 1.0,
+                      ? MediaQuery.of(context).size.height * 0.15
+                      : MediaQuery.of(context).size.height * 1.0,
                   collapsedHeight: MediaQuery.of(context).size.height * 0.15,
                   pinned: true,
                   floating: false,
@@ -296,7 +314,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
                     color: Colors.transparent,
                   ),
                 ),
-                if (_selectedIndex == 0) _buildEventsSliver(), 
+                if (_selectedIndex == 0) _buildEventsSliver(),
                 if (_selectedIndex == 1) _buildAttendanceHistorySliver(),
                 if (_selectedIndex == 2) _buildProfileSliver(user),
               ],
@@ -345,7 +363,9 @@ class _StudentDashboardState extends State<StudentDashboard> {
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 100),
               height: qrSize,
-              width: (_scrollOffset > 200 || _hasBeenCollapsed) ? screenWidth - (is600PLUS ? 160 : 80) : qrSize,
+              width: (_scrollOffset > 200 || _hasBeenCollapsed)
+                  ? screenWidth - (is600PLUS ? 160 : 80)
+                  : qrSize,
               decoration: BoxDecoration(
                 color: Colors.white,
                 borderRadius: BorderRadius.circular(16),
@@ -357,57 +377,60 @@ class _StudentDashboardState extends State<StudentDashboard> {
                   ),
                 ],
               ),
-              child: (_scrollOffset > 200 || _hasBeenCollapsed) 
-                ? Row(
-                    children: [
-                      SizedBox(
-                        width: qrSize,
-                        child: Center(
-                          child: _buildOfflineQRCode(user, qrSize * 0.9),
+              child: (_scrollOffset > 200 || _hasBeenCollapsed)
+                  ? Row(
+                      children: [
+                        SizedBox(
+                          width: qrSize,
+                          child: Center(
+                            child: _buildOfflineQRCode(user, qrSize * 0.9),
+                          ),
                         ),
-                      ),
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              user?.name ?? 'Student Name',
-                              style: TextStyle(
-                                color: AppTheme.primaryColor,
-                                fontSize: is600PLUS ? 20 : 16,
-                                fontWeight: FontWeight.bold,
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                user?.name ?? 'Profile Name',
+                                style: TextStyle(
+                                  color: AppTheme.primaryColor,
+                                  fontSize: is600PLUS ? 20 : 16,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
                               ),
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1,
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              user?.yearLevel ?? 'N/A',
-                              style: TextStyle(
-                                color: AppTheme.primaryColor.withOpacity(0.8),
-                                fontSize: is600PLUS ? 16 : 12,
-                                fontWeight: FontWeight.w500,
+                              const SizedBox(height: 2),
+                              Text(
+                                user?.yearLevel ?? 'N/A',
+                                style: TextStyle(
+                                  color: AppTheme.primaryColor.withOpacity(0.8),
+                                  fontSize: is600PLUS ? 16 : 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 1,
                               ),
-                              overflow: TextOverflow.ellipsis,
-                              maxLines: 1,
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
-                  )
-                : Center(
-                    child: _buildOfflineQRCode(user, qrSize * 0.9),
-                  ),
+                      ],
+                    )
+                  : Center(child: _buildOfflineQRCode(user, qrSize * 0.9)),
             ),
           ),
           if (_scrollOffset <= 200 && !_hasBeenCollapsed) ...[
             Positioned(
-              top: (qrTopPosition + qrSize + 20 - (_scrollOffset * 0.3).clamp(0, 40)).clamp(
-                collapsedHeight * 0.1,
-                startingTopPosition + qrSize + 20
-              ),
+              top:
+                  (qrTopPosition +
+                          qrSize +
+                          20 -
+                          (_scrollOffset * 0.3).clamp(0, 40))
+                      .clamp(
+                        collapsedHeight * 0.1,
+                        startingTopPosition + qrSize + 20,
+                      ),
               left: 0,
               right: 0,
               child: AnimatedOpacity(
@@ -428,10 +451,15 @@ class _StudentDashboardState extends State<StudentDashboard> {
             ),
             if (_scrollOffset <= 200 && !_hasBeenCollapsed) ...[
               Positioned(
-                top: (qrTopPosition + qrSize + 60 - (_scrollOffset * 0.3).clamp(0, 40)).clamp(
-                  collapsedHeight * 0.3,
-                  startingTopPosition + qrSize + 60
-                ),
+                top:
+                    (qrTopPosition +
+                            qrSize +
+                            60 -
+                            (_scrollOffset * 0.3).clamp(0, 40))
+                        .clamp(
+                          collapsedHeight * 0.3,
+                          startingTopPosition + qrSize + 60,
+                        ),
                 left: 0,
                 right: 0,
                 child: AnimatedOpacity(
@@ -470,9 +498,15 @@ class _StudentDashboardState extends State<StudentDashboard> {
                         AnimatedContainer(
                           duration: const Duration(milliseconds: 1500),
                           transform: Matrix4.translationValues(
-                            0, 
-                            _scrollOffset < 10 ? (DateTime.now().millisecondsSinceEpoch % 3000 < 1500 ? -8 : 0) : 0, 
-                            0
+                            0,
+                            _scrollOffset < 10
+                                ? (DateTime.now().millisecondsSinceEpoch %
+                                              3000 <
+                                          1500
+                                      ? -8
+                                      : 0)
+                                : 0,
+                            0,
                           ),
                           child: Container(
                             padding: EdgeInsets.all(qrSize * 0.04),
@@ -575,38 +609,33 @@ class _StudentDashboardState extends State<StudentDashboard> {
           ],
         ],
       ),
-      bottomNavigationBar: (_scrollOffset > 50 || _hasBeenCollapsed) 
-        ? BottomNavigationBar(
-        currentIndex: _selectedIndex,
-        onTap: (index) {
-          setState(() {
-            _selectedIndex = index;
-          });
-        },
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.home),
-            label: 'Home',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.history),
-            label: 'History',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.person),
-            label: 'Profile',
-          ),
-        ],
-          )
-        : null,
+      bottomNavigationBar: (_scrollOffset > 50 || _hasBeenCollapsed)
+          ? BottomNavigationBar(
+              currentIndex: _selectedIndex,
+              onTap: (index) {
+                setState(() {
+                  _selectedIndex = index;
+                });
+              },
+              items: const [
+                BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.history),
+                  label: 'History',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.person),
+                  label: 'Profile',
+                ),
+              ],
+            )
+          : null,
     );
   }
 
   Widget _buildOfflineQRCode(User? user, double size) {
     if (user == null) return Container();
-    final qrPayload = jsonEncode({
-      'studentId': user.id,
-    });
+    final qrPayload = jsonEncode({'studentId': user.id});
     final qrData = base64Encode(utf8.encode(qrPayload));
     return QrImageView(
       data: qrData,
@@ -633,41 +662,10 @@ class _StudentDashboardState extends State<StudentDashboard> {
             delegate: SliverChildListDelegate([
               Consumer<AuthProvider>(
                 builder: (context, auth, child) {
-                  if (auth.isConnected) {
-                    return const SizedBox.shrink();
-                  }
-                  return const OfflineIndicator();
+                  return const SizedBox.shrink();
                 },
               ),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [AppTheme.primaryColor, AppTheme.secondaryColor],
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Welcome Home!',
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      'Stay safe with real-time hazard monitoring',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.white.withOpacity(0.9),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+              const SizedBox(height: 0),
               const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -717,7 +715,9 @@ class _StudentDashboardState extends State<StudentDashboard> {
                           color: Colors.blue,
                           onTap: () {
                             Navigator.of(context).push(
-                              MaterialPageRoute(builder: (_) => const HazardMapScreen()),
+                              MaterialPageRoute(
+                                builder: (_) => const HazardMapScreen(),
+                              ),
                             );
                           },
                         ),
@@ -734,10 +734,14 @@ class _StudentDashboardState extends State<StudentDashboard> {
                           onTap: () {},
                         ),
                         _buildQuickActionItem(
-                          icon: Icons.offline_bolt_outlined,
-                          label: 'Offline',
+                          icon: Icons.history_outlined,
+                          label: 'History',
                           color: Colors.teal,
-                          onTap: _showOfflineQRCode,
+                          onTap: () {
+                            setState(() {
+                              _selectedIndex = 1;
+                            });
+                          },
                         ),
                         _buildQuickActionItem(
                           icon: Icons.calendar_month_outlined,
@@ -745,7 +749,9 @@ class _StudentDashboardState extends State<StudentDashboard> {
                           color: Colors.indigo,
                           onTap: () {
                             Navigator.of(context).push(
-                              MaterialPageRoute(builder: (_) => const CalendarEventsScreen()),
+                              MaterialPageRoute(
+                                builder: (_) => const CalendarEventsScreen(),
+                              ),
                             );
                           },
                         ),
@@ -757,17 +763,15 @@ class _StudentDashboardState extends State<StudentDashboard> {
               const SizedBox(height: 16),
               Text(
                 'Live Hazard Monitoring',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
               GestureDetector(
                 onTap: () {
                   Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const HazardMapScreen(),
-                    ),
+                    MaterialPageRoute(builder: (_) => const HazardMapScreen()),
                   );
                 },
                 child: AspectRatio(
@@ -796,7 +800,8 @@ class _StudentDashboardState extends State<StudentDashboard> {
                             ),
                             children: [
                               TileLayer(
-                                urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                                urlTemplate:
+                                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                                 userAgentPackageName: 'com.example.mobile_app',
                               ),
                               MarkerLayer(
@@ -817,19 +822,31 @@ class _StudentDashboardState extends State<StudentDashboard> {
                                     point: const LatLng(14.5995, 120.9842),
                                     width: 30,
                                     height: 30,
-                                    child: const Icon(Icons.location_on, color: Colors.red, size: 20),
+                                    child: const Icon(
+                                      Icons.location_on,
+                                      color: Colors.red,
+                                      size: 20,
+                                    ),
                                   ),
                                   Marker(
                                     point: const LatLng(10.3157, 123.8854),
                                     width: 30,
                                     height: 30,
-                                    child: const Icon(Icons.location_on, color: Colors.orange, size: 20),
+                                    child: const Icon(
+                                      Icons.location_on,
+                                      color: Colors.orange,
+                                      size: 20,
+                                    ),
                                   ),
                                   Marker(
                                     point: const LatLng(7.0736, 125.6128),
                                     width: 30,
                                     height: 30,
-                                    child: const Icon(Icons.location_on, color: Colors.blue, size: 20),
+                                    child: const Icon(
+                                      Icons.location_on,
+                                      color: Colors.blue,
+                                      size: 20,
+                                    ),
                                   ),
                                 ],
                               ),
@@ -877,7 +894,10 @@ class _StudentDashboardState extends State<StudentDashboard> {
                               ),
                               CircleAvatar(
                                 backgroundColor: Colors.white,
-                                child: Icon(Icons.fullscreen, color: AppTheme.primaryColor),
+                                child: Icon(
+                                  Icons.fullscreen,
+                                  color: AppTheme.primaryColor,
+                                ),
                               ),
                             ],
                           ),
@@ -886,7 +906,10 @@ class _StudentDashboardState extends State<StudentDashboard> {
                           top: 15,
                           right: 15,
                           child: Container(
-                            padding: EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                            padding: EdgeInsets.symmetric(
+                              horizontal: 10,
+                              vertical: 5,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.red,
                               borderRadius: BorderRadius.circular(10),
@@ -904,7 +927,11 @@ class _StudentDashboardState extends State<StudentDashboard> {
                                 SizedBox(width: 5),
                                 Text(
                                   'LIVE',
-                                  style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                  style: TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ],
                             ),
@@ -919,9 +946,9 @@ class _StudentDashboardState extends State<StudentDashboard> {
               const SizedBox(height: 24),
               Text(
                 'Available Events',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
               Text(
                 'Upcoming and ongoing events (sorted by latest created)',
@@ -940,17 +967,12 @@ class _StudentDashboardState extends State<StudentDashboard> {
                   ),
                   child: Column(
                     children: [
-                      Icon(
-                        Icons.event_busy,
-                        size: 48,
-                        color: Colors.grey[400],
-                      ),
+                      Icon(Icons.event_busy, size: 48, color: Colors.grey[400]),
                       const SizedBox(height: 8),
                       Text(
                         'No available events',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: Colors.grey[600],
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(color: Colors.grey[600]),
                       ),
                       const SizedBox(height: 16),
                       Text(
@@ -969,9 +991,9 @@ class _StudentDashboardState extends State<StudentDashboard> {
               const SizedBox(height: 24),
               Text(
                 'Past Events',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.bold),
               ),
               Text(
                 'Sorted by latest created',
@@ -990,17 +1012,12 @@ class _StudentDashboardState extends State<StudentDashboard> {
                   ),
                   child: Column(
                     children: [
-                      Icon(
-                        Icons.history,
-                        size: 48,
-                        color: Colors.grey[400],
-                      ),
+                      Icon(Icons.history, size: 48, color: Colors.grey[400]),
                       const SizedBox(height: 8),
                       Text(
                         'No past events',
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          color: Colors.grey[600],
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(color: Colors.grey[600]),
                       ),
                       const SizedBox(height: 16),
                       Text(
@@ -1094,10 +1111,11 @@ class _StudentDashboardState extends State<StudentDashboard> {
                   const SizedBox(height: 12),
                   _buildInfoRow('Student ID', user?.studentId ?? 'N/A'),
                   _buildInfoRow('Role', 'Student'),
-                  _buildInfoRow('Member Since', 
-                    user?.createdAt != null 
-                      ? DateFormat('MMM dd, yyyy').format(user!.createdAt)
-                      : 'N/A'
+                  _buildInfoRow(
+                    'Member Since',
+                    user?.createdAt != null
+                        ? DateFormat('MMM dd, yyyy').format(user!.createdAt)
+                        : 'N/A',
                   ),
                 ],
               ),
@@ -1109,7 +1127,10 @@ class _StudentDashboardState extends State<StudentDashboard> {
               leading: const Icon(Icons.logout, color: Colors.red),
               title: const Text(
                 'Sign Out',
-                style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold),
+                style: TextStyle(
+                  color: Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               onTap: _handleLogout,
             ),
@@ -1149,12 +1170,18 @@ class _StudentDashboardState extends State<StudentDashboard> {
                           Expanded(
                             child: Text(
                               event.title,
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.w700,
-                                fontSize: (Theme.of(context).textTheme.titleMedium?.fontSize ?? 16) + 2,
-                                height: 1.15,
-                                letterSpacing: 0.2,
-                              ),
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize:
+                                        (Theme.of(
+                                              context,
+                                            ).textTheme.titleMedium?.fontSize ??
+                                            16) +
+                                        2,
+                                    height: 1.15,
+                                    letterSpacing: 0.2,
+                                  ),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -1186,7 +1213,10 @@ class _StudentDashboardState extends State<StudentDashboard> {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: _getEventStatusColor(event),
                     borderRadius: BorderRadius.circular(12),
@@ -1246,7 +1276,6 @@ class _StudentDashboardState extends State<StudentDashboard> {
               ],
             ),
             if (_isEventActive(event)) ...[
-              const SizedBox(height: 16),
               Row(
                 children: [
                   Expanded(
@@ -1254,14 +1283,6 @@ class _StudentDashboardState extends State<StudentDashboard> {
                       onPressed: () => _showQRCode(event),
                       icon: const Icon(Icons.qr_code),
                       label: const Text('Get QR Code'),
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: OutlinedButton.icon(
-                      onPressed: () => _showOfflineQRCode(),
-                      icon: const Icon(Icons.offline_bolt),
-                      label: const Text('Offline Mode'),
                     ),
                   ),
                 ],
@@ -1284,10 +1305,20 @@ class _StudentDashboardState extends State<StudentDashboard> {
           width: double.infinity,
           child: OutlinedButton.icon(
             onPressed: () async {
-              await surveyProvider.loadSurveysForEvent(event.id, userId: userId);
-              final surveys = surveyProvider.surveysForEvent(event.id).where((s) => s.isActive).toList();
+              await surveyProvider.loadSurveysForEvent(
+                event.id,
+                userId: userId,
+              );
+              final surveys = surveyProvider
+                  .surveysForEvent(event.id)
+                  .where((s) => s.isActive)
+                  .toList();
               if (surveys.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('No survey available for this event.')));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('No survey available for this event.'),
+                  ),
+                );
                 return;
               }
               Survey? selected;
@@ -1303,16 +1334,30 @@ class _StudentDashboardState extends State<StudentDashboard> {
                         width: double.maxFinite,
                         child: ListView(
                           shrinkWrap: true,
-                          children: surveys.map((s) => ListTile(
-                            title: Text(s.title),
-                            subtitle: s.hasSubmitted ? const Text('Already submitted') : null,
-                            trailing: s.hasSubmitted ? const Icon(Icons.check, color: AppTheme.successColor) : null,
-                            onTap: () => Navigator.of(ctx).pop(s),
-                          )).toList(),
+                          children: surveys
+                              .map(
+                                (s) => ListTile(
+                                  title: Text(s.title),
+                                  subtitle: s.hasSubmitted
+                                      ? const Text('Already submitted')
+                                      : null,
+                                  trailing: s.hasSubmitted
+                                      ? const Icon(
+                                          Icons.check,
+                                          color: AppTheme.successColor,
+                                        )
+                                      : null,
+                                  onTap: () => Navigator.of(ctx).pop(s),
+                                ),
+                              )
+                              .toList(),
                         ),
                       ),
                       actions: [
-                        TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancel')),
+                        TextButton(
+                          onPressed: () => Navigator.of(ctx).pop(),
+                          child: const Text('Cancel'),
+                        ),
                       ],
                     );
                   },
@@ -1321,12 +1366,19 @@ class _StudentDashboardState extends State<StudentDashboard> {
               if (selected == null) return;
               final Survey chosen = selected;
               if (chosen.hasSubmitted) {
-                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('You already submitted this survey.')));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('You already submitted this survey.'),
+                  ),
+                );
                 return;
               }
               final result = await Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) => TakeSurveyScreen(surveyId: chosen.id, eventTitle: event.title),
+                  builder: (_) => TakeSurveyScreen(
+                    surveyId: chosen.id,
+                    eventTitle: event.title,
+                  ),
                 ),
               );
               if (result == true && mounted) {
@@ -1403,8 +1455,8 @@ class _StudentDashboardState extends State<StudentDashboard> {
 
   bool _isEventActive(Event event) {
     final now = DateTime.now();
-    return event.isActive && 
-           (event.startTime.isAfter(now) || 
+    return event.isActive &&
+        (event.startTime.isAfter(now) ||
             (event.startTime.isBefore(now) && event.endTime.isAfter(now)));
   }
 
@@ -1440,18 +1492,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
   void _showQRCode(Event event) {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => QRCodeScreen(event: event),
-      ),
-    );
-  }
-
-  void _showOfflineQRCode() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const OfflineQRCodeScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => QRCodeScreen(event: event)),
     );
   }
 
@@ -1481,4 +1522,3 @@ class _StudentDashboardState extends State<StudentDashboard> {
     }
   }
 }
-

@@ -11,7 +11,7 @@ class ApiConfig {
 
     if (kIsWeb) {
       // Next.js dev server for web
-      return 'http://192.168.254.102:3000';
+      return 'http://10.242.107.183:3000';
     }
 
     if (defaultTargetPlatform == TargetPlatform.android) {

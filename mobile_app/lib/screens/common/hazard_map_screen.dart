@@ -179,6 +179,9 @@ class _HazardMapScreenState extends State<HazardMapScreen> {
       appBar: AppBar(
         title: const Text('Live Hazard Map'),
         backgroundColor: AppTheme.primaryColor,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        centerTitle: true,
         actions: [
           IconButton(
             icon: const Icon(Icons.my_location),

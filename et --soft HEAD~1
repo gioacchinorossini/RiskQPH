@@ -1,0 +1,187 @@
+[33mcommit 85c85ceb4630ebd408cc951dc3bb7cca10dd4828[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m)[m
+Author: gumiho <gioacchinorossini.real@gmail.com>
+Date:   Sat Apr 4 17:09:36 2026 +0800
+
+    added quick actions and report feature
+
+[1mdiff --git a/app/api/register.php/route.ts b/app/api/register.php/route.ts[m
+[1mindex a6aa93a..318d767 100644[m
+[1m--- a/app/api/register.php/route.ts[m
+[1m+++ b/app/api/register.php/route.ts[m
+[36m@@ -4,8 +4,16 @@[m [mimport bcrypt from 'bcryptjs';[m
+ import { z } from 'zod';[m
+ [m
+ const RegisterSchema = z.object({[m
+[31m-  email: z.string().min(1), // Removed .email() validation[m
+[31m-  password: z.string().min(6), // Minimum password length reduced for easier testing[m
+[32m+[m[32m  email: z.string().min(1),[m
+[32m+[m[32m  password: z.string().min(6),[m
+[32m+[m[32m  firstName: z.string().min(1),[m
+[32m+[m[32m  lastName: z.string().min(1),[m
+[32m+[m[32m  middleName: z.string().optional(),[m
+[32m+[m[32m  birthdate: z.string().optional(),[m
+[32m+[m[32m  gender: z.string().optional(),[m
+[32m+[m[32m  address: z.string().optional(),[m
+[32m+[m[32m  latitude: z.number().optional(),[m
+[32m+[m[32m  longitude: z.number().optional(),[m
+ });[m
+ [m
+ export async function POST(req: NextRequest) {[m
+[36m@@ -13,9 +21,9 @@[m [mexport async function POST(req: NextRequest) {[m
+     const body = await req.json();[m
+     const parsed = RegisterSchema.safeParse(body);[m
+     if (!parsed.success) {[m
+[31m-      return NextResponse.json({ message: 'Invalid input' }, { status: 400 });[m
+[32m+[m[32m      return NextResponse.json({ message: 'Invalid input', errors: parsed.error.issues }, { status: 400 });[m
+     }[m
+[31m-    const { email, password } = parsed.data;[m
+[32m+[m[32m    const { email, password, firstName, lastName, middleName, birthdate, gender, address, latitude, longitude } = parsed.data;[m
+ [m
+     const existing = await prisma.user.findFirst({[m
+       where: { email }[m
+[36m@@ -29,13 +37,24 @@[m [mexport async function POST(req: NextRequest) {[m
+       data: {[m
+         email,[m
+         passwordHash,[m
+[31m-        role: 'student'[m
+[32m+[m[32m        firstName,[m
+[32m+[m[32m        lastName,[m
+[32m+[m[32m        middleName: middleName || null,[m
+[32m+[m[32m        birthdate: birthdate ? new Date(birthdate) : null,[m
+[32m+[m[32m        gender: gender || null,[m
+[32m+[m[32m        address: address || null,[m
+[32m+[m[32m        latitude: latitude || null,[m
+[32m+[m[32m        longitude: longitude || null,[m
+[32m+[m[32m        role: 'resident'[m
+       }[m
+     });[m
+ [m
+     const responseUser = {[m
+       id: user.id,[m
+       email: user.email,[m
+[32m+[m[32m      firstName: user.firstName,[m
+[32m+[m[32m      lastName: user.lastName,[m
+[32m+[m[32m      middleName: user.middleName,[m
+       role: user.role,[m
+       createdAt: user.createdAt.toISOString(),[m
+       updatedAt: user.updatedAt.toISOString()[m
+[36m@@ -43,6 +62,7 @@[m [mexport async function POST(req: NextRequest) {[m
+ [m
+     return NextResponse.json({ user: responseUser }, { status: 201 });[m
+   } catch (e) {[m
+[32m+[m[32m    console.error(e);[m
+     return NextResponse.json({ message: 'Server error' }, { status: 500 });[m
+   }[m
+ }[m
+[1mdiff --git a/app/api/reports/[id]/route.ts b/app/api/reports/[id]/route.ts[m
+[1mnew file mode 100644[m
+[1mindex 0000000..40376b6[m
+[1m--- /dev/null[m
+[1m+++ b/app/api/reports/[id]/route.ts[m
+[36m@@ -0,0 +1,44 @@[m
+[32m+[m[32mimport { NextRequest, NextResponse } from "next/server";[m
+[32m+[m[32mimport { PrismaClient } from "@prisma/client";[m
+[32m+[m
+[32m+[m[32mconst prisma = new PrismaClient();[m
+[32m+[m
+[32m+[m[32mexport async function PATCH([m
+[32m+[m[32m  req: NextRequest,[m
+[32m+[m[32m  { params }: { params: Promise<{ id: string }> }[m
+[32m+[m[32m) {[m
+[32m+[m[32m  try {[m
+[32m+[m[32m    const { id } = await params;[m
+[32m+[m[32m    const body = await req.json();[m
+[32m+[m[32m    const { action } = body;[m
+[32m+[m
+[32m+[m[32m    let updateData = {};[m
+[32m+[m
+[32m+[m[32m    switch (action) {[m
+[32m+[m[32m      case "upvote":[m
+[32m+[m[32m        updateData = { upvotes: { increment: 1 } };[m
+[32m+[m[32m        break;[m
+[32m+[m[32m      case "downvote":[m
+[32m+[m[32m        updateData = { downvotes: { increment: 1 } };[m
+[32m+[m[32m        break;[m
+[32m+[m[32m      case "flag":[m
+[32m+[m[32m        updateData = { isFalseInfo: true };[m
+[32m+[m[32m        break;[m
+[32m+[m[32m      case "resolve":[m
+[32m+[m[32m        updateData = { isResolved: true };[m
+[32m+[m[32m        break;[m
+[32m+[m[32m      default:[m
+[32m+[m[32m        return NextResponse.json({ error: "Invalid action" }, { status: 400 });[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    const updated = await prisma.report.update({[m
+[32m+[m[32m      where: { id },[m
+[32m+[m[32m      data: updateData,[m
+[32m+[m[32m    });[m
+[32m+[m
+[32m+[m[32m    return NextResponse.json(updated);[m
+[32m+[m[32m  } catch (error) {[m
+[32m+[m[32m    console.error("Error updating report:", error);[m
+[32m+[m[32m    return NextResponse.json({ error: "Failed to update report" }, { status: 500 });[m
+[32m+[m[32m  }[m
+[32m+[m[32m}[m
+[1mdiff --git a/app/api/reports/route.ts b/app/api/reports/route.ts[m
+[1mnew file mode 100644[m
+[1mindex 0000000..06f5388[m
+[1m--- /dev/null[m
+[1m+++ b/app/api/reports/route.ts[m
+[36m@@ -0,0 +1,80 @@[m
+[32m+[m[32mimport { NextRequest, NextResponse } from "next/server";[m
+[32m+[m[32mimport { PrismaClient } from "@prisma/client";[m
+[32m+[m[32mimport { writeFile, mkdir } from "fs/promises";[m
+[32m+[m[32mimport path from "path";[m
+[32m+[m
+[32m+[m[32mconst prisma = new PrismaClient();[m
+[32m+[m
+[32m+[m[32mexport async function POST(req: NextRequest) {[m
+[32m+[m[32m  try {[m
+[32m+[m[32m    const formData = await req.formData();[m
+[32m+[m[32m    const type = formData.get("type") as string;[m
+[32m+[m[32m    const description = formData.get("description") as string;[m
+[32m+[m[32m    const latitude = parseFloat(formData.get("latitude") as string);[m
+[32m+[m[32m    const longitude = parseFloat(formData.get("longitude") as string);[m
+[32m+[m[32m    const userId = formData.get("userId") as string | null;[m
+[32m+[m[32m    const file = formData.get("file") as File | null;[m
+[32m+[m
+[32m+[m[32m    let imageUrl = null;[m
+[32m+[m
+[32m+[m[32m    if (file) {[m
+[32m+[m[32m      const bytes = await file.arrayBuffer();[m
+[32m+[m[32m      const buffer = Buffer.from(bytes);[m
+[32m+[m
+[32m+[m[32m      const uploadsDir = path.join(process.cwd(), "public", "uploads");[m
+[32m+[m[41m      [m
+[32m+[m[32m      // Ensure directory exists[m
+[32m+[m[32m      try {[m
+[32m+[m[32m        await mkdir(uploadsDir, { recursive: true });[m
+[32m+[m[32m      } catch (e) {}[m
+[32m+[m
+[32m+[m[32m      const filename = `${Date.now()}-${file.name.replace(/\s+/g, "_")}`;[m
+[32m+[m[32m      const filePath = path.join(uploadsDir, filename);[m
+[32m+[m
+[32m+[m[32m      await writeFile(filePath, buffer);[m
+[32m+[m[32m      imageUrl = `/uploads/${filename}`;[m
+[32m+[m[32m    }[m
+[32m+[m
+[32m+[m[32m    const report = await prisma.report.create({[m
+[32m+[m[32m      data: {[m
+[32m+[m[32m        type,[m
+[32m+[m[32m        description,[m
+[32m+[m[32m        latitude,[m
+[32m+[m[32m        longitude,[m
+[32m+[m[32m        imageUrl,[m
+[32m+[m[32m        userId: userId || null,[m
+[32m+[m[32m      },[m
+[32m+[m[32m    });[m
+[32m+[m
+[32m+[m[32m    return NextResponse.json(report, { status: 201 });[m
+[32m+[m[32m  } catch (error) {[m
+[32m+[m[32m    console.error("Error creating report:", error);[m
+[32m+[m[32m    return NextResponse.json({ error: "Failed to create report" }, { status: 500 });[m
+[32m+[m[32m  }[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32mexport async function GET(
