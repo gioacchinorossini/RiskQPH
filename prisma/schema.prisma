@@ -25,6 +25,28 @@ model User {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
   reports      Report[]
+  familyMembers FamilyMember[] @relation("FamilyHead")
+  linkedAsFamily FamilyMember[] @relation("FamilyLink")
+}
+
+model FamilyMember {
+  id           String    @id @default(cuid())
+  userId       String?   // Linked registered user ID
+  linkedUser   User?     @relation("FamilyLink", fields: [userId], references: [id])
+  headId       String    // The primary user ID who added this member
+  head         User      @relation("FamilyHead", fields: [headId], references: [id])
+  firstName    String
+  lastName     String
+  middleName   String?
+  relationship String
+  birthdate    DateTime?
+  gender       String?
+  medicalNotes String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([headId])
+  @@index([userId])
 }
 
 model Report {

@@ -15,6 +15,7 @@ import '../../utils/theme.dart';
 import 'qr_code_screen.dart';
 import 'attendance_history_screen.dart';
 import 'take_survey_screen.dart';
+import 'family_management_screen.dart';
 import '../common/hazard_map_screen.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -753,7 +754,10 @@ class _StudentDashboardState extends State<StudentDashboard> {
                           label: 'Add Family',
                           color: Colors.indigo,
                           onTap: () {
-                            // Navigate to Add Family or handle action
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(builder: (context) => const FamilyManagementScreen()),
+                            );
                           },
                         ),
                       ],

@@ -34,7 +34,7 @@ class AuthProvider extends ChangeNotifier {
     setError(null);
 
     try {
-      final uri = Uri.parse(ApiConfig.baseUrl + '/api/login.php');
+      final uri = Uri.parse(ApiConfig.baseUrl + '/api/login');
       final response = await http.post(
         uri,
         headers: {
@@ -88,7 +88,7 @@ class AuthProvider extends ChangeNotifier {
     setError(null);
 
     try {
-      final uri = Uri.parse(ApiConfig.baseUrl + '/api/register.php');
+      final uri = Uri.parse(ApiConfig.baseUrl + '/api/register');
       final response = await http.post(
         uri,
         headers: {
@@ -148,7 +148,7 @@ class AuthProvider extends ChangeNotifier {
     setError(null);
 
     try {
-      final uri = Uri.parse(ApiConfig.baseUrl + '/api/profile.php');
+      final uri = Uri.parse(ApiConfig.baseUrl + '/api/profile');
       final response = await http.post(
         uri,
         headers: {
