@@ -1,0 +1,728 @@
+import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:provider/provider.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:intl/intl.dart';
+import 'dart:async';
+import '../../providers/attendance_provider.dart';
+import '../../providers/event_provider.dart';
+import '../../providers/auth_provider.dart';
+import '../../models/event.dart';
+import '../../utils/theme.dart';
+
+class OfflineQRScannerScreen extends StatefulWidget {
+  final Event? selectedEvent;
+
+  const OfflineQRScannerScreen({super.key, this.selectedEvent});
+
+  @override
+  State<OfflineQRScannerScreen> createState() => _OfflineQRScannerScreenState();
+}
+
+class _OfflineQRScannerScreenState extends State<OfflineQRScannerScreen> {
+  final MobileScannerController _controller = MobileScannerController(
+    facing: CameraFacing.back,
+    torchEnabled: false,
+    detectionSpeed: DetectionSpeed.normal,
+    formats: [BarcodeFormat.qrCode],
+  );
+  
+  bool _isProcessing = false;
+  String? _lastScannedData;
+  String? _lastAction;
+  String? _lastStudentName;
+  Timer? _timer;
+  String _currentTime = '';
+  
+  Event? _selectedEvent;
+  bool _isCheckoutEnabled = false;
+  Set<String> _recentlyScannedQRCodes = {};
+  Timer? _cleanupTimer;
+  bool _showingDuplicateMessage = false;
+  bool _showingSuccessMessage = false;
+  String? _successStudentName;
+  String? _successAction;
+  bool _isScanCooldown = false;
+  int _cooldownDefaultSeconds = 2;
+  int _cooldownSeconds = 2;
+  Timer? _cooldownTimer;
+  bool _isEventSelectorVisible = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedEvent = widget.selectedEvent;
+    _updateTime();
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      _updateTime();
+    });
+    
+    _cleanupTimer = Timer.periodic(const Duration(seconds: 60), (timer) {
+      _cleanupRecentlyScannedCodes();
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _cleanupTimer?.cancel();
+    _cooldownTimer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _updateTime() {
+    setState(() {
+      _currentTime = DateFormat('yyyy-MM-dd HH:mm:ss').format(DateTime.now());
+    });
+  }
+
+  void _cleanupRecentlyScannedCodes() {
+    setState(() {
+      _recentlyScannedQRCodes.clear();
+    });
+  }
+
+  void _showEventSelector() {
+    setState(() {
+      _isEventSelectorVisible = true;
+    });
+  }
+
+  void _selectEvent(Event event) {
+    setState(() {
+      _selectedEvent = event;
+      _isEventSelectorVisible = false;
+      _lastScannedData = null;
+      _lastAction = null;
+      _lastStudentName = null;
+      _recentlyScannedQRCodes.clear();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Offline QR Scanner'),
+        elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.event),
+            onPressed: _showEventSelector,
+            tooltip: 'Select Event',
+          ),
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.logout,
+                  color: _isCheckoutEnabled ? Colors.white : Colors.white70,
+                  size: 20,
+                ),
+                const SizedBox(width: 4),
+                Switch(
+                  value: _isCheckoutEnabled,
+                  onChanged: (value) {
+                    setState(() {
+                      _isCheckoutEnabled = value;
+                      _recentlyScannedQRCodes.clear();
+                    });
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          value ? 'Checkout mode ENABLED' : 'Checkout mode DISABLED',
+                        ),
+                        backgroundColor: value ? AppTheme.primaryColor : Colors.grey,
+                        duration: const Duration(seconds: 2),
+                      ),
+                    );
+                  },
+                  activeColor: Colors.white,
+                  activeTrackColor: AppTheme.primaryColor,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+      body: Stack(
+        children: [
+          Column(
+            children: [
+              // Debug Time Display
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                color: Colors.blue.withOpacity(0.1),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.bug_report, color: Colors.blue[700], size: 20),
+                    const SizedBox(width: 8),
+                    Text(
+                      'PHP new DateTime() will use: $_currentTime',
+                      style: TextStyle(
+                        color: Colors.blue[700],
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              // Event Selection Header
+              if (_selectedEvent == null)
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(colors: [Colors.orange, Colors.red]),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(Icons.event_busy, size: 48, color: Colors.white),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Select Event First',
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Choose an event before scanning student QR codes',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Colors.white.withOpacity(0.9),
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 16),
+                      ElevatedButton.icon(
+                        onPressed: _showEventSelector,
+                        icon: const Icon(Icons.event),
+                        label: const Text('Select Event'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.white,
+                          foregroundColor: Colors.orange,
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      colors: [AppTheme.primaryColor, AppTheme.secondaryColor],
+                    ),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(Icons.qr_code_scanner, size: 48, color: Colors.white),
+                      const SizedBox(height: 12),
+                      Text(
+                        'Offline QR Scanner',
+                        style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Event: ${_selectedEvent!.title}',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Colors.white.withOpacity(0.9),
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        _isCheckoutEnabled 
+                            ? 'Checkout mode: Students can check out'
+                            : 'Check-in mode: Students can check in',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          color: Colors.white.withOpacity(0.9),
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.wifi_off, color: Colors.white, size: 16),
+                            const SizedBox(width: 4),
+                            Text(
+                              'Offline Mode Active',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              
+              // Scanner Area
+              if (_selectedEvent != null)
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(12),
+                            child: MobileScanner(
+                              controller: _controller,
+                              onDetect: (capture) async {
+                                if (_isProcessing || _isScanCooldown) return;
+                                final barcodes = capture.barcodes;
+                                if (barcodes.isEmpty) return;
+                                final raw = barcodes.first.rawValue;
+                                if (raw == null || raw.isEmpty) return;
+                                
+                                if (_recentlyScannedQRCodes.contains(raw)) {
+                                  return;
+                                }
+                                
+                                setState(() { 
+                                  _isProcessing = true; 
+                                  _lastScannedData = raw;
+                                  _recentlyScannedQRCodes.add(raw);
+                                });
+                                
+                                await _handleDecoded(raw);
+                                
+                                if (mounted) {
+                                  setState(() {
+                                    _isProcessing = false;
+                                  });
+                                }
+                              },
+                            ),
+                          ),
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        Row(
+                          children: [
+                            Expanded(
+                              child: ElevatedButton.icon(
+                                onPressed: () => _controller.toggleTorch(),
+                                icon: const Icon(Icons.flash_on),
+                                label: const Text('Toggle Torch'),
+                              ),
+                            ),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () => _controller.switchCamera(),
+                                icon: const Icon(Icons.cameraswitch),
+                                label: const Text('Switch Camera'),
+                              ),
+                            ),
+                          ],
+                        ),
+
+                        const SizedBox(height: 16),
+
+                        if (_lastScannedData != null && _lastAction != null)
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color: _lastAction == 'check_in' 
+                                  ? AppTheme.successColor.withOpacity(0.1)
+                                  : AppTheme.primaryColor.withOpacity(0.1),
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(
+                                color: _lastAction == 'check_in' 
+                                    ? AppTheme.successColor
+                                    : AppTheme.primaryColor,
+                              ),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Icon(
+                                      _lastAction == 'check_in' 
+                                          ? Icons.login 
+                                          : Icons.logout,
+                                      color: _lastAction == 'check_in' 
+                                          ? AppTheme.successColor
+                                          : AppTheme.primaryColor,
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Text(
+                                      _lastAction == 'check_in' ? 'CHECKED IN' : 'CHECKED OUT',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: _lastAction == 'check_in' 
+                                            ? AppTheme.successColor
+                                            : AppTheme.primaryColor,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                if (_lastStudentName != null) ...[
+                                  const SizedBox(height: 8),
+                                  Text(
+                                    'Student: $_lastStudentName',
+                                    style: const TextStyle(fontWeight: FontWeight.w500),
+                                  ),
+                                ],
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Event: ${_selectedEvent!.title}',
+                                  style: TextStyle(
+                                    color: Colors.grey[600],
+                                    fontSize: 12,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                Expanded(
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(Icons.qr_code_scanner, size: 64, color: Colors.grey[400]),
+                        const SizedBox(height: 16),
+                        Text(
+                          'Select an event to start scanning',
+                          style: TextStyle(fontSize: 18, color: Colors.grey[600]),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Students will show QR codes containing only their student ID',
+                          style: TextStyle(fontSize: 14, color: Colors.grey[500]),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          
+          // Event Selector Modal
+          if (_isEventSelectorVisible)
+            Container(
+              width: double.infinity,
+              height: double.infinity,
+              color: Colors.black.withOpacity(0.7),
+              child: Center(
+                child: Container(
+                  width: MediaQuery.of(context).size.width * 0.9,
+                  height: MediaQuery.of(context).size.height * 0.7,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Column(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: AppTheme.primaryColor,
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(20),
+                            topRight: Radius.circular(20),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.event, color: Colors.white, size: 24),
+                            const SizedBox(width: 12),
+                            Text(
+                              'Select Event for Scanning',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const Spacer(),
+                            IconButton(
+                              icon: Icon(Icons.close, color: Colors.white),
+                                                             onPressed: () {
+                                 setState(() {
+                                   _isEventSelectorVisible = false;
+                                 });
+                               },
+                            ),
+                          ],
+                        ),
+                      ),
+                      
+                      Expanded(
+                        child: Consumer<EventProvider>(
+                          builder: (context, eventProvider, child) {
+                            if (eventProvider.isLoading) {
+                              return const Center(child: CircularProgressIndicator());
+                            }
+
+                            final activeEvents = eventProvider.getActiveEvents();
+                            
+                            if (activeEvents.isEmpty) {
+                              return Center(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Icon(Icons.event_busy, size: 64, color: Colors.grey[400]),
+                                    const SizedBox(height: 16),
+                                    Text(
+                                      'No active events available',
+                                      style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }
+
+                            return ListView.builder(
+                              padding: const EdgeInsets.all(16),
+                              itemCount: activeEvents.length,
+                              itemBuilder: (context, index) {
+                                final event = activeEvents[index];
+                                final isSelected = _selectedEvent?.id == event.id;
+                                
+                                return Card(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  color: isSelected ? AppTheme.primaryColor.withOpacity(0.1) : null,
+                                  child: ListTile(
+                                    leading: CircleAvatar(
+                                      backgroundColor: isSelected ? AppTheme.primaryColor : Colors.grey[300],
+                                      child: Icon(
+                                        Icons.event,
+                                        color: isSelected ? Colors.white : Colors.grey[600],
+                                      ),
+                                    ),
+                                    title: Text(
+                                      event.title,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        color: isSelected ? AppTheme.primaryColor : null,
+                                      ),
+                                    ),
+                                    subtitle: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(event.description),
+                                        const SizedBox(height: 4),
+                                        Row(
+                                          children: [
+                                            Icon(Icons.access_time, size: 14, color: Colors.grey[600]),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              DateFormat('MMM dd, HH:mm').format(event.startTime),
+                                              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            Icon(Icons.location_on, size: 14, color: Colors.grey[600]),
+                                            const SizedBox(width: 4),
+                                            Text(
+                                              event.location,
+                                              style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                            ),
+                                          ],
+                                        ),
+                                      ],
+                                    ),
+                                    trailing: isSelected 
+                                        ? Icon(Icons.check_circle, color: AppTheme.primaryColor)
+                                        : Icon(Icons.arrow_forward_ios, color: Colors.grey[400]),
+                                    onTap: () => _selectEvent(event),
+                                  ),
+                                );
+                              },
+                            );
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleDecoded(String raw) async {
+    try {
+      // For offline mode, expect base64 JSON of { studentId, mode: 'offline' }
+      final decoded = utf8.decode(base64.decode(raw));
+      final payload = jsonDecode(decoded) as Map<String, dynamic>;
+      
+      // Validate offline mode
+      if (payload['mode'] != 'offline') {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Invalid QR code format. Please use offline QR mode.'),
+              backgroundColor: AppTheme.errorColor,
+            ),
+          );
+        }
+        return;
+      }
+      
+      final studentId = payload['studentId'].toString();
+      final eventId = _selectedEvent!.id;
+
+      // Get current attendance status first
+      final currentStatus = Provider.of<AttendanceProvider>(context, listen: false)
+          .getCurrentAttendanceStatus(eventId, studentId);
+      
+      // Check if checkout is enabled and validate student status
+      if (_isCheckoutEnabled) {
+        if (currentStatus == 'not_checked_in') {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    Icon(Icons.warning, color: Colors.white),
+                    const SizedBox(width: 8),
+                    Text('Student not checked in - cannot check out'),
+                  ],
+                ),
+                backgroundColor: Colors.orange[700],
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+          return;
+        } else if (currentStatus == 'checked_out') {
+          _recentlyScannedQRCodes.add(raw);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    Icon(Icons.info, color: Colors.white),
+                    const SizedBox(width: 8),
+                    Text('Student already checked out'),
+                  ],
+                ),
+                backgroundColor: Colors.blue[700],
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+          return;
+        }
+      } else {
+        // Check-in mode - check if student is already checked in
+        if (currentStatus == 'checked_in') {
+          _recentlyScannedQRCodes.add(raw);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Row(
+                  children: [
+                    Icon(Icons.info, color: Colors.white),
+                    const SizedBox(width: 8),
+                    Text('Student already checked in'),
+                  ],
+                ),
+                backgroundColor: Colors.blue[700],
+                duration: const Duration(seconds: 3),
+              ),
+            );
+          }
+          return;
+        }
+      }
+
+      // Create QR code data for backend (combine event and student info)
+      final qrCodeData = base64Encode(utf8.encode(jsonEncode({
+        'eventId': eventId,
+        'studentId': studentId,
+      })));
+
+      final result = await Provider.of<AttendanceProvider>(context, listen: false)
+          .markAttendance(
+            eventId: eventId,
+            studentId: studentId,
+            studentName: 'Student',
+            qrCodeData: qrCodeData,
+          );
+
+      if (!mounted) return;
+      
+      if (result != null && result['success'] == true) {
+        final action = result['action'] as String;
+        final attendance = result['attendance'];
+        final studentName = attendance.studentName;
+        
+        setState(() {
+          _lastAction = action;
+          _lastStudentName = studentName;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(action == 'check_in' ? Icons.login : Icons.logout, color: Colors.white),
+                const SizedBox(width: 8),
+                Text('$studentName successfully ${action == 'check_in' ? 'checked in' : 'checked out'}!'),
+              ],
+            ),
+            backgroundColor: action == 'check_in' 
+                ? AppTheme.successColor 
+                : AppTheme.primaryColor,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      } else {
+        final attendanceProvider = Provider.of<AttendanceProvider>(context, listen: false);
+        final errorMessage = attendanceProvider.error ?? 'Failed to mark attendance. Please try again.';
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: AppTheme.errorColor,
+          ),
+        );
+      }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Invalid QR code'),
+          backgroundColor: AppTheme.errorColor,
+        ),
+      );
+    }
+  }
+} 
