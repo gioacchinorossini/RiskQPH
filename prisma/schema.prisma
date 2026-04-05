@@ -28,6 +28,8 @@ model User {
   familyMembers FamilyMember[] @relation("FamilyHead")
   linkedAsFamily FamilyMember[] @relation("FamilyLink")
   safetyStatus   UserSafety[]
+  familyRequestsSent    FamilyRequest[] @relation("RequestApplicant")
+  familyRequestsReceived FamilyRequest[] @relation("RequestHead")
 }
 
 model Disaster {
@@ -99,4 +101,19 @@ model Report {
   createdAt   DateTime @default(now())
 
   @@index([userId])
+}
+
+model FamilyRequest {
+  id          String   @id @default(cuid())
+  headId      String
+  head        User     @relation("RequestHead", fields: [headId], references: [id])
+  applicantId String
+  applicant   User     @relation("RequestApplicant", fields: [applicantId], references: [id])
+  status      String   @default("pending") // pending, accepted, rejected
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([headId, applicantId])
+  @@index([headId])
+  @@index([applicantId])
 }

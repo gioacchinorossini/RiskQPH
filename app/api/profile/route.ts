@@ -12,6 +12,8 @@ const ProfileUpdateSchema = z.object({
   gender: z.string().nullable().optional(),
   barangay: z.string().nullable().optional(),
   address: z.string().nullable().optional(),
+  latitude: z.number().nullable().optional(),
+  longitude: z.number().nullable().optional(),
 });
 
 export async function GET(req: NextRequest) {
@@ -53,7 +55,7 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json({ message: 'Invalid input', errors: parsed.error.issues }, { status: 400 });
     }
-    const { id, firstName, lastName, role, middleName, birthdate, gender, barangay, address } = parsed.data;
+    const { id, firstName, lastName, role, middleName, birthdate, gender, barangay, address, latitude, longitude } = parsed.data;
 
     const user = await prisma.user.update({
       where: { id },
@@ -66,6 +68,8 @@ export async function POST(req: NextRequest) {
         gender,
         barangay,
         address,
+        latitude,
+        longitude,
       }
     });
 

@@ -50,7 +50,37 @@ class _UserDashboardState extends State<UserDashboard> {
   HttpClient? _sseClient;
   HttpClient? _residentsSseClient;
   List<dynamic> _residents = [];
+  Set<String> _familyUserIds = {};
   bool _hasFetchedResidents = false;
+  bool _isLoadingFamily = false;
+  List<Map<String, dynamic>> _userReports = [];
+  LatLng? _hqLocation;
+
+  final Map<String, IconData> _disasterIcons = {
+    'Flooding': Icons.water,
+    'Fire': Icons.local_fire_department,
+    'Collapsed buildings': Icons.home_work,
+    'Landslide / soil erosion': Icons.landscape,
+    'Volcanic activity': Icons.volcano,
+    'Power outage': Icons.power_off,
+    'Water supply disruption': Icons.water_damage,
+    'Signal failure (cell network down)': Icons.cell_tower,
+    'Road blockage / impassable routes': Icons.traffic,
+    'Other (custom entry)': Icons.more_horiz,
+  };
+
+  final Map<String, Color> _disasterColors = {
+    'Flooding': Colors.blue,
+    'Fire': Colors.red,
+    'Collapsed buildings': Colors.brown,
+    'Landslide / soil erosion': Colors.orange,
+    'Volcanic activity': Colors.deepOrange,
+    'Power outage': Colors.amber,
+    'Water supply disruption': Colors.lightBlue,
+    'Signal failure (cell network down)': Colors.grey,
+    'Road blockage / impassable routes': Colors.deepPurple,
+    'Other (custom entry)': Colors.blueGrey,
+  };
 
   @override
   void initState() {
@@ -90,9 +120,71 @@ class _UserDashboardState extends State<UserDashboard> {
       eventProvider.startConnectivityMonitoring();
       Provider.of<AttendanceProvider>(context, listen: false).loadAttendances();
       _determinePreviewPosition();
+      _fetchHqLocation(); // Fetch HQ for map
+      _fetchFamilyMembers(); // Fetch family for map filtering
+      _fetchReports(); // Fetch incident reports for map preview
       _checkDisaster(); // Initial check to get current state
       _startDisasterStream(); // Start real-time stream
     });
+  }
+
+  Future<void> _fetchFamilyMembers() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.currentUser;
+    if (user == null) return;
+
+    setState(() => _isLoadingFamily = true);
+
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/family?headId=${user.id}'),
+        headers: {'ngrok-skip-browser-warning': 'true'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final List<dynamic> members = data['members'] as List;
+        setState(() {
+          _familyUserIds = members
+              .where((m) => m['userId'] != null)
+              .map((m) => m['userId'].toString())
+              .toSet();
+          _isLoadingFamily = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching family: $e');
+    }
+  }
+
+  Future<void> _fetchHqLocation() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.currentUser;
+    if (user == null || user.barangay == null) return;
+
+    try {
+      final response = await http.get(
+        Uri.parse(
+          '${ApiConfig.baseUrl}/api/barangay/location?name=${user.barangay}',
+        ),
+        headers: {'ngrok-skip-browser-warning': 'true'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['profile'] != null && mounted) {
+          final lat = data['profile']['hqLatitude'];
+          final lng = data['profile']['hqLongitude'];
+          if (lat != null && lng != null) {
+            setState(() {
+              _hqLocation = LatLng(lat as double, lng as double);
+            });
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching HQ location: $e');
+    }
   }
 
   void _startDisasterStream() {
@@ -162,6 +254,30 @@ class _UserDashboardState extends State<UserDashboard> {
     });
   }
 
+  Future<void> _fetchReports() async {
+    try {
+      final response = await http.get(Uri.parse('${ApiConfig.baseUrl}/api/reports'));
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        setState(() {
+          _userReports = data.where((r) => r['isResolved'] == false).map((r) {
+            return {
+              'type': r['type'],
+              'desc': r['description'],
+              'pos': LatLng(
+                double.parse(r['latitude'].toString()),
+                double.parse(r['longitude'].toString()),
+              ),
+              'isResolved': r['isResolved'],
+            };
+          }).toList();
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching reports for preview: $e');
+    }
+  }
+
   Future<void> _fetchResidents() async {
     final user = Provider.of<AuthProvider>(context, listen: false).currentUser;
     if (_activeDisaster == null || user?.barangay == null) return;
@@ -174,10 +290,20 @@ class _UserDashboardState extends State<UserDashboard> {
       );
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
+        final List<dynamic> formatted = data['residents'];
         if (mounted) {
           setState(() {
-            _residents = data['residents'];
+            _residents = formatted;
             _hasFetchedResidents = true;
+            
+            // CENTRAL SYNC: Check if current user is already marked safe in the initial fetch
+            final currentUser = Provider.of<AuthProvider>(context, listen: false).currentUser;
+            if (currentUser != null) {
+              final me = formatted.where((r) => r['id'].toString() == currentUser.id.toString()).firstOrNull;
+              if (me != null && me['isSafe'] == true) {
+                _isSafeReported = true;
+              }
+            }
           });
         }
       }
@@ -222,6 +348,13 @@ class _UserDashboardState extends State<UserDashboard> {
                         _residents[index] = residentData;
                       } else {
                         _residents.add(residentData);
+                      }
+                      
+                      // CENTRAL SYNC: If this update is for the current user, sync their alert status
+                      if (residentData['id'].toString() == user.id.toString()) {
+                        if (residentData['isSafe'] == true) {
+                          _isSafeReported = true;
+                        }
                       }
                     });
                   }
@@ -359,10 +492,8 @@ class _UserDashboardState extends State<UserDashboard> {
   }
 
   Widget _buildMainContent(User? user, Color primaryColor) {
-    // Moved the original Scaffold body content here
     final double screenWidth = MediaQuery.of(context).size.width;
     final double screenHeight = MediaQuery.of(context).size.height;
-    // ... (rest of the size logic)
     final bool is600PLUS = screenWidth > 600;
     final bool is500PLUS = screenWidth > 500;
     final bool is400PLUS = screenWidth > 400;
@@ -928,44 +1059,117 @@ class _UserDashboardState extends State<UserDashboard> {
                 if (_previewLocation != null)
                   Marker(
                     point: _previewLocation!,
+                    width: 45,
+                    height: 45,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.blueAccent.withOpacity(0.2),
+                        shape: BoxShape.circle,
+                        border: Border.all(color: Colors.blueAccent, width: 2),
+                      ),
+                      child: const Icon(
+                        Icons.person_pin_circle,
+                        color: Colors.blueAccent,
+                        size: 30,
+                      ),
+                    ),
+                  ),
+
+                // Responders and Family Members from _residents list
+                ..._residents.where((r) {
+                  final String rId = r['id'].toString();
+                  final String rRole = r['role']?.toString().toLowerCase() ?? '';
+                  return rRole.contains('responder') || _familyUserIds.contains(rId);
+                }).map((r) {
+                  final bool isResponder = r['role']?.toString().toLowerCase().contains('responder') ?? false;
+                  final color = isResponder ? Colors.orange : Colors.green;
+                  return Marker(
+                    point: LatLng(r['latitude'] as double, r['longitude'] as double),
+                    width: 35,
+                    height: 35,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [BoxShadow(blurRadius: 4, color: Colors.black26)],
+                        border: Border.all(color: color, width: 2),
+                      ),
+                      child: Icon(
+                        isResponder ? Icons.emergency : Icons.family_restroom,
+                        color: color,
+                        size: 18,
+                      ),
+                    ),
+                  );
+                }),
+
+                if (_hqLocation != null)
+                  Marker(
+                    point: _hqLocation!,
                     width: 30,
                     height: 30,
                     child: const Icon(
-                      Icons.person_pin_circle,
-                      color: Colors.blueAccent,
-                      size: 30,
+                      Icons.account_balance,
+                      color: Colors.black,
+                      size: 20,
                     ),
                   ),
-                Marker(
-                  point: const LatLng(14.5995, 120.9842),
-                  width: 30,
-                  height: 30,
-                  child: const Icon(
-                    Icons.location_on,
-                    color: Colors.red,
-                    size: 20,
-                  ),
-                ),
-                Marker(
-                  point: const LatLng(10.3157, 123.8854),
-                  width: 30,
-                  height: 30,
-                  child: const Icon(
-                    Icons.location_on,
-                    color: Colors.orange,
-                    size: 20,
-                  ),
-                ),
-                Marker(
-                  point: const LatLng(7.0736, 125.6128),
-                  width: 30,
-                  height: 30,
-                  child: const Icon(
-                    Icons.location_on,
-                    color: Colors.blue,
-                    size: 20,
-                  ),
-                ),
+
+                // Residents and Family (Added consistency with HazardMapScreen)
+                ...(() {
+                  final bool isActive = _activeDisaster != null;
+                  return _residents.where((r) => r['latitude'] != null && r['longitude'] != null).map((r) {
+                    final bool isSafeNow = (r['isSafe'] == true);
+                    final bool hasSOS = (r['hasResponded'] == true);
+                    final bool isFamily = r['id'] != null && _familyUserIds.contains(r['id'].toString());
+                    
+                    final Color markerColor = !isActive 
+                        ? (isFamily ? Colors.orange : AppTheme.primaryColor)
+                        : (isSafeNow ? Colors.green : (hasSOS ? Colors.red : (isFamily ? Colors.orange : Colors.grey)));
+
+                    return Marker(
+                      point: LatLng((r['latitude'] as num).toDouble(), (r['longitude'] as num).toDouble()),
+                      width: 15,
+                      height: 15,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: markerColor, width: 1),
+                          boxShadow: [BoxShadow(blurRadius: 2, color: markerColor.withOpacity(0.3))],
+                        ),
+                        child: Icon(
+                          (isActive && isSafeNow) ? Icons.check_circle : Icons.person_pin_circle,
+                          color: markerColor,
+                          size: 8,
+                        ),
+                      ),
+                    );
+                  });
+                })(),
+
+                // Incident Reports
+                ..._userReports.map((r) {
+                  final color = _disasterColors[r['type']] ?? Colors.red;
+                  return Marker(
+                    point: r['pos'] as LatLng,
+                    width: 25,
+                    height: 25,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [BoxShadow(blurRadius: 4, color: Colors.black26)],
+                        border: Border.all(color: color, width: 2),
+                      ),
+                      child: Icon(
+                        _disasterIcons[r['type']] ?? Icons.report,
+                        color: color,
+                        size: 12,
+                      ),
+                    ),
+                  );
+                }),
               ],
             ),
           ],
@@ -1086,8 +1290,8 @@ class _UserDashboardState extends State<UserDashboard> {
                           },
                         ),
                         _buildQuickActionItem(
-                          icon: Icons.person_add_outlined,
-                          label: 'Add Family',
+                          icon: Icons.family_restroom_outlined,
+                          label: 'Family',
                           color: Colors.indigo,
                           onTap: () {
                             Navigator.push(
@@ -1143,7 +1347,7 @@ class _UserDashboardState extends State<UserDashboard> {
                             Text(
                               isActive
                                   ? '$missingCount residents missing.'
-                                  : 'No disaster ongoing.',
+                                  : 'All residents safe.',
                               style: TextStyle(
                                 fontSize: 12,
                                 color: isActive
@@ -1925,7 +2129,7 @@ class _MissingListScreenState extends State<_MissingListScreen> {
                   style: TextStyle(color: Colors.red),
                 )
               : Text(
-                  'Marked safe: ${r['safetyStatus'][0]['updatedAt'] != null ? DateFormat('hh:mm a').format(DateTime.parse(r['safetyStatus'][0]['updatedAt'])) : 'N/A'}',
+                  'Marked safe: ${r['safetyStatus'][0]['updatedAt'] != null ? DateFormat('hh:mm a').format(DateTime.parse(r['safetyStatus'][0]['updatedAt']).toLocal()) : 'N/A'}',
                   style: const TextStyle(
                     color: Colors.green,
                     fontWeight: FontWeight.w600,

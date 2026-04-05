@@ -11,6 +11,10 @@ class FamilyMember {
   final String? medicalNotes;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final double? latitude;
+  final double? longitude;
+  final bool? isSafe;
+  final String? role;
 
   FamilyMember({
     required this.id,
@@ -25,9 +29,14 @@ class FamilyMember {
     this.medicalNotes,
     required this.createdAt,
     required this.updatedAt,
+    this.latitude,
+    this.longitude,
+    this.isSafe,
+    this.role,
   });
 
   factory FamilyMember.fromJson(Map<String, dynamic> json) {
+    final linkedUser = json['linkedUser'];
     return FamilyMember(
       id: json['id'],
       userId: json['userId'],
@@ -41,6 +50,10 @@ class FamilyMember {
       medicalNotes: json['medicalNotes'],
       createdAt: DateTime.parse(json['createdAt']),
       updatedAt: DateTime.parse(json['updatedAt']),
+      latitude: linkedUser != null ? (linkedUser['latitude'] as num?)?.toDouble() : null,
+      longitude: linkedUser != null ? (linkedUser['longitude'] as num?)?.toDouble() : null,
+      isSafe: linkedUser != null ? linkedUser['isSafe'] : null,
+      role: linkedUser != null ? linkedUser['role'] : null,
     );
   }
 

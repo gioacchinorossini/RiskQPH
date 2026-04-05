@@ -103,40 +103,8 @@ export default function Home() {
           </div>
         </aside>
 
-        {/* Map Container */}
         <section className="flex-1 relative">
-          <div className="absolute top-6 right-6 z-40 bg-white/90 dark:bg-black/90 backdrop-blur-md rounded-xl shadow-xl border border-zinc-200 dark:border-zinc-800 p-4 w-64">
-            <h4 className="text-sm font-bold mb-3">Map Layers</h4>
-            <div className="space-y-2">
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox" defaultChecked className="h-4 w-4 rounded border-zinc-300 accent-red-600" />
-                <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">Hazard Zones</span>
-              </label>
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox" defaultChecked className="h-4 w-4 rounded border-zinc-300 accent-red-600" />
-                <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">Organized Shelters</span>
-              </label>
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input 
-                  type="checkbox" 
-                  checked={showBarangays}
-                  onChange={(e) => setShowBarangays(e.target.checked)}
-                  className="h-4 w-4 rounded border-zinc-300 accent-red-600" 
-                />
-                <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">Barangay Boundaries</span>
-              </label>
-              <label className="flex items-center gap-3 cursor-pointer">
-                <input type="checkbox" className="h-4 w-4 rounded border-zinc-300 accent-red-600" />
-                <span className="text-xs font-medium text-zinc-700 dark:text-zinc-300">Real-time Traffic</span>
-              </label>
-            </div>
-          </div>
-          
           <MapWrapper showBarangays={showBarangays} />
-          
-          <div className="absolute bottom-6 left-6 z-40 bg-red-600 text-white px-4 py-2 rounded-full shadow-lg text-xs font-bold animate-pulse">
-            LIVE SIGNAL: Regional Monitoring Active
-          </div>
         </section>
       </main>
     </div>

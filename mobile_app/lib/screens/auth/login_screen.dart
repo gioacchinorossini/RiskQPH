@@ -35,18 +35,23 @@ class _LoginScreenState extends State<LoginScreen> {
       'pass': 'gwapoko4321',
     },
     {
-      'label': 'Longnoxian 4 (Resident)',
+      'label': 'Longnoxian 4 (HEAD)',
       'email': 'longnoxian4@gmail.com',
       'pass': 'gwapoko4321',
     },
     {
-      'label': 'Longnoxian 5 (Responder)',
+      'label': 'Longnoxian 5 (RESIDENT)',
       'email': 'longnoxian5@gmail.com',
       'pass': 'gwapoko4321',
     },
     {
-      'label': 'Longnoxian 6 (Head)',
+      'label': 'Longnoxian 6 (RESPONDER)',
       'email': 'longnoxian6@gmail.com',
+      'pass': 'gwapoko4321',
+    },
+    {
+      'label': 'Longnoxian 7 (RESIDENT)',
+      'email': 'longnoxian7@gmail.com',
       'pass': 'gwapoko4321',
     },
   ];

@@ -13,11 +13,12 @@ import '../common/hazard_map_screen.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
-import '../user/edit_profile_screen.dart';
+import '../../config/api_config.dart';
+import '../../utils/theme.dart';
 import '../../widgets/view_on_map_button.dart';
+import '../user/edit_profile_screen.dart';
 import '../common/reported_incidents_screen.dart';
 import 'package:http/http.dart' as http;
-import '../../config/api_config.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
 
@@ -37,6 +38,33 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
   final MapController _previewMapController = MapController();
   LatLng? _previewLocation;
   LatLng? _hqLocation;
+  List<Map<String, dynamic>> _userReports = [];
+
+  final Map<String, IconData> _disasterIcons = {
+    'Flooding': Icons.water,
+    'Fire': Icons.local_fire_department,
+    'Collapsed buildings': Icons.home_work,
+    'Landslide / soil erosion': Icons.landscape,
+    'Volcanic activity': Icons.volcano,
+    'Power outage': Icons.power_off,
+    'Water supply disruption': Icons.water_damage,
+    'Signal failure (cell network down)': Icons.cell_tower,
+    'Road blockage / impassable routes': Icons.traffic,
+    'Other (custom entry)': Icons.more_horiz,
+  };
+
+  final Map<String, Color> _disasterColors = {
+    'Flooding': Colors.blue,
+    'Fire': Colors.red,
+    'Collapsed buildings': Colors.brown,
+    'Landslide / soil erosion': Colors.orange,
+    'Volcanic activity': Colors.deepOrange,
+    'Power outage': Colors.amber,
+    'Water supply disruption': Colors.lightBlue,
+    'Signal failure (cell network down)': Colors.grey,
+    'Road blockage / impassable routes': Colors.deepPurple,
+    'Other (custom entry)': Colors.blueGrey,
+  };
 
   // Disaster Mode State
   Map<String, dynamic>? _activeDisaster;
@@ -82,10 +110,35 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
       eventProvider.startConnectivityMonitoring();
       Provider.of<AttendanceProvider>(context, listen: false).loadAttendances();
       _determinePreviewPosition();
+      _fetchReports(); // Fetch incident reports for map preview
       _checkDisaster(); // Initial check
       _fetchHqLocation(); // Initial check
       _startDisasterStream();
     });
+  }
+
+  Future<void> _fetchReports() async {
+    try {
+      final response = await http.get(Uri.parse('${ApiConfig.baseUrl}/api/reports'));
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        setState(() {
+          _userReports = data.where((r) => r['isResolved'] == false).map((r) {
+            return {
+              'type': r['type'],
+              'desc': r['description'],
+              'pos': LatLng(
+                double.parse(r['latitude'].toString()),
+                double.parse(r['longitude'].toString()),
+              ),
+              'isResolved': r['isResolved'],
+            };
+          }).toList();
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching reports for preview: $e');
+    }
   }
 
   Future<void> _fetchHqLocation() async {
@@ -709,7 +762,7 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
                           children: [
                             Text(isActive ? 'EMERGENCY ACTIVE' : 'SYSTEM STATUS: SAFE', 
                               style: TextStyle(fontWeight: FontWeight.bold, color: isActive ? Colors.red : Colors.green)),
-                            Text(isActive ? '$missingCount residents missing.' : 'All systems monitoring active.', 
+                            Text(isActive ? '$missingCount residents missing.' : 'All residents safe.', 
                               style: TextStyle(fontSize: 12, color: isActive ? Colors.red[700] : Colors.green[700])),
                           ],
                         ),
@@ -857,7 +910,7 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
               String timeStr = 'N/A';
               try {
                 if (resident['updatedAt'] != null) {
-                  final dt = DateTime.parse(resident['updatedAt']);
+                  final dt = DateTime.parse(resident['updatedAt']).toLocal();
                   timeStr = DateFormat('HH:mm:ss').format(dt);
                 }
               } catch (_) {}
@@ -990,52 +1043,98 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
                         if (_hqLocation != null)
                           Marker(
                             point: _hqLocation!,
-                            width: 60,
-                            height: 60,
-                            child: Column(
-                              children: [
-                                Container(
-                                  padding: const EdgeInsets.all(4),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black,
-                                    borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: Colors.white, width: 1),
-                                  ),
-                                  child: const Icon(Icons.account_balance, color: Colors.white, size: 14),
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: Colors.black.withOpacity(0.8),
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    'BRGY HQ',
-                                    style: TextStyle(color: Colors.white, fontSize: 6, fontWeight: FontWeight.bold),
-                                  ),
-                                ),
-                              ],
+                            width: 30,
+                            height: 30,
+                            child: const Icon(
+                              Icons.account_balance,
+                              color: Colors.black,
+                              size: 20,
                             ),
                           ),
-                    ..._residents.map((r) {
+                        
+                        // Residents and Family (Added consistency with HazardMapScreen)
+                        ...(() {
+                          final bool isActive = _activeDisaster != null;
+                          return _residents.where((r) => r['latitude'] != null && r['longitude'] != null).map((r) {
+                            final bool isSafeNow = (r['isSafe'] == true);
+                            final bool hasSOS = (r['hasResponded'] == true);
+                            
+                            final Color markerColor = !isActive 
+                                ? (AppTheme.primaryColor)
+                                : (isSafeNow ? Colors.green : (hasSOS ? Colors.red : (Colors.grey)));
+
+                            return Marker(
+                              point: LatLng((r['latitude'] as num).toDouble(), (r['longitude'] as num).toDouble()),
+                              width: 15,
+                              height: 15,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: markerColor, width: 1),
+                                  boxShadow: [BoxShadow(blurRadius: 2, color: markerColor.withOpacity(0.3))],
+                                ),
+                                child: Icon(
+                                  (isActive && isSafeNow) ? Icons.check_circle : Icons.person_pin_circle,
+                                  color: markerColor,
+                                  size: 8,
+                                ),
+                              ),
+                            );
+                          });
+                        })(),
+
+                        // Incident Reports
+                        ..._userReports.map((r) {
+                          final color = _disasterColors[r['type']] ?? Colors.red;
+                          return Marker(
+                            point: r['pos'] as LatLng,
+                            width: 25,
+                            height: 25,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                boxShadow: [BoxShadow(blurRadius: 4, color: Colors.black26)],
+                                border: Border.all(color: color, width: 2),
+                              ),
+                              child: Icon(
+                                _disasterIcons[r['type']] ?? Icons.report,
+                                color: color,
+                                size: 12,
+                              ),
+                            ),
+                          );
+                        }),
+
+                        ..._residents.map((r) {
                           final isSafe = r['isSafe'] == true;
-                          if (r['latitude'] == null || r['longitude'] == null) return const Marker(point: LatLng(0,0), child: SizedBox.shrink());
+                          if (r['latitude'] == null || r['longitude'] == null)
+                            return const Marker(
+                              point: LatLng(0, 0),
+                              child: SizedBox.shrink(),
+                            );
                           final color = isSafe ? Colors.green : (r['hasResponded'] == true ? Colors.red : Colors.redAccent);
-                          
+
                           return Marker(
                             point: LatLng(r['latitude'], r['longitude']),
                             width: 30,
                             height: 30,
                             child: Container(
                               decoration: BoxDecoration(
-                                color: isSafe ? Colors.green : (r['hasResponded'] == true ? Colors.red : Colors.white), 
-                                shape: BoxShape.circle, 
-                                border: Border.all(color: color, width: 1.5), 
-                                boxShadow: [BoxShadow(blurRadius: 4, color: color.withOpacity(0.3))]
+                                color: isSafe ? Colors.green : (r['hasResponded'] == true ? Colors.red : Colors.white),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: color, width: 1.5),
+                                boxShadow: [
+                                  BoxShadow(
+                                    blurRadius: 4,
+                                    color: color.withOpacity(0.3),
+                                  ),
+                                ],
                               ),
                               child: Icon(
-                                isSafe ? Icons.check : (r['hasResponded'] == true ? Icons.sos : Icons.warning), 
-                                color: (isSafe || r['hasResponded'] == true) ? Colors.white : Colors.red, 
+                                isSafe ? Icons.check : (r['hasResponded'] == true ? Icons.sos : Icons.warning),
+                                color: (isSafe || r['hasResponded'] == true) ? Colors.white : Colors.red,
                                 size: 14,
                               ),
                             ),

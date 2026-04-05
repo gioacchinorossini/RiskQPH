@@ -25,6 +25,15 @@ export async function GET(req: NextRequest) {
 
     const members = await prisma.familyMember.findMany({
       where: { headId },
+      include: {
+        linkedUser: {
+          select: {
+            latitude: true,
+            longitude: true,
+            role: true,
+          }
+        }
+      },
       orderBy: { createdAt: 'desc' },
     });
 
@@ -46,6 +55,16 @@ export async function POST(req: NextRequest) {
 
     const data = parsed.data;
 
+    // Check if already linked to prevent duplicates
+    if (data.userId) {
+      const existing = await prisma.familyMember.findFirst({
+        where: { headId: data.headId, userId: data.userId }
+      });
+      if (existing) {
+        return NextResponse.json({ message: 'Member already linked', member: existing }, { status: 200 });
+      }
+    }
+
     const member = await prisma.familyMember.create({
       data: {
         headId: data.headId,
@@ -59,6 +78,29 @@ export async function POST(req: NextRequest) {
         userId: data.userId,
       },
     });
+
+    // RECIPROCAL LINKING
+    if (data.userId) {
+      const headUser = await prisma.user.findUnique({ where: { id: data.headId } });
+      if (headUser) {
+        const reciprocalExists = await prisma.familyMember.findFirst({
+          where: { headId: data.userId, userId: data.headId }
+        });
+
+        if (!reciprocalExists) {
+          await prisma.familyMember.create({
+            data: {
+              headId: data.userId,
+              userId: data.headId,
+              firstName: headUser.firstName,
+              lastName: headUser.lastName,
+              relationship: 'Family Member',
+              gender: headUser.gender,
+            }
+          });
+        }
+      }
+    }
 
     return NextResponse.json({ member }, { status: 201 });
   } catch (e) {
