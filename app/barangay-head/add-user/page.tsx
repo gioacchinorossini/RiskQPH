@@ -36,6 +36,7 @@ export default function AddUserPage() {
     address: '',
     latitude: 14.5995,
     longitude: 120.9842,
+    role: 'resident',
   });
 
   useEffect(() => {
@@ -97,7 +98,7 @@ export default function AddUserPage() {
              <div className="h-8 w-8 rounded-lg bg-red-600 flex items-center justify-center rotate-3">
                <span className="text-white font-black italic tracking-tighter text-xs">RQ</span>
              </div>
-             <p className="text-[10px] font-black tracking-widest uppercase opacity-40">Add Resident</p>
+             <p className="text-[10px] font-black tracking-widest uppercase opacity-40">Add New Account</p>
          </div>
       </nav>
 
@@ -106,8 +107,8 @@ export default function AddUserPage() {
            <div className="h-20 w-20 rounded-3xl bg-zinc-900 dark:bg-white text-white dark:text-black flex items-center justify-center mx-auto shadow-2xl mb-6">
               <UserPlus size={40} strokeWidth={2.5} />
            </div>
-           <h1 className="text-4xl lg:text-6xl font-black tracking-tighter uppercase leading-none">Add <span className="text-red-600 italic">Resident</span></h1>
-           <p className="text-xs font-black uppercase tracking-[0.3em] text-zinc-400">Barangay {user?.barangay} Registration Form</p>
+           <h1 className="text-4xl lg:text-6xl font-black tracking-tighter uppercase leading-none">Add <span className="text-red-600 italic">User</span></h1>
+           <p className="text-xs font-black uppercase tracking-[0.3em] text-zinc-400">Jurisdictional Registration Form</p>
         </header>
 
         {error && (
@@ -127,6 +128,39 @@ export default function AddUserPage() {
 
         {!success && (
           <form onSubmit={handleSubmit} className="space-y-12">
+            {/* Role Assignment */}
+            <section className="bg-white dark:bg-zinc-950 p-10 lg:p-14 rounded-[3.5rem] border border-zinc-200 dark:border-zinc-800 shadow-2xl space-y-10">
+               <div className="flex items-center gap-4 border-b border-zinc-100 dark:border-zinc-900 pb-6">
+                  <div className="h-10 w-10 rounded-xl bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center text-zinc-500">
+                     <ShieldIcon size={20} />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black uppercase tracking-widest">Account Type</h3>
+                    <p className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">Select user responsibility level</p>
+                  </div>
+               </div>
+
+               <div className="grid grid-cols-2 gap-4">
+                  {[
+                    { id: 'resident', label: 'Resident' },
+                    { id: 'responder', label: 'Responder' },
+                  ].map((role) => (
+                    <button
+                      key={role.id}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, role: role.id })}
+                      className={`h-14 rounded-2xl border transition-all text-[9px] font-black uppercase tracking-widest ${
+                        (formData.role || 'resident') === role.id 
+                          ? 'bg-red-600 border-red-600 text-white shadow-xl shadow-red-600/20' 
+                          : 'bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:border-red-600/30'
+                      }`}
+                    >
+                       {role.label}
+                    </button>
+                  ))}
+               </div>
+            </section>
+
             {/* Form Section: Identity */}
             <section className="bg-white dark:bg-zinc-950 p-10 lg:p-14 rounded-[3.5rem] border border-zinc-200 dark:border-zinc-800 shadow-2xl space-y-10">
                <div className="flex items-center gap-4 border-b border-zinc-100 dark:border-zinc-900 pb-6">
@@ -291,7 +325,7 @@ export default function AddUserPage() {
               ) : (
                 <>
                   <div className="absolute inset-0 bg-red-600 translate-y-full group-hover:translate-y-0 transition-transform duration-500"></div>
-                  <span className="relative z-10">Add Resident</span>
+                  <span className="relative z-10">Add User</span>
                   <ChevronRight className="relative z-10 group-hover:translate-x-2 transition-transform" size={20} />
                 </>
               )}

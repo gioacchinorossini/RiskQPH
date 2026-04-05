@@ -48,6 +48,7 @@ interface Resident {
   longitude: number | null;
   isSafe: boolean;
   hasResponded: boolean;
+  role: string;
   safetyUpdatedAt?: string | null;
   updatedAt?: string | null;
 }
@@ -203,6 +204,25 @@ export default function BarangayHeadDashboard() {
     }
   };
 
+  const handleDeleteUser = async (id: string) => {
+    if (!confirm('Are you sure you want to delete this account? This action cannot be undone.')) return;
+    
+    try {
+      const res = await fetch(`/api/profile?id=${id}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setResidents(prev => prev.filter(r => r.id !== id));
+      } else {
+        const data = await res.json();
+        alert(data.message || 'Deletion failed');
+      }
+    } catch (err) {
+      console.error(err);
+      alert('Server error while deleting user');
+    }
+  };
+
   const filteredResidents = useMemo(() => {
     return residents.filter(r => {
       const matchesSearch = `${r.firstName} ${r.lastName}`.toLowerCase().includes(search.toLowerCase());
@@ -270,7 +290,14 @@ export default function BarangayHeadDashboard() {
             </button>
           ))}
           
-          <div className="pt-4 mt-4 border-t border-zinc-100 dark:border-zinc-900">
+          <div className="pt-4 mt-4 border-t border-zinc-100 dark:border-zinc-900 space-y-2">
+             <button
+               onClick={() => router.push('/barangay-head/add-user')}
+               className="w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-300 group text-zinc-400 hover:text-red-600 hover:bg-red-600/5 dark:hover:bg-red-600/10"
+             >
+               <UserPlus size={20} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
+               <span className="hidden lg:block text-xs font-black uppercase tracking-wider">Add Account</span>
+             </button>
              <button
                onClick={() => router.push('/barangay-head/admin-add-user')}
                className="w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-300 group text-zinc-400 hover:text-red-600 hover:bg-red-600/5 dark:hover:bg-red-600/10"
@@ -521,9 +548,13 @@ export default function BarangayHeadDashboard() {
                   </div>
                 </div>
               </section>
+            </>
+          )}
 
+          {activeTab === 'residents' && (
+            <div className="animate-in fade-in slide-in-from-bottom-4 duration-700">
               {/* Citizen Monitor Table Section */}
-              <section className="space-y-8 pt-12">
+              <section className="space-y-8">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
                     <div className="flex items-center gap-4">
                        <div className="p-3 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800">
@@ -541,7 +572,7 @@ export default function BarangayHeadDashboard() {
                          className="h-12 px-8 rounded-2xl bg-zinc-900 dark:bg-white text-white dark:text-black text-[10px] font-black uppercase tracking-widest hover:bg-red-600 dark:hover:bg-red-600 hover:text-white transition-all flex items-center gap-3 shadow-xl shadow-zinc-900/10"
                        >
                          <UserPlus size={18} />
-                         Add Resident
+                         Add User
                        </button>
                        <div className="relative group">
                          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-red-600 transition-colors" size={16} />
@@ -577,6 +608,7 @@ export default function BarangayHeadDashboard() {
                       <thead>
                         <tr className="border-b border-zinc-200 dark:border-zinc-800">
                           <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-zinc-400">Citizen Name</th>
+                          <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-zinc-400">Account Type</th>
                           <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-zinc-400">Current Status</th>
                           <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-zinc-400">Last Update</th>
                           <th className="px-8 py-6 text-[10px] font-black uppercase tracking-widest text-zinc-400 text-right">Actions</th>
@@ -585,7 +617,7 @@ export default function BarangayHeadDashboard() {
                       <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
                         {filteredResidents.length === 0 ? (
                            <tr>
-                              <td colSpan={4} className="px-8 py-20 text-center opacity-30 uppercase font-black text-xs space-y-4">
+                              <td colSpan={5} className="px-8 py-20 text-center opacity-30 uppercase font-black text-xs space-y-4">
                                  <HelpCircle className="mx-auto" size={48} strokeWidth={1} />
                                  <p>No citizens matching your search parameters.</p>
                               </td>
@@ -602,6 +634,13 @@ export default function BarangayHeadDashboard() {
                                     <p className="text-xs font-black uppercase">{r.firstName} {r.lastName}</p>
                                     <p className="text-[9px] font-medium text-zinc-500 uppercase tracking-widest">Resident ID: {r.id.slice(-8).toUpperCase()}</p>
                                   </div>
+                                </div>
+                              </td>
+                              <td className="px-8 py-6">
+                                <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${
+                                  r.role === 'responder' ? 'bg-cyan-50 text-cyan-600 border border-cyan-100' : 'bg-zinc-100 text-zinc-500 border border-zinc-200'
+                                }`}>
+                                   {r.role}
                                 </div>
                               </td>
                               <td className="px-8 py-6">
@@ -629,18 +668,25 @@ export default function BarangayHeadDashboard() {
                               <td className="px-8 py-6 text-right flex items-center justify-end gap-2">
                                 <button 
                                   onClick={() => router.push(`/barangay-head/edit-user/${r.id}`)}
-                                  className="h-10 px-6 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-black text-[9px] font-black uppercase tracking-widest hover:bg-red-600 dark:hover:bg-red-600 hover:text-white transition-all shadow-lg shadow-zinc-900/5"
+                                  className="h-10 px-4 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-black text-[9px] font-black uppercase tracking-widest hover:bg-red-600 dark:hover:bg-red-600 hover:text-white transition-all shadow-lg shadow-zinc-900/5"
                                 >
-                                  Edit Account
+                                  Edit
+                                </button>
+                                <button 
+                                  onClick={() => handleDeleteUser(r.id)}
+                                  className="h-10 w-10 flex items-center justify-center rounded-xl bg-red-600/10 text-red-600 hover:bg-red-600 hover:text-white transition-all shadow-sm"
+                                >
+                                  <ShieldAlert size={16} />
                                 </button>
                                 <button 
                                   onClick={() => {
                                     setFocusResident(r);
+                                    setActiveTab('dashboard');
                                     window.scrollTo({ top: 300, behavior: 'smooth' });
                                   }}
-                                  className="h-10 px-6 rounded-xl border border-zinc-200 dark:border-zinc-800 text-[9px] font-black uppercase tracking-widest hover:bg-zinc-900 hover:text-white dark:hover:bg-white dark:hover:text-black transition-all"
+                                  className="h-10 px-4 rounded-xl border border-zinc-200 dark:border-zinc-800 text-[9px] font-black uppercase tracking-widest hover:bg-zinc-900 hover:text-white dark:hover:bg-white dark:hover:text-black transition-all"
                                 >
-                                  View on Radar
+                                  Radar
                                 </button>
                               </td>
                             </tr>
@@ -651,7 +697,15 @@ export default function BarangayHeadDashboard() {
                   </div>
                 </div>
               </section>
-            </>
+            </div>
+          )}
+
+          {activeTab === 'history' && (
+            <div className="py-20 flex flex-col items-center justify-center opacity-30 text-center space-y-4">
+              <BarChart3 size={64} strokeWidth={1} />
+              <p className="text-xs font-black uppercase tracking-[0.3em]">Historical Archive Encryption Active</p>
+              <p className="max-w-xs text-[10px] font-bold uppercase leading-relaxed text-zinc-400 italic">Historical data logs are currently being synchronized with the central server.</p>
+            </div>
           )}
         </div>
       </main>

@@ -13,12 +13,13 @@ export async function GET(req: NextRequest) {
 
     // Get all residents in this barangay
     const residents = await prisma.user.findMany({
-      where: { barangay, role: 'resident' },
+      where: { barangay, role: { in: ['resident', 'responder'] } },
       select: {
         id: true,
         firstName: true,
         lastName: true,
         middleName: true,
+        role: true,
         latitude: true,
         longitude: true,
         updatedAt: true,

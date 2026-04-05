@@ -18,6 +18,7 @@ import 'package:http/http.dart' as http;
 import '../../config/api_config.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
+import '../../widgets/view_on_map_button.dart';
 
 class ResponderDashboard extends StatefulWidget {
   const ResponderDashboard({super.key});
@@ -631,11 +632,8 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
           padding: const EdgeInsets.fromLTRB(16, 32, 16, 16),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-              Text(
-                'Emergency Control',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
+              _buildQuickActionsGrid(primaryColor),
+              const SizedBox(height: 24),
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -661,6 +659,11 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
                         ),
                       ],
                     ),
+                    const SizedBox(height: 20),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: _buildHazardMapPreview(primaryColor),
+                    ),
                     if (isActive && _residents.isNotEmpty) ...[
                       const SizedBox(height: 20),
                       Row(
@@ -684,14 +687,6 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
                   ],
                 ),
               ),
-
-              const SizedBox(height: 24),
-              Text(
-                'Quick Actions',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              _buildQuickActionsGrid(primaryColor),
               
               if (isActive && _residents.any((r) => r['isSafe'] == false)) ...[
                 const SizedBox(height: 24),
@@ -699,12 +694,7 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
               ],
               
               const SizedBox(height: 24),
-              Text(
-                'Live Hazard Monitoring',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
               const SizedBox(height: 12),
-              _buildHazardMapPreview(primaryColor),
 
               const SizedBox(height: 24),
               Text(
@@ -750,11 +740,7 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
                 icon: Icons.list_alt, 
                 label: 'View List', 
                 color: Colors.green, 
-                onTap: () {
-                  if (_activeDisaster != null) {
-                    // Maybe scroll to rescue list?
-                  }
-                }
+                onTap: () => Navigator.pushNamed(context, '/resident_list'),
               ),
               _buildQuickActionItem(
                 icon: Icons.edit_note, 
@@ -867,19 +853,7 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const Spacer(),
-                    ElevatedButton(
-                      onPressed: () {},
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                        padding: EdgeInsets.zero,
-                        minimumSize: const Size(double.infinity, 30),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        elevation: 0,
-                      ),
-                      child: const Text('RESCUE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
-                    ),
+                    ViewOnMapButton(residents: _residents, resident: resident, isPrimary: true),
                   ],
                 ),
               );
@@ -1009,13 +983,6 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
                     ),
                   ],
                 ),
-              ),
-              Container(color: Colors.black.withOpacity(0.2)),
-              const Center(child: Icon(Icons.touch_app, color: Colors.white, size: 40)),
-              Positioned(
-                bottom: 15,
-                left: 15,
-                child: Text('Live Map Tracking', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               ),
             ],
           ),

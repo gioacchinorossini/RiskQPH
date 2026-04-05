@@ -87,3 +87,20 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ message: 'Server error' }, { status: 500 });
   }
 }
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+    if (!id) return NextResponse.json({ message: 'Missing ID' }, { status: 400 });
+
+    await prisma.user.delete({
+      where: { id }
+    });
+
+    return NextResponse.json({ message: 'User deleted successfully' }, { status: 200 });
+  } catch (e) {
+    console.error(e);
+    return NextResponse.json({ message: 'Server error' }, { status: 500 });
+  }
+}

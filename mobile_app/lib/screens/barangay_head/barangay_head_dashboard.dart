@@ -798,11 +798,8 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
           padding: const EdgeInsets.fromLTRB(16, 32, 16, 16),
           sliver: SliverList(
             delegate: SliverChildListDelegate([
-              Text(
-                'Emergency Control',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
+              _buildQuickActionsGrid(),
+              const SizedBox(height: 24),
               Container(
                 padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
@@ -839,6 +836,11 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                       ),
                       child: Text(isActive ? 'STOP DISASTER MODE' : 'START DISASTER MODE'),
                     ),
+                    const SizedBox(height: 20),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: _buildHazardMapPreview(primaryColor),
+                    ),
                     if (isActive && _residents.isNotEmpty) ...[
                       const SizedBox(height: 20),
                       Row(
@@ -862,27 +864,13 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                   ],
                 ),
               ),
-
-              const SizedBox(height: 24),
-              Text(
-                'Quick Actions',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              _buildQuickActionsGrid(),
               
               if (isActive && _residents.any((r) => r['isSafe'] == false)) ...[
                 const SizedBox(height: 24),
                 _buildRescueRequestsList(),
               ],
               
-              const SizedBox(height: 24),
-              Text(
-                'Live Hazard Monitoring',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
               const SizedBox(height: 12),
-              _buildHazardMapPreview(primaryColor),
 
               const SizedBox(height: 24),
               Text(
@@ -1175,13 +1163,6 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                     ),
                   ],
                 ),
-              ),
-              Container(color: Colors.black.withOpacity(0.2)),
-              const Center(child: Icon(Icons.touch_app, color: Colors.white, size: 40)),
-              Positioned(
-                bottom: 15,
-                left: 15,
-                child: Text('Live Map Tracking', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
               ),
             ],
           ),

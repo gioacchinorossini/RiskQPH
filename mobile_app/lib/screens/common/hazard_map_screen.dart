@@ -17,7 +17,8 @@ import '../../config/api_config.dart';
 
 class HazardMapScreen extends StatefulWidget {
   final List<Map<String, dynamic>>? residentsToRescue;
-  const HazardMapScreen({super.key, this.residentsToRescue});
+  final LatLng? initialFocus;
+  const HazardMapScreen({super.key, this.residentsToRescue, this.initialFocus});
 
   @override
   State<HazardMapScreen> createState() => _HazardMapScreenState();
@@ -85,9 +86,20 @@ class _HazardMapScreenState extends State<HazardMapScreen> {
     super.initState();
     _loadMapState();
     _fetchReports();
-    _determinePosition();
     _loadBarangayBoundaries();
     _fetchHqLocation();
+    
+    if (widget.initialFocus != null) {
+      setState(() {
+        _mapCenter = widget.initialFocus!;
+        _mapZoom = 18.0;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _mapController.move(widget.initialFocus!, 18.0);
+      });
+    } else {
+      _determinePosition();
+    }
   }
 
   Future<void> _fetchHqLocation() async {

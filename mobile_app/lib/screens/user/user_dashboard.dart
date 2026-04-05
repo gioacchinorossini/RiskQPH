@@ -46,6 +46,9 @@ class _UserDashboardState extends State<UserDashboard> {
   Map<String, dynamic>? _activeDisaster;
   bool _isSafeReported = false;
   HttpClient? _sseClient;
+  HttpClient? _residentsSseClient;
+  List<dynamic> _residents = [];
+  bool _hasFetchedResidents = false;
 
   @override
   void initState() {
@@ -117,9 +120,16 @@ class _UserDashboardState extends State<UserDashboard> {
                 setState(() {
                   if (data['isActive'] == true) {
                     _activeDisaster = data['disaster'];
+                    if (!_hasFetchedResidents) {
+                      _fetchResidents();
+                    }
+                    _startResidentsStream();
                     _isSafeReported = false;
                   } else {
                     _activeDisaster = null;
+                    _residents = [];
+                    _hasFetchedResidents = false;
+                    _residentsSseClient?.close(force: true);
                     _isSafeReported = false;
                   }
                 });
@@ -129,17 +139,77 @@ class _UserDashboardState extends State<UserDashboard> {
             }
           }
         }, onDone: () {
-          if (mounted) {
-            debugPrint('SSE Stream closed. Reconnecting...');
-            Future.delayed(const Duration(seconds: 5), _startDisasterStream);
-          }
-        }, onError: (e) {
-          debugPrint('SSE Stream Error: $e');
-          if (mounted) Future.delayed(const Duration(seconds: 10), _startDisasterStream);
+          if (mounted) Future.delayed(const Duration(seconds: 5), _startDisasterStream);
         });
       } catch (e) {
-        debugPrint('Failed to connect to SSE: $e');
         if (mounted) Future.delayed(const Duration(seconds: 10), _startDisasterStream);
+      }
+    });
+  }
+
+  Future<void> _fetchResidents() async {
+    final user = Provider.of<AuthProvider>(context, listen: false).currentUser;
+    if (_activeDisaster == null || user?.barangay == null) return;
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/barangay/residents?barangay=${user!.barangay}&disasterId=${_activeDisaster!['id']}'),
+        headers: {'ngrok-skip-browser-warning': 'true'},
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (mounted) {
+          setState(() {
+            _residents = data['residents'];
+            _hasFetchedResidents = true;
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching residents: $e');
+    }
+  }
+
+  void _startResidentsStream() {
+    final user = Provider.of<AuthProvider>(context, listen: false).currentUser;
+    if (_activeDisaster == null || user?.barangay == null) return;
+
+    final url = Uri.parse('${ApiConfig.baseUrl}/api/barangay/residents/events?barangay=${user!.barangay}');
+    
+    _residentsSseClient?.close(force: true);
+    _residentsSseClient = HttpClient();
+    
+    Future.microtask(() async {
+      try {
+        final request = await _residentsSseClient!.getUrl(url);
+        request.headers.set('Accept', 'text/event-stream');
+        request.headers.set('Cache-Control', 'no-cache');
+        request.headers.set('ngrok-skip-browser-warning', 'true');
+        
+        final response = await request.close();
+        response.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
+          if (line.trim().isEmpty) return;
+          if (line.startsWith('data: ')) {
+            final residentData = jsonDecode(line.substring(6));
+            if (mounted) {
+              setState(() {
+                final index = _residents.indexWhere((r) => r['id'] == residentData['id']);
+                if (index != -1) {
+                  _residents[index] = residentData;
+                } else {
+                  _residents.add(residentData);
+                }
+              });
+            }
+          }
+        }, onDone: () {
+          if (mounted && _activeDisaster != null) {
+            Future.delayed(const Duration(seconds: 5), _startResidentsStream);
+          }
+        });
+      } catch (e) {
+        if (mounted && _activeDisaster != null) {
+          Future.delayed(const Duration(seconds: 10), _startResidentsStream);
+        }
       }
     });
   }
@@ -455,7 +525,7 @@ class _UserDashboardState extends State<UserDashboard> {
                     color: Colors.transparent,
                   ),
                 ),
-                if (_selectedIndex == 0) _buildEventsSliver(),
+                if (_selectedIndex == 0) _buildEventsSliver(primaryColor),
                 if (_selectedIndex == 1) _buildAttendanceHistorySliver(),
                 if (_selectedIndex == 2) _buildProfileSliver(user),
               ],
@@ -775,6 +845,74 @@ class _UserDashboardState extends State<UserDashboard> {
     );
   }
 
+  Widget _buildHazardMapPreview(Color primaryColor) {
+    return GestureDetector(
+      onTap: () => Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => const HazardMapScreen(),
+      )),
+      child: AbsorbPointer(
+        child: FlutterMap(
+          mapController: _previewMapController,
+          options: const MapOptions(
+            initialCenter: LatLng(14.5995, 120.9842),
+            initialZoom: 15,
+          ),
+          children: [
+            TileLayer(
+              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+              userAgentPackageName: 'RiskQPH/1.0 (ph.gov.riskqph.mobile; contact: admin@riskqph.ph)',
+            ),
+            MarkerLayer(
+              markers: [
+                if (_previewLocation != null)
+                  Marker(
+                    point: _previewLocation!,
+                    width: 30,
+                    height: 30,
+                    child: const Icon(
+                      Icons.person_pin_circle,
+                      color: Colors.blueAccent,
+                      size: 30,
+                    ),
+                  ),
+                Marker(
+                  point: const LatLng(14.5995, 120.9842),
+                  width: 30,
+                  height: 30,
+                  child: const Icon(
+                    Icons.location_on,
+                    color: Colors.red,
+                    size: 20,
+                  ),
+                ),
+                Marker(
+                  point: const LatLng(10.3157, 123.8854),
+                  width: 30,
+                  height: 30,
+                  child: const Icon(
+                    Icons.location_on,
+                    color: Colors.orange,
+                    size: 20,
+                  ),
+                ),
+                Marker(
+                  point: const LatLng(7.0736, 125.6128),
+                  width: 30,
+                  height: 30,
+                  child: const Icon(
+                    Icons.location_on,
+                    color: Colors.blue,
+                    size: 20,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildOfflineQRCode(User? user, double size) {
     if (user == null) return Container();
     final qrPayload = jsonEncode({'studentId': user.id});
@@ -788,7 +926,10 @@ class _UserDashboardState extends State<UserDashboard> {
     );
   }
 
-  Widget _buildEventsSliver() {
+  Widget _buildEventsSliver(Color primaryColor) {
+    final bool isActive = _activeDisaster != null;
+    final int missingCount = _residents.where((r) => r['isSafe'] == false).length;
+
     return Consumer<EventProvider>(
       builder: (context, eventProvider, child) {
         if (eventProvider.isLoading) {
@@ -808,60 +949,6 @@ class _UserDashboardState extends State<UserDashboard> {
                 },
               ),
               const SizedBox(height: 0),
-              if (_activeDisaster != null) ...[
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(color: Colors.red.shade200),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.warning_amber_rounded, color: Colors.red.shade700, size: 20),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${_activeDisaster!['type']?.toString().toUpperCase() ?? 'GENERAL EMERGENCY'} ADVISORY',
-                            style: TextStyle(
-                              color: Colors.red.shade700,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        (_activeDisaster!['description'] != null && _activeDisaster!['description'].toString().trim().isNotEmpty)
-                            ? _activeDisaster!['description']
-                            : 'Disaster ongoing. Please stay safe and follow official instructions.',
-                        style: TextStyle(
-                          color: Colors.red.shade900,
-                          fontSize: 14,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 16),
-              ],
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Quick Actions',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.symmetric(vertical: 12),
                 decoration: BoxDecoration(
@@ -941,196 +1028,83 @@ class _UserDashboardState extends State<UserDashboard> {
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
-              Text(
-                'Live Hazard Monitoring',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              const SizedBox(height: 12),
-              GestureDetector(
-                onTap: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const HazardMapScreen()),
-                  );
-                },
-                child: AspectRatio(
-                  aspectRatio: 1,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      borderRadius: BorderRadius.circular(20),
-                      border: Border.all(color: Colors.grey[200]!),
-                      boxShadow: [
-                        BoxShadow(
-                          color: Colors.black.withOpacity(0.05),
-                          blurRadius: 10,
-                          offset: const Offset(0, 4),
-                        ),
-                      ],
-                    ),
-                    clipBehavior: Clip.antiAlias,
-                    child: Stack(
+              const SizedBox(height: 24),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: isActive ? Colors.red.shade50 : Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: isActive ? Colors.red.shade200 : Colors.green.shade200),
+                ),
+                child: Column(
+                  children: [
+                    Row(
                       children: [
-                        AbsorbPointer(
-                          child: FlutterMap(
-                            mapController: _previewMapController,
-                            options: const MapOptions(
-                              initialCenter: LatLng(14.5995, 120.9842),
-                              initialZoom: 15,
-                            ),
-                            children: [
-                              TileLayer(
-                                urlTemplate:
-                                    'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                userAgentPackageName: 'RiskQPH/1.0 (ph.gov.riskqph.mobile; contact: admin@riskqph.ph)',
-                              ),
-                              RichAttributionWidget(
-                                attributions: [
-                                  TextSourceAttribution(
-                                    'OpenStreetMap contributors',
-                                    onTap: () {},
-                                  ),
-                                ],
-                              ),
-                              MarkerLayer(
-                                markers: [
-                                  if (_previewLocation != null)
-                                    Marker(
-                                      point: _previewLocation!,
-                                      width: 30,
-                                      height: 30,
-                                      child: const Icon(
-                                        Icons.person_pin_circle,
-                                        color: Colors.blueAccent,
-                                        size: 30,
-                                      ),
-                                    ),
-                                  // Add the main hazard markers for the preview
-                                  Marker(
-                                    point: const LatLng(14.5995, 120.9842),
-                                    width: 30,
-                                    height: 30,
-                                    child: const Icon(
-                                      Icons.location_on,
-                                      color: Colors.red,
-                                      size: 20,
-                                    ),
-                                  ),
-                                  Marker(
-                                    point: const LatLng(10.3157, 123.8854),
-                                    width: 30,
-                                    height: 30,
-                                    child: const Icon(
-                                      Icons.location_on,
-                                      color: Colors.orange,
-                                      size: 20,
-                                    ),
-                                  ),
-                                  Marker(
-                                    point: const LatLng(7.0736, 125.6128),
-                                    width: 30,
-                                    height: 30,
-                                    child: const Icon(
-                                      Icons.location_on,
-                                      color: Colors.blue,
-                                      size: 20,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          ),
-                        ),
-                        Container(
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.transparent,
-                                Colors.black.withOpacity(0.5),
-                              ],
-                            ),
-                          ),
-                        ),
-                        Positioned(
-                          bottom: 20,
-                          left: 20,
-                          right: 20,
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            children: [
-                              Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Hazard Tracking Active',
-                                    style: TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.bold,
-                                      fontSize: 16,
-                                    ),
-                                  ),
-                                  Text(
-                                    'Tap to expand full map',
-                                    style: TextStyle(
-                                      color: Colors.white.withOpacity(0.8),
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              CircleAvatar(
-                                backgroundColor: Colors.white,
-                                child: Icon(
-                                  Icons.fullscreen,
-                                  color: AppTheme.primaryColor,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        Positioned(
-                          top: 15,
-                          right: 15,
-                          child: Container(
-                            padding: EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 5,
-                            ),
-                            decoration: BoxDecoration(
-                              color: Colors.red,
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: BoxDecoration(
-                                    color: Colors.white,
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                SizedBox(width: 5),
-                                Text(
-                                  'LIVE',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
+                        Icon(isActive ? Icons.warning_amber_rounded : Icons.shield_outlined, 
+                             color: isActive ? Colors.red : Colors.green, size: 32),
+                        const SizedBox(width: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(isActive ? 'EMERGENCY ACTIVE' : 'SYSTEM STATUS: SAFE', 
+                              style: TextStyle(fontWeight: FontWeight.bold, color: isActive ? Colors.red : Colors.green)),
+                            Text(isActive ? '$missingCount residents missing.' : 'All systems monitoring active.', 
+                              style: TextStyle(fontSize: 12, color: isActive ? Colors.red[700] : Colors.green[700])),
+                          ],
                         ),
                       ],
                     ),
-                  ),
+                    const SizedBox(height: 20),
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: AspectRatio(
+                        aspectRatio: 1.5,
+                        child: _buildHazardMapPreview(primaryColor),
+                      ),
+                    ),
+                    if (isActive && _residents.isNotEmpty) ...[
+                      const SizedBox(height: 20),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Safety Progress', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                          Text('${((_residents.where((r) => r['isSafe'] == true).length / _residents.length) * 100).toStringAsFixed(1)}%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green)),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(10),
+                        child: LinearProgressIndicator(
+                          value: _residents.where((r) => r['isSafe'] == true).length / _residents.length,
+                          backgroundColor: Colors.red.withOpacity(0.1),
+                          valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
+                          minHeight: 10,
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.08),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          (_activeDisaster!['description'] != null && _activeDisaster!['description'].toString().trim().isNotEmpty)
+                              ? _activeDisaster!['description']
+                              : 'Disaster ongoing. Please stay safe and follow official instructions.',
+                          style: TextStyle(
+                            color: Colors.red[900],
+                            fontSize: 13,
+                            fontWeight: FontWeight.w500,
+                            height: 1.4,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ),
+              const SizedBox(height: 24),
               const SizedBox(height: 32),
               const SizedBox(height: 24),
               Text(

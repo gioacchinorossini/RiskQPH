@@ -12,6 +12,8 @@ import 'screens/auth/register_screen.dart';
 import 'screens/user/user_dashboard.dart';
 import 'screens/barangay_head/barangay_head_dashboard.dart';
 import 'screens/responder/responder_dashboard.dart';
+import 'screens/responder/resident_list_screen.dart';
+import 'screens/common/hazard_map_screen.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -45,6 +47,8 @@ class MyApp extends StatelessWidget {
           '/user_dashboard': (context) => const UserDashboard(),
           '/barangay_head_dashboard': (context) => const BarangayHeadDashboard(),
           '/responder_dashboard': (context) => const ResponderDashboard(),
+          '/resident_list': (context) => const ResidentListScreen(),
+          '/hazard_map': (context) => const HazardMapScreen(),
         },
       ),
     );
