@@ -3,20 +3,22 @@ import 'package:latlong2/latlong.dart';
 import '../screens/common/hazard_map_screen.dart';
 
 class ViewOnMapButton extends StatelessWidget {
-  final List<dynamic> residents;
-  final Map<String, dynamic> resident;
+  final List<dynamic>? residents;
+  final Map<String, dynamic> locationData;
   final bool isPrimary;
+  final String label;
 
   const ViewOnMapButton({
     super.key,
-    required this.residents,
-    required this.resident,
+    this.residents,
+    required this.locationData,
     this.isPrimary = false,
+    this.label = "VIEW ON MAP",
   });
 
   @override
   Widget build(BuildContext context) {
-    if (resident['latitude'] == null || resident['longitude'] == null) {
+    if (locationData['latitude'] == null || locationData['longitude'] == null) {
       return const SizedBox.shrink();
     }
 
@@ -26,10 +28,10 @@ class ViewOnMapButton extends StatelessWidget {
       onTap: () {
         Navigator.push(context, MaterialPageRoute(
           builder: (_) => HazardMapScreen(
-            residentsToRescue: residents.cast<Map<String, dynamic>>().toList(),
+            residentsToRescue: residents?.cast<Map<String, dynamic>>().toList(),
             initialFocus: LatLng(
-              (resident['latitude'] as num).toDouble(),
-              (resident['longitude'] as num).toDouble(),
+              (locationData['latitude'] as num).toDouble(),
+              (locationData['longitude'] as num).toDouble(),
             ),
           ),
         ));
@@ -52,7 +54,7 @@ class ViewOnMapButton extends StatelessWidget {
             ),
             const SizedBox(width: 6),
             Text(
-              "VIEW ON MAP",
+              label,
               style: TextStyle(
                 color: isPrimary ? Colors.white : themeColor,
                 fontSize: 9,

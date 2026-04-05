@@ -16,6 +16,8 @@ import 'package:geolocator/geolocator.dart';
 import '../user/edit_profile_screen.dart';
 import 'package:http/http.dart' as http;
 import '../../config/api_config.dart';
+import '../../widgets/view_on_map_button.dart';
+import '../common/reported_incidents_screen.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
 
@@ -100,7 +102,9 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
 
     try {
       final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/barangay/location?name=${user.barangay}'),
+        Uri.parse(
+          '${ApiConfig.baseUrl}/api/barangay/location?name=${user.barangay}',
+        ),
         headers: {'ngrok-skip-browser-warning': 'true'},
       );
 
@@ -133,7 +137,7 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
       final String decoded = utf8.decode(bytes, allowMalformed: true);
       final List<String> lines = decoded.split(RegExp(r'\r?\n'));
       final List<String> result = [];
-      String currentContext = ''; 
+      String currentContext = '';
       for (var line in lines) {
         final trimmedLine = line.trim();
         if (trimmedLine.isEmpty) continue;
@@ -143,7 +147,9 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
         String level = '';
         if (parts.length >= 2) level = parts[1].trim().toLowerCase();
         if (level.contains('bgy')) {
-          result.add(currentContext.isNotEmpty ? '$name, $currentContext' : name);
+          result.add(
+            currentContext.isNotEmpty ? '$name, $currentContext' : name,
+          );
         } else {
           if (!level.contains('reg')) currentContext = name;
         }
@@ -175,10 +181,8 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
     final auth = context.read<AuthProvider>();
     final user = auth.currentUser;
     if (user == null) return;
-    
-    final success = await auth.updateProfile(
-      barangay: newBarangay,
-    );
+
+    final success = await auth.updateProfile(barangay: newBarangay);
     if (success && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Jurisdictional focus updated to $newBarangay')),
@@ -192,41 +196,54 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
     final user = auth.currentUser;
     if (user == null || user.barangay == null) return;
 
-    final url = Uri.parse('${ApiConfig.baseUrl}/api/disaster/events?barangay=${user.barangay}');
-    
+    final url = Uri.parse(
+      '${ApiConfig.baseUrl}/api/disaster/events?barangay=${user.barangay}',
+    );
+
     _disasterSseClient?.close(force: true);
     _disasterSseClient = HttpClient();
-    
+
     Future.microtask(() async {
       try {
         final request = await _disasterSseClient!.getUrl(url);
         request.headers.set('Accept', 'text/event-stream');
         request.headers.set('Cache-Control', 'no-cache');
         request.headers.set('ngrok-skip-browser-warning', 'true');
-        
+
         final response = await request.close();
-        response.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
-          if (line.trim().isEmpty) return;
-          if (line.startsWith('data: ')) {
-            final data = jsonDecode(line.substring(6));
-            if (mounted) {
-              setState(() {
-                if (data['isActive'] == true) {
-                  _activeDisaster = data['disaster'];
-                  _startResidentsStream(); 
-                } else {
-                  _activeDisaster = null;
-                  _residents = [];
-                  _residentsSseClient?.close(force: true);
+        response
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())
+            .listen(
+              (line) {
+                if (line.trim().isEmpty) return;
+                if (line.startsWith('data: ')) {
+                  final data = jsonDecode(line.substring(6));
+                  if (mounted) {
+                    setState(() {
+                      if (data['isActive'] == true) {
+                        _activeDisaster = data['disaster'];
+                        _startResidentsStream();
+                      } else {
+                        _activeDisaster = null;
+                        _residents = [];
+                        _residentsSseClient?.close(force: true);
+                      }
+                    });
+                  }
                 }
-              });
-            }
-          }
-        }, onDone: () {
-          if (mounted) Future.delayed(const Duration(seconds: 5), _startDisasterStream);
-        });
+              },
+              onDone: () {
+                if (mounted)
+                  Future.delayed(
+                    const Duration(seconds: 5),
+                    _startDisasterStream,
+                  );
+              },
+            );
       } catch (e) {
-        if (mounted) Future.delayed(const Duration(seconds: 10), _startDisasterStream);
+        if (mounted)
+          Future.delayed(const Duration(seconds: 10), _startDisasterStream);
       }
     });
   }
@@ -235,39 +252,52 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
     final user = Provider.of<AuthProvider>(context, listen: false).currentUser;
     if (_activeDisaster == null || user?.barangay == null) return;
 
-    final url = Uri.parse('${ApiConfig.baseUrl}/api/barangay/residents/events?barangay=${user!.barangay}');
-    
+    final url = Uri.parse(
+      '${ApiConfig.baseUrl}/api/barangay/residents/events?barangay=${user!.barangay}',
+    );
+
     _residentsSseClient?.close(force: true);
     _residentsSseClient = HttpClient();
-    
+
     Future.microtask(() async {
       try {
         final request = await _residentsSseClient!.getUrl(url);
         request.headers.set('Accept', 'text/event-stream');
         request.headers.set('Cache-Control', 'no-cache');
         request.headers.set('ngrok-skip-browser-warning', 'true');
-        
+
         final response = await request.close();
-        response.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
-          if (line.trim().isEmpty) return;
-          if (line.startsWith('data: ')) {
-            final residentData = jsonDecode(line.substring(6));
-            if (mounted) {
-              setState(() {
-                final index = _residents.indexWhere((r) => r['id'] == residentData['id']);
-                if (index != -1) {
-                  _residents[index] = residentData;
-                } else {
-                  _residents.add(residentData);
+        response
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())
+            .listen(
+              (line) {
+                if (line.trim().isEmpty) return;
+                if (line.startsWith('data: ')) {
+                  final residentData = jsonDecode(line.substring(6));
+                  if (mounted) {
+                    setState(() {
+                      final index = _residents.indexWhere(
+                        (r) => r['id'] == residentData['id'],
+                      );
+                      if (index != -1) {
+                        _residents[index] = residentData;
+                      } else {
+                        _residents.add(residentData);
+                      }
+                    });
+                  }
                 }
-              });
-            }
-          }
-        }, onDone: () {
-          if (mounted && _activeDisaster != null) {
-            Future.delayed(const Duration(seconds: 5), _startResidentsStream);
-          }
-        });
+              },
+              onDone: () {
+                if (mounted && _activeDisaster != null) {
+                  Future.delayed(
+                    const Duration(seconds: 5),
+                    _startResidentsStream,
+                  );
+                }
+              },
+            );
       } catch (e) {
         if (mounted && _activeDisaster != null) {
           Future.delayed(const Duration(seconds: 10), _startResidentsStream);
@@ -283,7 +313,9 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
 
     try {
       final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/disaster?barangay=${user.barangay}'),
+        Uri.parse(
+          '${ApiConfig.baseUrl}/api/disaster?barangay=${user.barangay}',
+        ),
         headers: {'ngrok-skip-browser-warning': 'true'},
       );
 
@@ -308,7 +340,9 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
     if (_activeDisaster == null || user?.barangay == null) return;
     try {
       final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/barangay/residents?barangay=${user!.barangay}&disasterId=${_activeDisaster!['id']}'),
+        Uri.parse(
+          '${ApiConfig.baseUrl}/api/barangay/residents?barangay=${user!.barangay}&disasterId=${_activeDisaster!['id']}',
+        ),
         headers: {'ngrok-skip-browser-warning': 'true'},
       );
       if (response.statusCode == 200) {
@@ -336,14 +370,20 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
       context: context,
       builder: (context) => StatefulBuilder(
         builder: (context, setDialogState) => AlertDialog(
-          title: Text(isCurrentlyActive ? 'Deactivate Disaster Mode?' : 'ACTIVATE DISASTER MODE?'),
+          title: Text(
+            isCurrentlyActive
+                ? 'Deactivate Disaster Mode?'
+                : 'ACTIVATE DISASTER MODE?',
+          ),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(isCurrentlyActive 
-                ? 'This will stop the safety check for all residents in ${user.barangay}.'
-                : 'This will notify all residents in ${user.barangay} and require them to mark themselves as safe.'),
+              Text(
+                isCurrentlyActive
+                    ? 'This will stop the safety check for all residents in ${user.barangay}.'
+                    : 'This will notify all residents in ${user.barangay} and require them to mark themselves as safe.',
+              ),
               if (!isCurrentlyActive) ...[
                 const SizedBox(height: 16),
                 DropdownButtonFormField<String>(
@@ -352,14 +392,19 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                     labelText: 'Crisis Type',
                     border: OutlineInputBorder(),
                   ),
-                  items: [
-                    'General Emergency',
-                    'Flood',
-                    'Fire',
-                    'Earthquake',
-                    'Typhoon',
-                    'Landslide',
-                  ].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                  items:
+                      [
+                            'General Emergency',
+                            'Flood',
+                            'Fire',
+                            'Earthquake',
+                            'Typhoon',
+                            'Landslide',
+                          ]
+                          .map(
+                            (e) => DropdownMenuItem(value: e, child: Text(e)),
+                          )
+                          .toList(),
                   onChanged: (val) => setDialogState(() => selectedType = val!),
                 ),
                 const SizedBox(height: 16),
@@ -416,7 +461,10 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
           _checkDisaster();
         }
       } catch (e) {
-        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+        if (mounted)
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     }
   }
@@ -457,7 +505,9 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
   Widget build(BuildContext context) {
     final user = Provider.of<AuthProvider>(context).currentUser;
     // Theme color for Barangay Head: RED
-    final Color primaryDashboardColor = const Color(0xFF8E0000);
+    final Color primaryDashboardColor = _activeDisaster != null
+        ? Colors.red
+        : const Color(0xFF8E0000);
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -468,15 +518,15 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
   Widget _buildMainContent(User? user, Color primaryColor) {
     final double screenWidth = MediaQuery.of(context).size.width;
     final double screenHeight = MediaQuery.of(context).size.height;
-    
+
     final bool is600PLUS = screenWidth > 600;
     final bool is500PLUS = screenWidth > 500;
     final bool is400PLUS = screenWidth > 400;
     final bool is300PLUS = screenWidth > 300;
     final bool is700PLUS = screenWidth > 700;
-    
+
     final double sliverAppBarHeight = MediaQuery.of(context).size.height * 1.0;
-    
+
     double maxQrSize;
     if (is700PLUS) {
       if (screenHeight > 800) {
@@ -495,25 +545,30 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
     } else {
       maxQrSize = (sliverAppBarHeight * 0.40).clamp(150, 250);
     }
-    
+
     double qrSize;
     double finalCollapsedSize = maxQrSize * 0.4;
 
     if (_hasBeenCollapsed) {
       qrSize = finalCollapsedSize;
     } else {
-      qrSize = maxQrSize - (_scrollOffset * 0.3).clamp(0, maxQrSize - finalCollapsedSize);
+      qrSize =
+          maxQrSize -
+          (_scrollOffset * 0.3).clamp(0, maxQrSize - finalCollapsedSize);
     }
-    
+
     double startingTopPosition = (screenHeight * 0.50).clamp(200, 250);
     final double collapsedHeight = MediaQuery.of(context).size.height * 0.15;
-    final double maxUpwardMovement = startingTopPosition - (collapsedHeight * 0.1);
-    
+    final double maxUpwardMovement =
+        startingTopPosition - (collapsedHeight * 0.1);
+
     double qrTopPosition;
     if (_hasBeenCollapsed) {
       qrTopPosition = collapsedHeight * 0.1;
     } else {
-      qrTopPosition = startingTopPosition - (_scrollOffset * 0.3).clamp(0, maxUpwardMovement);
+      qrTopPosition =
+          startingTopPosition -
+          (_scrollOffset * 0.3).clamp(0, maxUpwardMovement);
     }
 
     final double maxScrollForLeftTransition = 300.0;
@@ -525,7 +580,8 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
       qrHorizontalPosition = finalLeftPosition;
     } else if (_scrollOffset <= maxScrollForLeftTransition) {
       double t = _scrollOffset / maxScrollForLeftTransition;
-      qrHorizontalPosition = centeredExpandedLeft * (1 - t) + finalLeftPosition * t;
+      qrHorizontalPosition =
+          centeredExpandedLeft * (1 - t) + finalLeftPosition * t;
     } else {
       qrHorizontalPosition = finalLeftPosition;
     }
@@ -536,7 +592,10 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
-        title: const Text('COMMAND CENTER', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text(
+          'COMMAND CENTER',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.white),
@@ -549,7 +608,10 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
           RefreshIndicator(
             onRefresh: () async {
               _checkDisaster();
-              final eventProvider = Provider.of<EventProvider>(context, listen: false);
+              final eventProvider = Provider.of<EventProvider>(
+                context,
+                listen: false,
+              );
               await eventProvider.loadEvents();
             },
             child: CustomScrollView(
@@ -573,53 +635,53 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                   clipBehavior: Clip.antiAlias,
                 ),
                 SliverToBoxAdapter(
-                  child: Container(
-                    height: 0,
-                    color: Colors.transparent,
-                  ),
+                  child: Container(height: 0, color: Colors.transparent),
                 ),
                 if (_selectedIndex == 0) _buildAdminMainSliver(primaryColor),
                 if (_selectedIndex == 1) _buildAttendanceHistorySliver(),
-                if (_selectedIndex == 2) _buildProfileSliver(user, primaryColor),
+                if (_selectedIndex == 2)
+                  _buildProfileSliver(user, primaryColor),
               ],
             ),
           ),
-          
-          Positioned(
-            top: qrTopPosition - (qrSize * 0.5),
-            left: 0,
-            right: 0,
-            child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 300),
-              opacity: (1 - (_scrollOffset / 200)).clamp(0, 1),
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: qrSize * 0.2),
-                child: Column(
-                  children: [
-                    Text(
-                      'WELCOME COMMANDER',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: (qrSize * 0.10).clamp(16, 40),
-                        fontWeight: FontWeight.bold,
+
+          if (_scrollOffset <= 200 && !_hasBeenCollapsed) ...[
+            Positioned(
+              top: qrTopPosition - (qrSize * 0.5),
+              left: 0,
+              right: 0,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 300),
+                opacity: (1 - (_scrollOffset / 200)).clamp(0, 1),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: qrSize * 0.2),
+                  child: Column(
+                    children: [
+                      Text(
+                        'WELCOME COMMANDER',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: (qrSize * 0.10).clamp(16, 40),
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
-                      textAlign: TextAlign.center,
-                    ),
-                    SizedBox(height: qrSize * 0.02),
-                    Text(
-                      'Barangay ${user?.barangay ?? "N/A"} administrative terminal secure and ready.',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
-                        fontSize: (qrSize * 0.06).clamp(12, 28),
-                        fontWeight: FontWeight.w400,
+                      SizedBox(height: qrSize * 0.02),
+                      Text(
+                        'Barangay ${user?.barangay ?? "N/A"} administrative terminal secure and ready.',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.9),
+                          fontSize: (qrSize * 0.06).clamp(12, 28),
+                          fontWeight: FontWeight.w400,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
+          ],
 
           Positioned(
             top: qrTopPosition,
@@ -647,7 +709,11 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                         SizedBox(
                           width: qrSize,
                           child: Center(
-                            child: _buildAdminQRCode(user, qrSize * 0.9, primaryColor),
+                            child: _buildAdminQRCode(
+                              user,
+                              qrSize * 0.9,
+                              primaryColor,
+                            ),
                           ),
                         ),
                         Expanded(
@@ -681,16 +747,27 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                         ),
                       ],
                     )
-                  : Center(child: _buildAdminQRCode(user, qrSize * 0.9, primaryColor)),
+                  : Center(
+                      child: _buildAdminQRCode(
+                        user,
+                        qrSize * 0.9,
+                        primaryColor,
+                      ),
+                    ),
             ),
           ),
-          
+
           if (_scrollOffset <= 200 && !_hasBeenCollapsed) ...[
             Positioned(
-              top: (qrTopPosition + qrSize + 20 - (_scrollOffset * 0.3).clamp(0, 40)).clamp(
-                collapsedHeight * 0.1,
-                startingTopPosition + qrSize + 20,
-              ),
+              top:
+                  (qrTopPosition +
+                          qrSize +
+                          20 -
+                          (_scrollOffset * 0.3).clamp(0, 40))
+                      .clamp(
+                        collapsedHeight * 0.1,
+                        startingTopPosition + qrSize + 20,
+                      ),
               left: 0,
               right: 0,
               child: AnimatedOpacity(
@@ -698,11 +775,39 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                 opacity: (1 - (_scrollOffset / 200)).clamp(0, 1),
                 child: Center(
                   child: Text(
-                    user?.name ?? 'Admin Name',
+                    user?.name ?? 'Head Name',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: is600PLUS ? 36 : 28,
                       fontWeight: FontWeight.bold,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ),
+            Positioned(
+              top:
+                  (qrTopPosition +
+                          qrSize +
+                          60 -
+                          (_scrollOffset * 0.3).clamp(0, 40))
+                      .clamp(
+                        collapsedHeight * 0.3,
+                        startingTopPosition + qrSize + 60,
+                      ),
+              left: 0,
+              right: 0,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 300),
+                opacity: (1 - (_scrollOffset / 200)).clamp(0, 1),
+                child: Center(
+                  child: Text(
+                    'Barangay Head • ${user?.barangay ?? "N/A"}',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.9),
+                      fontSize: is600PLUS ? 24 : 18,
+                      fontWeight: FontWeight.w500,
                     ),
                     textAlign: TextAlign.center,
                   ),
@@ -722,10 +827,44 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                   opacity: _scrollOffset < 10 ? 1.0 : 0.0,
                   child: Column(
                     children: [
-                      Icon(Icons.keyboard_arrow_up_rounded, color: Colors.white, size: 40),
+                      Icon(
+                        Icons.keyboard_arrow_up_rounded,
+                        color: Colors.white,
+                        size: 40,
+                      ),
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: qrSize * 0.08,
+                          vertical: qrSize * 0.03,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.white.withOpacity(0.9),
+                              Colors.white.withOpacity(0.7),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        child: Text(
+                          'SWIPE UP TO MANAGE',
+                          style: TextStyle(
+                            color: primaryColor,
+                            fontSize: (qrSize * 0.07).clamp(10, 20),
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 2,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
                       Text(
-                        'SWIPE UP TO MANAGE',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 2),
+                        'Administrative terminal access',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.6),
+                          fontSize: (qrSize * 0.06).clamp(8, 16),
+                          fontWeight: FontWeight.w400,
+                          fontStyle: FontStyle.italic,
+                        ),
                       ),
                     ],
                   ),
@@ -735,7 +874,7 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
           ],
 
           if (_hasBeenCollapsed) ...[
-             Positioned(
+            Positioned(
               top: collapsedHeight - 40,
               left: 0,
               right: 0,
@@ -745,12 +884,22 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                   child: InkWell(
                     onTap: () {
                       setState(() => _hasBeenCollapsed = false);
-                      _scrollController.animateTo(0, duration: const Duration(milliseconds: 500), curve: Curves.easeInOut);
+                      _scrollController.animateTo(
+                        0,
+                        duration: const Duration(milliseconds: 500),
+                        curve: Curves.easeInOut,
+                      );
                     },
                     child: Container(
                       padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle),
-                      child: Icon(Icons.keyboard_arrow_down_rounded, color: primaryColor),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: primaryColor,
+                      ),
                     ),
                   ),
                 ),
@@ -765,9 +914,18 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
               selectedItemColor: primaryColor,
               onTap: (index) => setState(() => _selectedIndex = index),
               items: const [
-                BottomNavigationBarItem(icon: Icon(Icons.dashboard), label: 'Home'),
-                BottomNavigationBarItem(icon: Icon(Icons.history), label: 'History'),
-                BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.dashboard),
+                  label: 'Home',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.history),
+                  label: 'History',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.person),
+                  label: 'Profile',
+                ),
               ],
             )
           : null,
@@ -792,7 +950,9 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
       builder: (context, eventProvider, child) {
         final visibleEvents = eventProvider.getStudentVisibleEvents();
         final isActive = _activeDisaster != null;
-        final missingCount = _residents.where((r) => r['isSafe'] == false).length;
+        final missingCount = _residents
+            .where((r) => r['isSafe'] == false)
+            .length;
 
         return SliverPadding(
           padding: const EdgeInsets.fromLTRB(16, 32, 16, 16),
@@ -805,22 +965,47 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                 decoration: BoxDecoration(
                   color: isActive ? Colors.red.shade50 : Colors.green.shade50,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: isActive ? Colors.red.shade200 : Colors.green.shade200),
+                  border: Border.all(
+                    color: isActive
+                        ? Colors.red.shade200
+                        : Colors.green.shade200,
+                  ),
                 ),
                 child: Column(
                   children: [
                     Row(
                       children: [
-                        Icon(isActive ? Icons.warning_amber_rounded : Icons.shield_outlined, 
-                             color: isActive ? Colors.red : Colors.green, size: 32),
+                        Icon(
+                          isActive
+                              ? Icons.warning_amber_rounded
+                              : Icons.shield_outlined,
+                          color: isActive ? Colors.red : Colors.green,
+                          size: 32,
+                        ),
                         const SizedBox(width: 12),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(isActive ? 'EMERGENCY ACTIVE' : 'SYSTEM STATUS: SAFE', 
-                              style: TextStyle(fontWeight: FontWeight.bold, color: isActive ? Colors.red : Colors.green)),
-                            Text(isActive ? '$missingCount residents missing.' : 'All systems monitoring active.', 
-                              style: TextStyle(fontSize: 12, color: isActive ? Colors.red[700] : Colors.green[700])),
+                            Text(
+                              isActive
+                                  ? 'EMERGENCY ACTIVE'
+                                  : 'DISASTER MODE: OFF',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: isActive ? Colors.red : Colors.green,
+                              ),
+                            ),
+                            Text(
+                              isActive
+                                  ? '$missingCount residents missing.'
+                                  : 'No disaster ongoing',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isActive
+                                    ? Colors.red[700]
+                                    : Colors.green[700],
+                              ),
+                            ),
                           ],
                         ),
                       ],
@@ -829,12 +1014,20 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                     ElevatedButton(
                       onPressed: _toggleDisasterMode,
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: isActive ? Colors.red[900] : Colors.green[700],
+                        backgroundColor: isActive
+                            ? Colors.red[900]
+                            : Colors.green[700],
                         foregroundColor: Colors.white,
                         minimumSize: const Size(double.infinity, 48),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
                       ),
-                      child: Text(isActive ? 'STOP DISASTER MODE' : 'START DISASTER MODE'),
+                      child: Text(
+                        isActive
+                            ? 'STOP DISASTER MODE'
+                            : 'ACTIVATE DISASTER MODE',
+                      ),
                     ),
                     const SizedBox(height: 20),
                     ClipRRect(
@@ -846,17 +1039,36 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Safety Progress', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                          Text('${((_residents.where((r) => r['isSafe'] == true).length / _residents.length) * 100).toStringAsFixed(1)}%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green)),
+                          const Text(
+                            'Safety Progress',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            '${((_residents.where((r) => r['isSafe'] == true).length / _residents.length) * 100).toStringAsFixed(1)}%',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green,
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 8),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(10),
                         child: LinearProgressIndicator(
-                          value: _residents.where((r) => r['isSafe'] == true).length / _residents.length,
+                          value:
+                              _residents
+                                  .where((r) => r['isSafe'] == true)
+                                  .length /
+                              _residents.length,
                           backgroundColor: Colors.red.withOpacity(0.1),
-                          valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            Colors.green,
+                          ),
                           minHeight: 10,
                         ),
                       ),
@@ -864,18 +1076,20 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                   ],
                 ),
               ),
-              
+
               if (isActive && _residents.any((r) => r['isSafe'] == false)) ...[
                 const SizedBox(height: 24),
                 _buildRescueRequestsList(),
               ],
-              
+
               const SizedBox(height: 12),
 
               const SizedBox(height: 24),
               Text(
                 'Upcoming Events',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 12),
               if (visibleEvents.isEmpty)
@@ -895,25 +1109,53 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 10, offset: const Offset(0, 4))],
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Column(
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
-              _buildQuickActionItem(icon: Icons.report_gmailerrorred_outlined, label: 'Reports', color: Colors.red, onTap: () {}),
-              _buildQuickActionItem(icon: Icons.people_outline, label: 'Residents', color: Colors.blue, onTap: () {}),
               _buildQuickActionItem(
-                icon: Icons.edit_note, 
-                label: 'Edit Profile', 
-                color: Colors.orange, 
-                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const EditProfileScreen())),
+                icon: Icons.report_gmailerrorred_outlined,
+                label: 'Reported Incidents',
+                color: Colors.red,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const ReportedIncidentsScreen(),
+                  ),
+                ),
               ),
               _buildQuickActionItem(
-                icon: _loadingBarangays ? Icons.hourglass_empty : Icons.location_on_outlined, 
-                label: 'Barangay', 
-                color: Colors.green, 
+                icon: Icons.people_outline,
+                label: 'Residents',
+                color: Colors.blue,
+                onTap: () {},
+              ),
+              _buildQuickActionItem(
+                icon: Icons.edit_note,
+                label: 'Edit Profile',
+                color: Colors.orange,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const EditProfileScreen(),
+                  ),
+                ),
+              ),
+              _buildQuickActionItem(
+                icon: _loadingBarangays
+                    ? Icons.hourglass_empty
+                    : Icons.location_on_outlined,
+                label: 'Barangay',
+                color: Colors.green,
                 onTap: _loadingBarangays ? () {} : _showBarangayPicker,
               ),
             ],
@@ -924,7 +1166,9 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
   }
 
   Widget _buildRescueRequestsList() {
-    final rescueRequests = _residents.where((r) => r['isSafe'] == false).toList();
+    final rescueRequests = _residents
+        .where((r) => r['isSafe'] == false)
+        .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -934,7 +1178,9 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
           children: [
             Text(
               'Rescue Request List',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -944,7 +1190,11 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
               ),
               child: Text(
                 '${rescueRequests.length} ALERT',
-                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ],
@@ -957,8 +1207,10 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
             itemCount: rescueRequests.length,
             itemBuilder: (context, index) {
               final resident = rescueRequests[index];
-              final String name = '${resident['firstName'] ?? ""} ${resident['lastName'] ?? ""}'.trim();
-              
+              final String name =
+                  '${resident['firstName'] ?? ""} ${resident['lastName'] ?? ""}'
+                      .trim();
+
               // Handle timestamp
               String timeStr = 'N/A';
               try {
@@ -984,7 +1236,7 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                       color: Colors.red.withOpacity(0.1),
                       blurRadius: 10,
                       offset: const Offset(0, 4),
-                    )
+                    ),
                   ],
                   border: Border.all(color: Colors.red.withOpacity(0.1)),
                 ),
@@ -997,42 +1249,49 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                         color: Colors.red.shade100,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.person_pin_circle, color: Colors.red, size: 24),
+                      child: const Icon(
+                        Icons.person_pin_circle,
+                        color: Colors.red,
+                        size: 24,
+                      ),
                     ),
                     const SizedBox(height: 8),
                     Text(
                       name.isEmpty ? 'Unknown' : name,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      style: const TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 4),
                     Text(
                       'GPS: $timeStr',
-                      style: TextStyle(color: Colors.red.shade900, fontSize: 9, fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        color: Colors.red.shade900,
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      resident['hasResponded'] == true ? 'REQUESTED RESCUE' : 'NOT RESPONDING',
+                      resident['hasResponded'] == true
+                          ? 'REQUESTED RESCUE'
+                          : 'NOT RESPONDING',
                       style: TextStyle(
-                        color: resident['hasResponded'] == true ? Colors.red.shade900 : Colors.red,
+                        color: resident['hasResponded'] == true
+                            ? Colors.red.shade900
+                            : Colors.red,
                         fontSize: 10,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    const Spacer(),
-                    ElevatedButton(
-                      onPressed: () {},
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red,
-                        foregroundColor: Colors.white,
-                        padding: EdgeInsets.zero,
-                        minimumSize: const Size(double.infinity, 30),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        elevation: 0,
-                      ),
-                      child: const Text('RESCUE', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                    ViewOnMapButton(
+                      residents: _residents,
+                      locationData: resident,
+                      isPrimary: true,
                     ),
                   ],
                 ),
@@ -1044,18 +1303,29 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
     );
   }
 
-  Widget _buildQuickActionItem({required IconData icon, required String label, required Color color, required VoidCallback onTap}) {
+  Widget _buildQuickActionItem({
+    required IconData icon,
+    required String label,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
     return InkWell(
       onTap: onTap,
       child: Column(
         children: [
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: color.withOpacity(0.1), shape: BoxShape.circle),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
             child: Icon(icon, color: color, size: 24),
           ),
           const SizedBox(height: 4),
-          Text(label, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600)),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
+          ),
         ],
       ),
     );
@@ -1063,18 +1333,26 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
 
   Widget _buildHazardMapPreview(Color primaryColor) {
     return GestureDetector(
-      onTap: () => Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => HazardMapScreen(
-          residentsToRescue: _residents.cast<Map<String, dynamic>>(),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => HazardMapScreen(
+            residentsToRescue: _residents.cast<Map<String, dynamic>>(),
+          ),
         ),
-      )),
+      ),
       child: AspectRatio(
         aspectRatio: 16 / 9,
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
             border: Border.all(color: Colors.grey[200]!),
-            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.05), blurRadius: 10, offset: const Offset(0, 4))],
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 10,
+                offset: const Offset(0, 4),
+              ),
+            ],
           ),
           clipBehavior: Clip.antiAlias,
           child: Stack(
@@ -1082,11 +1360,16 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
               AbsorbPointer(
                 child: FlutterMap(
                   mapController: _previewMapController,
-                  options: const MapOptions(initialCenter: LatLng(14.5995, 120.9842), initialZoom: 15),
+                  options: const MapOptions(
+                    initialCenter: LatLng(14.5995, 120.9842),
+                    initialZoom: 15,
+                  ),
                   children: [
                     TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                      userAgentPackageName: 'RiskQPH/1.0 (ph.gov.riskqph.mobile; contact: admin@riskqph.ph)',
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      userAgentPackageName:
+                          'RiskQPH/1.0 (ph.gov.riskqph.mobile; contact: admin@riskqph.ph)',
                     ),
                     RichAttributionWidget(
                       attributions: [
@@ -1103,7 +1386,11 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                             point: _previewLocation!,
                             width: 30,
                             height: 30,
-                            child: const Icon(Icons.my_location, color: Colors.blue, size: 20),
+                            child: const Icon(
+                              Icons.my_location,
+                              color: Colors.blue,
+                              size: 20,
+                            ),
                           ),
                         if (_hqLocation != null)
                           Marker(
@@ -1117,43 +1404,80 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                                   decoration: BoxDecoration(
                                     color: Colors.black,
                                     borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: Colors.white, width: 1),
+                                    border: Border.all(
+                                      color: Colors.white,
+                                      width: 1,
+                                    ),
                                   ),
-                                  child: const Icon(Icons.account_balance, color: Colors.white, size: 14),
+                                  child: const Icon(
+                                    Icons.account_balance,
+                                    color: Colors.white,
+                                    size: 14,
+                                  ),
                                 ),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                    vertical: 2,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: Colors.black.withOpacity(0.8),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: Text(
                                     'BRGY HQ',
-                                    style: TextStyle(color: Colors.white, fontSize: 6, fontWeight: FontWeight.bold),
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 6,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
                                 ),
                               ],
                             ),
                           ),
-                    ..._residents.map((r) {
+                        ..._residents.map((r) {
                           final isSafe = r['isSafe'] == true;
-                          if (r['latitude'] == null || r['longitude'] == null) return const Marker(point: LatLng(0,0), child: SizedBox.shrink());
-                          final color = isSafe ? Colors.green : (r['hasResponded'] == true ? Colors.red : Colors.redAccent);
-                          
+                          if (r['latitude'] == null || r['longitude'] == null)
+                            return const Marker(
+                              point: LatLng(0, 0),
+                              child: SizedBox.shrink(),
+                            );
+                          final color = isSafe
+                              ? Colors.green
+                              : (r['hasResponded'] == true
+                                    ? Colors.red
+                                    : Colors.redAccent);
+
                           return Marker(
                             point: LatLng(r['latitude'], r['longitude']),
                             width: 30,
                             height: 30,
                             child: Container(
                               decoration: BoxDecoration(
-                                color: isSafe ? Colors.green : (r['hasResponded'] == true ? Colors.red : Colors.white), 
-                                shape: BoxShape.circle, 
-                                border: Border.all(color: color, width: 1.5), 
-                                boxShadow: [BoxShadow(blurRadius: 4, color: color.withOpacity(0.3))]
+                                color: isSafe
+                                    ? Colors.green
+                                    : (r['hasResponded'] == true
+                                          ? Colors.red
+                                          : Colors.white),
+                                shape: BoxShape.circle,
+                                border: Border.all(color: color, width: 1.5),
+                                boxShadow: [
+                                  BoxShadow(
+                                    blurRadius: 4,
+                                    color: color.withOpacity(0.3),
+                                  ),
+                                ],
                               ),
                               child: Icon(
-                                isSafe ? Icons.check : (r['hasResponded'] == true ? Icons.sos : Icons.warning), 
-                                color: (isSafe || r['hasResponded'] == true) ? Colors.white : Colors.red, 
+                                isSafe
+                                    ? Icons.check
+                                    : (r['hasResponded'] == true
+                                          ? Icons.sos
+                                          : Icons.warning),
+                                color: (isSafe || r['hasResponded'] == true)
+                                    ? Colors.white
+                                    : Colors.red,
                                 size: 14,
                               ),
                             ),
@@ -1177,7 +1501,10 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
       margin: const EdgeInsets.only(bottom: 12),
       child: ListTile(
         leading: const Icon(Icons.event_note, color: Colors.red),
-        title: Text(event.title, style: const TextStyle(fontWeight: FontWeight.bold)),
+        title: Text(
+          event.title,
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
         subtitle: Text(dateFormat.format(event.startTime)),
         trailing: const Icon(Icons.chevron_right),
       ),
@@ -1185,9 +1512,12 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
   }
 
   Widget _buildEmptyState(IconData icon, String message) {
-     return Container(
+    return Container(
       padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(color: Colors.grey[50], borderRadius: BorderRadius.circular(8)),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(8),
+      ),
       child: Column(
         children: [
           Icon(icon, size: 40, color: Colors.grey[400]),
@@ -1199,10 +1529,14 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
   }
 
   Widget _buildAttendanceHistorySliver() {
-    return const SliverToBoxAdapter(child: Center(child: Padding(
-      padding: EdgeInsets.all(40.0),
-      child: Text('Administrative logs ready for jurisdictional review.'),
-    )));
+    return const SliverToBoxAdapter(
+      child: Center(
+        child: Padding(
+          padding: EdgeInsets.all(40.0),
+          child: Text('Administrative logs ready for jurisdictional review.'),
+        ),
+      ),
+    );
   }
 
   Widget _buildProfileSliver(User? user, Color color) {
@@ -1210,15 +1544,23 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
       padding: const EdgeInsets.all(16),
       sliver: SliverList(
         delegate: SliverChildListDelegate([
-           _buildProfileItem(Icons.badge, 'Full Name', user?.name ?? 'Admin'),
-           _buildProfileItem(Icons.location_on, 'Barangay', user?.barangay ?? 'N/A'),
-           _buildProfileItem(Icons.security, 'Access Level', 'Barangay Head'),
-           const SizedBox(height: 24),
-           ElevatedButton(
+          _buildProfileItem(Icons.badge, 'Full Name', user?.name ?? 'Admin'),
+          _buildProfileItem(
+            Icons.location_on,
+            'Barangay',
+            user?.barangay ?? 'N/A',
+          ),
+          _buildProfileItem(Icons.security, 'Access Level', 'Barangay Head'),
+          const SizedBox(height: 24),
+          ElevatedButton(
             onPressed: _handleLogout,
-            style: ElevatedButton.styleFrom(backgroundColor: color, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 50)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: color,
+              foregroundColor: Colors.white,
+              minimumSize: const Size(double.infinity, 50),
+            ),
             child: const Text('LOGOUT TERMINAL'),
-           ),
+          ),
         ]),
       ),
     );
@@ -1227,8 +1569,14 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
   Widget _buildProfileItem(IconData icon, String label, String value) {
     return ListTile(
       leading: Icon(icon, color: Colors.grey[600]),
-      title: Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-      subtitle: Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
+      title: Text(
+        label,
+        style: const TextStyle(fontSize: 12, color: Colors.grey),
+      ),
+      subtitle: Text(
+        value,
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
     );
   }
 }
@@ -1277,10 +1625,20 @@ class _BarangayPickerState extends State<_BarangayPicker> {
             Container(
               width: 40,
               height: 4,
-              decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2)),
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
             const SizedBox(height: 16),
-            const Text('Switch Jurisdictional Focus', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Color(0xFF8E0000))),
+            const Text(
+              'Switch Jurisdictional Focus',
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: Color(0xFF8E0000),
+              ),
+            ),
             const SizedBox(height: 16),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1288,11 +1646,17 @@ class _BarangayPickerState extends State<_BarangayPicker> {
                 controller: _searchController,
                 onChanged: _onSearch,
                 decoration: InputDecoration(
-                  prefixIcon: const Icon(Icons.search, color: Color(0xFF8E0000)),
+                  prefixIcon: const Icon(
+                    Icons.search,
+                    color: Color(0xFF8E0000),
+                  ),
                   hintText: 'Search barangay...',
                   filled: true,
                   fillColor: Colors.grey[100],
-                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
                 ),
               ),
             ),
@@ -1303,7 +1667,11 @@ class _BarangayPickerState extends State<_BarangayPicker> {
                 padding: const EdgeInsets.only(bottom: 32),
                 itemBuilder: (context, index) {
                   return ListTile(
-                    leading: const Icon(Icons.location_on_outlined, size: 20, color: Color(0xFF8E0000)),
+                    leading: const Icon(
+                      Icons.location_on_outlined,
+                      size: 20,
+                      color: Color(0xFF8E0000),
+                    ),
                     title: Text(_filtered[index]),
                     onTap: () {
                       widget.onSelected(_filtered[index]);

@@ -320,7 +320,7 @@ class _ResidentListScreenState extends State<ResidentListScreen> {
                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                children: [
                                  _buildStatusBadge(isSafe, hasResponded),
-                                 ViewOnMapButton(residents: _residents, resident: res),
+                                 ViewOnMapButton(residents: _residents, locationData: res),
                                ],
                              ),
                           ],

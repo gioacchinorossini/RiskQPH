@@ -14,11 +14,12 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import '../user/edit_profile_screen.dart';
+import '../../widgets/view_on_map_button.dart';
+import '../common/reported_incidents_screen.dart';
 import 'package:http/http.dart' as http;
 import '../../config/api_config.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
-import '../../widgets/view_on_map_button.dart';
 
 class ResponderDashboard extends StatefulWidget {
   const ResponderDashboard({super.key});
@@ -291,7 +292,7 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
   Widget build(BuildContext context) {
     final user = Provider.of<AuthProvider>(context).currentUser;
     // Theme color for Responder: TEAL
-    final Color primaryDashboardColor = const Color(0xFF006064);
+    final Color primaryDashboardColor = _activeDisaster != null ? Colors.red : const Color(0xFF006064);
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -419,41 +420,43 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
             ),
           ),
           
-          Positioned(
-            top: qrTopPosition - (qrSize * 0.5),
-            left: 0,
-            right: 0,
-            child: AnimatedOpacity(
-              duration: const Duration(milliseconds: 300),
-              opacity: (1 - (_scrollOffset / 200)).clamp(0, 1),
-              child: Padding(
-                padding: EdgeInsets.symmetric(horizontal: qrSize * 0.2),
-                child: Column(
-                  children: [
-                    Text(
-                      'UNIT ONLINE',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: (qrSize * 0.10).clamp(16, 40),
-                        fontWeight: FontWeight.bold,
+          if (_scrollOffset <= 200 && !_hasBeenCollapsed) ...[
+            Positioned(
+              top: qrTopPosition - (qrSize * 0.5),
+              left: 0,
+              right: 0,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 300),
+                opacity: (1 - (_scrollOffset / 200)).clamp(0, 1),
+                child: Padding(
+                  padding: EdgeInsets.symmetric(horizontal: qrSize * 0.2),
+                  child: Column(
+                    children: [
+                      Text(
+                        'UNIT ONLINE',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: (qrSize * 0.10).clamp(16, 40),
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
-                      textAlign: TextAlign.center,
-                    ),
-                    SizedBox(height: qrSize * 0.02),
-                    Text(
-                      'Emergency response terminal active.',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
-                        fontSize: (qrSize * 0.06).clamp(12, 28),
-                        fontWeight: FontWeight.w400,
+                      SizedBox(height: qrSize * 0.02),
+                      Text(
+                        'Emergency response terminal active.',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.9),
+                          fontSize: (qrSize * 0.06).clamp(12, 28),
+                          fontWeight: FontWeight.w400,
+                        ),
+                        textAlign: TextAlign.center,
                       ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
+          ],
 
           Positioned(
             top: qrTopPosition,
@@ -543,6 +546,29 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
                 ),
               ),
             ),
+            Positioned(
+              top: (qrTopPosition + qrSize + 60 - (_scrollOffset * 0.3).clamp(0, 40)).clamp(
+                collapsedHeight * 0.3,
+                startingTopPosition + qrSize + 60,
+              ),
+              left: 0,
+              right: 0,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 300),
+                opacity: (1 - (_scrollOffset / 200)).clamp(0, 1),
+                child: Center(
+                  child: Text(
+                    'Emergency Responder Unit',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.9),
+                      fontSize: is600PLUS ? 24 : 18,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+              ),
+            ),
           ],
 
           if (_scrollOffset < 10 && !_hasBeenCollapsed) ...[
@@ -557,9 +583,39 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
                   child: Column(
                     children: [
                       Icon(Icons.keyboard_arrow_up_rounded, color: Colors.white, size: 40),
+                      Container(
+                        padding: EdgeInsets.symmetric(
+                          horizontal: qrSize * 0.08,
+                          vertical: qrSize * 0.03,
+                        ),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              Colors.white.withOpacity(0.9),
+                              Colors.white.withOpacity(0.7),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(15),
+                        ),
+                        child: Text(
+                          'SWIPE UP TO MANAGE',
+                          style: TextStyle(
+                            color: primaryColor,
+                            fontSize: (qrSize * 0.07).clamp(10, 20),
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 2,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
                       Text(
-                        'SWIPE UP TO MANAGE',
-                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 2),
+                        'Incident reports and response logs',
+                        style: TextStyle(
+                          color: Colors.white.withOpacity(0.6),
+                          fontSize: (qrSize * 0.06).clamp(8, 16),
+                          fontWeight: FontWeight.w400,
+                          fontStyle: FontStyle.italic,
+                        ),
                       ),
                     ],
                   ),
@@ -727,6 +783,12 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
             mainAxisAlignment: MainAxisAlignment.spaceAround,
             children: [
               _buildQuickActionItem(
+                icon: Icons.report_gmailerrorred_outlined, 
+                label: 'Reported Incidents', 
+                color: Colors.red, 
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ReportedIncidentsScreen())),
+              ),
+              _buildQuickActionItem(
                 icon: Icons.qr_code_scanner, 
                 label: 'Scan QR', 
                 color: Colors.blue, 
@@ -853,7 +915,7 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    ViewOnMapButton(residents: _residents, resident: resident, isPrimary: true),
+                    ViewOnMapButton(residents: _residents, locationData: resident, isPrimary: true),
                   ],
                 ),
               );

@@ -21,6 +21,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'edit_profile_screen.dart';
+import 'incident_report_screen.dart';
 import '../../widgets/safety_overlay.dart';
 import 'package:http/http.dart' as http;
 import '../../config/api_config.dart';
@@ -45,6 +46,7 @@ class _UserDashboardState extends State<UserDashboard> {
   // Disaster Mode State
   Map<String, dynamic>? _activeDisaster;
   bool _isSafeReported = false;
+  bool _isAlertMinimized = false;
   HttpClient? _sseClient;
   HttpClient? _residentsSseClient;
   List<dynamic> _residents = [];
@@ -98,51 +100,64 @@ class _UserDashboardState extends State<UserDashboard> {
     final user = auth.currentUser;
     if (user == null || user.barangay == null) return;
 
-    final url = Uri.parse('${ApiConfig.baseUrl}/api/disaster/events?barangay=${user.barangay}');
-    
+    final url = Uri.parse(
+      '${ApiConfig.baseUrl}/api/disaster/events?barangay=${user.barangay}',
+    );
+
     _sseClient?.close(force: true);
     _sseClient = HttpClient();
-    
+
     Future.microtask(() async {
       try {
         final request = await _sseClient!.getUrl(url);
         request.headers.set('Accept', 'text/event-stream');
         request.headers.set('Cache-Control', 'no-cache');
         request.headers.set('ngrok-skip-browser-warning', 'true');
-        
+
         final response = await request.close();
-        response.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
-          if (line.trim().isEmpty) return;
-          if (line.startsWith('data: ')) {
-            try {
-              final data = jsonDecode(line.substring(6));
-              if (mounted) {
-                setState(() {
-                  if (data['isActive'] == true) {
-                    _activeDisaster = data['disaster'];
-                    if (!_hasFetchedResidents) {
-                      _fetchResidents();
+        response
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())
+            .listen(
+              (line) {
+                if (line.trim().isEmpty) return;
+                if (line.startsWith('data: ')) {
+                  try {
+                    final data = jsonDecode(line.substring(6));
+                    if (mounted) {
+                      setState(() {
+                        if (data['isActive'] == true) {
+                          _activeDisaster = data['disaster'];
+                          if (!_hasFetchedResidents) {
+                            _fetchResidents();
+                          }
+                          _startResidentsStream();
+                          _isSafeReported = false;
+                        } else {
+                          _activeDisaster = null;
+                          _residents = [];
+                          _hasFetchedResidents = false;
+                          _residentsSseClient?.close(force: true);
+                          _isSafeReported = false;
+                        }
+                      });
                     }
-                    _startResidentsStream();
-                    _isSafeReported = false;
-                  } else {
-                    _activeDisaster = null;
-                    _residents = [];
-                    _hasFetchedResidents = false;
-                    _residentsSseClient?.close(force: true);
-                    _isSafeReported = false;
+                  } catch (e) {
+                    debugPrint('Error parsing SSE data: $e');
                   }
-                });
-              }
-            } catch (e) {
-              debugPrint('Error parsing SSE data: $e');
-            }
-          }
-        }, onDone: () {
-          if (mounted) Future.delayed(const Duration(seconds: 5), _startDisasterStream);
-        });
+                }
+              },
+              onDone: () {
+                if (mounted)
+                  Future.delayed(
+                    const Duration(seconds: 5),
+                    _startDisasterStream,
+                  );
+              },
+            );
       } catch (e) {
-        if (mounted) Future.delayed(const Duration(seconds: 10), _startDisasterStream);
+        if (mounted)
+          Future.delayed(const Duration(seconds: 10), _startDisasterStream);
       }
     });
   }
@@ -152,7 +167,9 @@ class _UserDashboardState extends State<UserDashboard> {
     if (_activeDisaster == null || user?.barangay == null) return;
     try {
       final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/barangay/residents?barangay=${user!.barangay}&disasterId=${_activeDisaster!['id']}'),
+        Uri.parse(
+          '${ApiConfig.baseUrl}/api/barangay/residents?barangay=${user!.barangay}&disasterId=${_activeDisaster!['id']}',
+        ),
         headers: {'ngrok-skip-browser-warning': 'true'},
       );
       if (response.statusCode == 200) {
@@ -173,39 +190,52 @@ class _UserDashboardState extends State<UserDashboard> {
     final user = Provider.of<AuthProvider>(context, listen: false).currentUser;
     if (_activeDisaster == null || user?.barangay == null) return;
 
-    final url = Uri.parse('${ApiConfig.baseUrl}/api/barangay/residents/events?barangay=${user!.barangay}');
-    
+    final url = Uri.parse(
+      '${ApiConfig.baseUrl}/api/barangay/residents/events?barangay=${user!.barangay}',
+    );
+
     _residentsSseClient?.close(force: true);
     _residentsSseClient = HttpClient();
-    
+
     Future.microtask(() async {
       try {
         final request = await _residentsSseClient!.getUrl(url);
         request.headers.set('Accept', 'text/event-stream');
         request.headers.set('Cache-Control', 'no-cache');
         request.headers.set('ngrok-skip-browser-warning', 'true');
-        
+
         final response = await request.close();
-        response.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
-          if (line.trim().isEmpty) return;
-          if (line.startsWith('data: ')) {
-            final residentData = jsonDecode(line.substring(6));
-            if (mounted) {
-              setState(() {
-                final index = _residents.indexWhere((r) => r['id'] == residentData['id']);
-                if (index != -1) {
-                  _residents[index] = residentData;
-                } else {
-                  _residents.add(residentData);
+        response
+            .transform(utf8.decoder)
+            .transform(const LineSplitter())
+            .listen(
+              (line) {
+                if (line.trim().isEmpty) return;
+                if (line.startsWith('data: ')) {
+                  final residentData = jsonDecode(line.substring(6));
+                  if (mounted) {
+                    setState(() {
+                      final index = _residents.indexWhere(
+                        (r) => r['id'] == residentData['id'],
+                      );
+                      if (index != -1) {
+                        _residents[index] = residentData;
+                      } else {
+                        _residents.add(residentData);
+                      }
+                    });
+                  }
                 }
-              });
-            }
-          }
-        }, onDone: () {
-          if (mounted && _activeDisaster != null) {
-            Future.delayed(const Duration(seconds: 5), _startResidentsStream);
-          }
-        });
+              },
+              onDone: () {
+                if (mounted && _activeDisaster != null) {
+                  Future.delayed(
+                    const Duration(seconds: 5),
+                    _startResidentsStream,
+                  );
+                }
+              },
+            );
       } catch (e) {
         if (mounted && _activeDisaster != null) {
           Future.delayed(const Duration(seconds: 10), _startResidentsStream);
@@ -229,7 +259,9 @@ class _UserDashboardState extends State<UserDashboard> {
 
     try {
       final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/disaster?barangay=${user.barangay}&userId=${user.id}'),
+        Uri.parse(
+          '${ApiConfig.baseUrl}/api/disaster?barangay=${user.barangay}&userId=${user.id}',
+        ),
         headers: {'ngrok-skip-browser-warning': 'true'},
       );
 
@@ -275,23 +307,43 @@ class _UserDashboardState extends State<UserDashboard> {
   @override
   Widget build(BuildContext context) {
     final user = Provider.of<AuthProvider>(context).currentUser;
-    final primaryColor = (_activeDisaster != null && !_isSafeReported && user?.role == UserRole.resident) ? Colors.red : AppTheme.primaryColor;
-    
+    final primaryColor =
+        (_activeDisaster != null &&
+            !_isSafeReported &&
+            user?.role == UserRole.resident)
+        ? Colors.red
+        : AppTheme.primaryColor;
+
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
         children: [
           _buildMainContent(user, primaryColor),
-          if (_activeDisaster != null && !_isSafeReported && user?.role == UserRole.resident)
-            Container(
-              color: Colors.black.withOpacity(0.7),
+          if (_activeDisaster != null &&
+              !_isSafeReported &&
+              user?.role == UserRole.resident) ...[
+            if (!_isAlertMinimized)
+              Positioned.fill(
+                child: Container(color: Colors.black.withOpacity(0.7)),
+              ),
+            Positioned(
+              top: _isAlertMinimized ? null : 0,
+              bottom: _isAlertMinimized ? 100 : 0,
+              left: 0,
+              right: 0,
               child: Center(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  padding: EdgeInsets.symmetric(
+                    horizontal: _isAlertMinimized ? 16 : 32,
+                  ),
                   child: SafetyOverlay(
                     userId: user!.id,
                     disasterId: _activeDisaster!['id'],
                     disasterType: _activeDisaster!['type'] ?? 'Emergency',
+                    isMinimized: _isAlertMinimized,
+                    onToggleMinimized: () {
+                      setState(() => _isAlertMinimized = !_isAlertMinimized);
+                    },
                     onMarkedSafe: () {
                       setState(() => _isSafeReported = true);
                     },
@@ -299,6 +351,7 @@ class _UserDashboardState extends State<UserDashboard> {
                 ),
               ),
             ),
+          ],
         ],
       ),
       floatingActionButton: null,
@@ -462,7 +515,10 @@ class _UserDashboardState extends State<UserDashboard> {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
-        title: const Text('RiskQPH', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        title: const Text(
+          'RiskQPH',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
         actions: [
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.white),
@@ -614,7 +670,9 @@ class _UserDashboardState extends State<UserDashboard> {
                               ),
                               const SizedBox(height: 2),
                               Text(
-                                user?.barangay != null ? 'Brgy. ${user!.barangay}' : 'N/A',
+                                user?.barangay != null
+                                    ? 'Brgy. ${user!.barangay}'
+                                    : 'N/A',
                                 style: TextStyle(
                                   color: primaryColor.withOpacity(0.8),
                                   fontSize: is600PLUS ? 16 : 12,
@@ -678,7 +736,9 @@ class _UserDashboardState extends State<UserDashboard> {
                   opacity: (1 - (_scrollOffset / 200)).clamp(0, 1),
                   child: Center(
                     child: Text(
-                      user?.barangay != null ? 'Brgy. ${user!.barangay}' : 'N/A',
+                      user?.barangay != null
+                          ? 'Brgy. ${user!.barangay}'
+                          : 'N/A',
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.9),
                         fontSize: is600PLUS ? 24 : 18,
@@ -847,9 +907,9 @@ class _UserDashboardState extends State<UserDashboard> {
 
   Widget _buildHazardMapPreview(Color primaryColor) {
     return GestureDetector(
-      onTap: () => Navigator.of(context).push(MaterialPageRoute(
-        builder: (_) => const HazardMapScreen(),
-      )),
+      onTap: () => Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const HazardMapScreen())),
       child: AbsorbPointer(
         child: FlutterMap(
           mapController: _previewMapController,
@@ -860,7 +920,8 @@ class _UserDashboardState extends State<UserDashboard> {
           children: [
             TileLayer(
               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              userAgentPackageName: 'RiskQPH/1.0 (ph.gov.riskqph.mobile; contact: admin@riskqph.ph)',
+              userAgentPackageName:
+                  'RiskQPH/1.0 (ph.gov.riskqph.mobile; contact: admin@riskqph.ph)',
             ),
             MarkerLayer(
               markers: [
@@ -928,7 +989,9 @@ class _UserDashboardState extends State<UserDashboard> {
 
   Widget _buildEventsSliver(Color primaryColor) {
     final bool isActive = _activeDisaster != null;
-    final int missingCount = _residents.where((r) => r['isSafe'] == false).length;
+    final int missingCount = _residents
+        .where((r) => r['isSafe'] == false)
+        .length;
 
     return Consumer<EventProvider>(
       builder: (context, eventProvider, child) {
@@ -969,9 +1032,17 @@ class _UserDashboardState extends State<UserDashboard> {
                       children: [
                         _buildQuickActionItem(
                           icon: Icons.report_problem_outlined,
-                          label: 'Report',
+                          label: 'Report Incident',
                           color: Colors.red,
-                          onTap: () {},
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const IncidentReportScreen(),
+                              ),
+                            );
+                          },
                         ),
                         _buildQuickActionItem(
                           icon: Icons.emergency_outlined,
@@ -986,7 +1057,9 @@ class _UserDashboardState extends State<UserDashboard> {
                           onTap: () {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (context) => const EditProfileScreen()),
+                              MaterialPageRoute(
+                                builder: (context) => const EditProfileScreen(),
+                              ),
                             );
                           },
                         ),
@@ -1019,7 +1092,10 @@ class _UserDashboardState extends State<UserDashboard> {
                           onTap: () {
                             Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (context) => const FamilyManagementScreen()),
+                              MaterialPageRoute(
+                                builder: (context) =>
+                                    const FamilyManagementScreen(),
+                              ),
                             );
                           },
                         ),
@@ -1034,22 +1110,47 @@ class _UserDashboardState extends State<UserDashboard> {
                 decoration: BoxDecoration(
                   color: isActive ? Colors.red.shade50 : Colors.green.shade50,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: isActive ? Colors.red.shade200 : Colors.green.shade200),
+                  border: Border.all(
+                    color: isActive
+                        ? Colors.red.shade200
+                        : Colors.green.shade200,
+                  ),
                 ),
                 child: Column(
                   children: [
                     Row(
                       children: [
-                        Icon(isActive ? Icons.warning_amber_rounded : Icons.shield_outlined, 
-                             color: isActive ? Colors.red : Colors.green, size: 32),
+                        Icon(
+                          isActive
+                              ? Icons.warning_amber_rounded
+                              : Icons.shield_outlined,
+                          color: isActive ? Colors.red : Colors.green,
+                          size: 32,
+                        ),
                         const SizedBox(width: 12),
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(isActive ? 'EMERGENCY ACTIVE' : 'SYSTEM STATUS: SAFE', 
-                              style: TextStyle(fontWeight: FontWeight.bold, color: isActive ? Colors.red : Colors.green)),
-                            Text(isActive ? '$missingCount residents missing.' : 'All systems monitoring active.', 
-                              style: TextStyle(fontSize: 12, color: isActive ? Colors.red[700] : Colors.green[700])),
+                            Text(
+                              isActive
+                                  ? 'EMERGENCY ACTIVE'
+                                  : 'DISASTER ALERT:OFF',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: isActive ? Colors.red : Colors.green,
+                              ),
+                            ),
+                            Text(
+                              isActive
+                                  ? '$missingCount residents missing.'
+                                  : 'No disaster ongoing.',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color: isActive
+                                    ? Colors.red[700]
+                                    : Colors.green[700],
+                              ),
+                            ),
                           ],
                         ),
                       ],
@@ -1067,17 +1168,36 @@ class _UserDashboardState extends State<UserDashboard> {
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          const Text('Safety Progress', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                          Text('${((_residents.where((r) => r['isSafe'] == true).length / _residents.length) * 100).toStringAsFixed(1)}%', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green)),
+                          const Text(
+                            'Safety Progress',
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          Text(
+                            '${((_residents.where((r) => r['isSafe'] == true).length / _residents.length) * 100).toStringAsFixed(1)}%',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.green,
+                            ),
+                          ),
                         ],
                       ),
                       const SizedBox(height: 8),
                       ClipRRect(
                         borderRadius: BorderRadius.circular(10),
                         child: LinearProgressIndicator(
-                          value: _residents.where((r) => r['isSafe'] == true).length / _residents.length,
+                          value:
+                              _residents
+                                  .where((r) => r['isSafe'] == true)
+                                  .length /
+                              _residents.length,
                           backgroundColor: Colors.red.withOpacity(0.1),
-                          valueColor: const AlwaysStoppedAnimation<Color>(Colors.green),
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                            Colors.green,
+                          ),
                           minHeight: 10,
                         ),
                       ),
@@ -1089,7 +1209,11 @@ class _UserDashboardState extends State<UserDashboard> {
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
-                          (_activeDisaster!['description'] != null && _activeDisaster!['description'].toString().trim().isNotEmpty)
+                          (_activeDisaster!['description'] != null &&
+                                  _activeDisaster!['description']
+                                      .toString()
+                                      .trim()
+                                      .isNotEmpty)
                               ? _activeDisaster!['description']
                               : 'Disaster ongoing. Please stay safe and follow official instructions.',
                           style: TextStyle(
@@ -1109,9 +1233,9 @@ class _UserDashboardState extends State<UserDashboard> {
               const SizedBox(height: 24),
               Text(
                 'Available Events',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
               Text(
                 'Upcoming and ongoing events (sorted by latest created)',
@@ -1154,9 +1278,9 @@ class _UserDashboardState extends State<UserDashboard> {
               const SizedBox(height: 24),
               Text(
                 'Past Events',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
               ),
               Text(
                 'Sorted by latest created',
@@ -1709,7 +1833,9 @@ class _MissingListScreenState extends State<_MissingListScreen> {
   Future<void> _fetchResidents() async {
     try {
       final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/barangay/residents?barangay=${widget.barangay}&disasterId=${widget.disasterId}'),
+        Uri.parse(
+          '${ApiConfig.baseUrl}/api/barangay/residents?barangay=${widget.barangay}&disasterId=${widget.disasterId}',
+        ),
         headers: {'ngrok-skip-browser-warning': 'true'},
       );
       if (response.statusCode == 200) {
@@ -1733,31 +1859,38 @@ class _MissingListScreenState extends State<_MissingListScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Resident Safety Status'),
-        bottom: _isLoading ? const PreferredSize(preferredSize: Size.fromHeight(2), child: LinearProgressIndicator()) : null,
+        bottom: _isLoading
+            ? const PreferredSize(
+                preferredSize: Size.fromHeight(2),
+                child: LinearProgressIndicator(),
+              )
+            : null,
       ),
-      body: _isLoading ? const Center(child: CircularProgressIndicator()) : DefaultTabController(
-        length: 2,
-        child: Column(
-          children: [
-            TabBar(
-              labelColor: AppTheme.primaryColor,
-              unselectedLabelColor: Colors.grey,
-              tabs: [
-                Tab(text: 'MISSING (${missing.length})'),
-                Tab(text: 'SAFE (${safe.length})'),
-              ],
-            ),
-            Expanded(
-              child: TabBarView(
+      body: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : DefaultTabController(
+              length: 2,
+              child: Column(
                 children: [
-                  _buildList(missing, isMissing: true),
-                  _buildList(safe, isMissing: false),
+                  TabBar(
+                    labelColor: AppTheme.primaryColor,
+                    unselectedLabelColor: Colors.grey,
+                    tabs: [
+                      Tab(text: 'MISSING (${missing.length})'),
+                      Tab(text: 'SAFE (${safe.length})'),
+                    ],
+                  ),
+                  Expanded(
+                    child: TabBarView(
+                      children: [
+                        _buildList(missing, isMissing: true),
+                        _buildList(safe, isMissing: false),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
-          ],
-        ),
-      ),
     );
   }
 
@@ -1777,16 +1910,27 @@ class _MissingListScreenState extends State<_MissingListScreen> {
         final r = list[index];
         return ListTile(
           leading: CircleAvatar(
-            backgroundColor: isMissing ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+            backgroundColor: isMissing
+                ? Colors.red.withOpacity(0.1)
+                : Colors.green.withOpacity(0.1),
             child: Icon(
               isMissing ? Icons.person_off : Icons.check_circle,
               color: isMissing ? Colors.red : Colors.green,
             ),
           ),
           title: Text('${r['firstName']} ${r['lastName']}'),
-          subtitle: isMissing 
-            ? const Text('Last seen: Unknown', style: TextStyle(color: Colors.red))
-            : Text('Marked safe: ${r['safetyStatus'][0]['updatedAt'] != null ? DateFormat('hh:mm a').format(DateTime.parse(r['safetyStatus'][0]['updatedAt'])) : 'N/A'}'),
+          subtitle: isMissing
+              ? const Text(
+                  'Last seen: Unknown',
+                  style: TextStyle(color: Colors.red),
+                )
+              : Text(
+                  'Marked safe: ${r['safetyStatus'][0]['updatedAt'] != null ? DateFormat('hh:mm a').format(DateTime.parse(r['safetyStatus'][0]['updatedAt'])) : 'N/A'}',
+                  style: const TextStyle(
+                    color: Colors.green,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
         );
       },
     );

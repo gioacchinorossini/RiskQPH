@@ -38,22 +38,33 @@ class _HazardMapScreenState extends State<HazardMapScreen> {
 
   final Map<String, IconData> _disasterIcons = {
     'Flooding': Icons.water,
-    'Earthquake': Icons.terrain,
     'Fire': Icons.local_fire_department,
-    'Typhoon': Icons.cyclone,
-    'Landslide': Icons.hiking,
+    'Collapsed buildings': Icons.home_work,
+    'Landslide / soil erosion': Icons.landscape,
+    'Volcanic activity': Icons.volcano,
+    'Power outage': Icons.power_off,
+    'Water supply disruption': Icons.water_damage,
+    'Signal failure (cell network down)': Icons.cell_tower,
+    'Road blockage / impassable routes': Icons.traffic,
+    'Other (custom entry)': Icons.more_horiz,
   };
 
   final Map<String, Color> _disasterColors = {
     'Flooding': Colors.blue,
-    'Earthquake': Colors.orange,
     'Fire': Colors.red,
-    'Typhoon': Colors.cyan,
-    'Landslide': Colors.green,
+    'Collapsed buildings': Colors.brown,
+    'Landslide / soil erosion': Colors.orange,
+    'Volcanic activity': Colors.deepOrange,
+    'Power outage': Colors.amber,
+    'Water supply disruption': Colors.lightBlue,
+    'Signal failure (cell network down)': Colors.grey,
+    'Road blockage / impassable routes': Colors.deepPurple,
+    'Other (custom entry)': Colors.blueGrey,
   };
 
   bool _isReportsPanelOpen = false;
   bool _isLayersPanelOpen = false;
+  bool _isReportMode = false;
   bool _showBarangayBoundaries = true;
   List<Polygon> _barangayPolygons = [];
 
@@ -84,21 +95,24 @@ class _HazardMapScreenState extends State<HazardMapScreen> {
   @override
   void initState() {
     super.initState();
-    _loadMapState();
     _fetchReports();
     _loadBarangayBoundaries();
     _fetchHqLocation();
     
     if (widget.initialFocus != null) {
-      setState(() {
-        _mapCenter = widget.initialFocus!;
-        _mapZoom = 18.0;
-      });
+      _mapCenter = widget.initialFocus!;
+      _mapZoom = 18.0;
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        _mapController.move(widget.initialFocus!, 18.0);
+        if (mounted) {
+          _mapController.move(widget.initialFocus!, 18.0);
+        }
       });
     } else {
-      _determinePosition();
+      _loadMapState().then((_) {
+        if (widget.initialFocus == null) {
+          _determinePosition();
+        }
+      });
     }
   }
 
@@ -319,7 +333,11 @@ class _HazardMapScreenState extends State<HazardMapScreen> {
             options: MapOptions(
               initialCenter: _mapCenter,
               initialZoom: _mapZoom,
-              onTap: (tapPosition, point) => _showReportDisasterModal(point),
+              onTap: (tapPosition, point) {
+                if (_isReportMode) {
+                  _showReportDisasterModal(point);
+                }
+              },
               onPositionChanged: (pos, hasGesture) {
                 if (hasGesture) _saveMapState();
               },
@@ -667,6 +685,25 @@ class _HazardMapScreenState extends State<HazardMapScreen> {
                       ],
                     ),
                   ),
+                const SizedBox(height: 12),
+                FloatingActionButton.small(
+                  onPressed: () {
+                    setState(() => _isReportMode = !_isReportMode);
+                    if (_isReportMode) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Report Mode Active: Tap map to report incident'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
+                    }
+                  },
+                  backgroundColor: _isReportMode ? Colors.red : Colors.white,
+                  child: Icon(
+                    _isReportMode ? Icons.edit_location : Icons.edit_location_outlined,
+                    color: _isReportMode ? Colors.white : AppTheme.primaryColor,
+                  ),
+                ),
               ],
             ),
           ),
@@ -960,7 +997,7 @@ class _HazardMapScreenState extends State<HazardMapScreen> {
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       const Text(
-                        'Report Disaster',
+                        'Report Incident',
                         style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
                       ),
                       IconButton(
@@ -975,33 +1012,56 @@ class _HazardMapScreenState extends State<HazardMapScreen> {
                   ),
                   const SizedBox(height: 20),
                   const Text(
-                    'Disaster Type',
+                    'Incident Type',
                     style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                   ),
-                  const SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
-                    decoration: InputDecoration(
-                      filled: true,
-                      fillColor: Colors.grey[100],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
+                  const SizedBox(height: 12),
+                  SizedBox(
+                    height: 200,
+                    child: GridView.builder(
+                      shrinkWrap: true,
+                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                        crossAxisCount: 4,
+                        crossAxisSpacing: 10,
+                        mainAxisSpacing: 10,
+                        childAspectRatio: 0.8,
                       ),
-                    ),
-                    items: _disasterIcons.keys
-                        .map((String value) => DropdownMenuItem(
-                              value: value,
-                              child: Row(
-                                children: [
-                                  Icon(_disasterIcons[value], size: 18, color: Colors.red),
-                                  const SizedBox(width: 8),
-                                  Text(value),
-                                ],
+                      itemCount: _disasterIcons.length,
+                      itemBuilder: (context, index) {
+                        final type = _disasterIcons.keys.elementAt(index);
+                        final icon = _disasterIcons[type]!;
+                        final color = _disasterColors[type]!;
+                        final isSelected = selectedType == type;
+
+                        return GestureDetector(
+                          onTap: () => setModalState(() => selectedType = type),
+                          child: Column(
+                            children: [
+                              CircleAvatar(
+                                radius: 22,
+                                backgroundColor: isSelected ? color : Colors.grey[200],
+                                child: Icon(
+                                  icon,
+                                  color: isSelected ? Colors.white : Colors.grey[600],
+                                  size: 20,
+                                ),
                               ),
-                            ))
-                        .toList(),
-                    onChanged: (val) => selectedType = val,
-                    hint: const Text('Select disaster type'),
+                              const SizedBox(height: 4),
+                              Text(
+                                type,
+                                textAlign: TextAlign.center,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  fontSize: 8,
+                                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                                ),
+                              ),
+                            ],
+                          ),
+                        );
+                      },
+                    ),
                   ),
                   const SizedBox(height: 16),
                   const Text(

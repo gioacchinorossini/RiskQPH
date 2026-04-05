@@ -17,6 +17,40 @@ class _LoginScreenState extends State<LoginScreen> {
   final _passwordController = TextEditingController();
   bool _obscurePassword = true;
 
+  // QUICK LOGIN FOR DEV
+  final List<Map<String, String>> _quickLogins = [
+    {
+      'label': 'Resident (Juan)',
+      'email': 'resident@test.com',
+      'pass': 'gwapoko4321',
+    },
+    {
+      'label': 'Barangay Head (Admin)',
+      'email': 'head@test.com',
+      'pass': 'gwapoko4321',
+    },
+    {
+      'label': 'Emergency Responder',
+      'email': 'responder@test.com',
+      'pass': 'gwapoko4321',
+    },
+    {
+      'label': 'Longnoxian 4 (Resident)',
+      'email': 'longnoxian4@gmail.com',
+      'pass': 'gwapoko4321',
+    },
+    {
+      'label': 'Longnoxian 5 (Responder)',
+      'email': 'longnoxian5@gmail.com',
+      'pass': 'gwapoko4321',
+    },
+    {
+      'label': 'Longnoxian 6 (Head)',
+      'email': 'longnoxian6@gmail.com',
+      'pass': 'gwapoko4321',
+    },
+  ];
+
   @override
   void dispose() {
     _emailController.dispose();
@@ -54,10 +88,42 @@ class _LoginScreenState extends State<LoginScreen> {
                   const SizedBox(height: 8),
                   Text(
                     'Sign in to your account',
-                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: Colors.grey[600],
-                    ),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyLarge?.copyWith(color: Colors.grey[600]),
                     textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  // QUICK LOGIN SELECTOR
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.amber.shade300),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<Map<String, String>>(
+                        hint: const Text('⚡ QUICK DEV LOGIN'),
+                        isExpanded: true,
+                        icon: const Icon(Icons.bolt, color: Colors.amber),
+                        items: _quickLogins.map((login) {
+                          return DropdownMenuItem(
+                            value: login,
+                            child: Text(login['label']!),
+                          );
+                        }).toList(),
+                        onChanged: (val) {
+                          if (val != null) {
+                            setState(() {
+                              _emailController.text = val['email']!;
+                              _passwordController.text = val['pass']!;
+                            });
+                            _handleLogin(); // Auto-login
+                          }
+                        },
+                      ),
+                    ),
                   ),
                   const SizedBox(height: 32),
                   TextFormField(
@@ -83,7 +149,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       prefixIcon: const Icon(Icons.lock),
                       suffixIcon: IconButton(
                         icon: Icon(
-                          _obscurePassword ? Icons.visibility : Icons.visibility_off,
+                          _obscurePassword
+                              ? Icons.visibility
+                              : Icons.visibility_off,
                         ),
                         onPressed: () {
                           setState(() {
@@ -114,7 +182,9 @@ class _LoginScreenState extends State<LoginScreen> {
                                 width: 20,
                                 child: CircularProgressIndicator(
                                   strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                  valueColor: AlwaysStoppedAnimation<Color>(
+                                    Colors.white,
+                                  ),
                                 ),
                               )
                             : const Text('Sign In'),
@@ -191,4 +261,3 @@ class _LoginScreenState extends State<LoginScreen> {
     }
   }
 }
-
