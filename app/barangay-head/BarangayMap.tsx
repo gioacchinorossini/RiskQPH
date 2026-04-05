@@ -1,14 +1,16 @@
 'use client';
 
-import { MapContainer, TileLayer, Marker, Popup, Circle, Polygon, useMap } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Circle, Polygon, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { useEffect, useState, useCallback } from 'react';
 import { 
   User, ShieldCheck, ShieldAlert, MapPin, Landmark,
   Waves, Flame, Activity, Wind, Mountain, PersonStanding,
   Layers, History, Edit3, X, ZapOff, Droplets, 
   WifiOff, Construction, MoreHorizontal, Building2, 
-  Navigation, Check, AlertTriangle, Camera
+  Navigation, Check, AlertTriangle, Camera,
+  Home, HeartPulse, GraduationCap, Church
 } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
@@ -109,13 +111,42 @@ const createBarangayIcon = () => {
   });
 };
 
+const createEvacuationIcon = (name: string, type?: string) => {
+  let Icon = Landmark;
+  switch (type) {
+    case 'Building': Icon = Building2; break;
+    case 'Home': Icon = Home; break;
+    case 'Medical': Icon = HeartPulse; break;
+    case 'School': Icon = GraduationCap; break;
+    case 'Church': Icon = Church; break;
+    case 'Activity': Icon = Activity; break;
+    default: Icon = Landmark;
+  }
+
+  const html = renderToStaticMarkup(
+    <div className="flex flex-col items-center gap-1 -translate-y-8">
+      <div className="bg-white border-2 border-zinc-400 rounded-xl p-2 shadow-2xl scale-110">
+         <Icon size={20} className="text-zinc-600" />
+      </div>
+      <div className="bg-zinc-900/80 backdrop-blur-md text-white text-[8px] font-black uppercase px-2 py-1 rounded-lg shadow-xl whitespace-nowrap tracking-widest border border-white/20">
+         {name}
+      </div>
+    </div>
+  );
+  return new L.DivIcon({
+    html,
+    className: 'evacuation-marker',
+    iconSize: [40, 60],
+    iconAnchor: [20, 30],
+  });
+};
+
 const MapEvents = ({ onMapClick }: { onMapClick: (latlng: L.LatLng) => void }) => {
-  const map = useMap();
-  useEffect(() => {
-    map.on('click', (e) => {
+  useMapEvents({
+    click(e) {
       onMapClick(e.latlng);
-    });
-  }, [map, onMapClick]);
+    },
+  });
   return null;
 };
 
@@ -176,20 +207,36 @@ interface Report {
   isResolved?: boolean;
 }
 
+interface EvacuationCenter {
+  id: string;
+  name: string;
+  latitude: number;
+  longitude: number;
+  capacity: number | null;
+  type: string | null;
+  _count?: {
+    evacuees: number;
+  };
+}
+
 export default function BarangayMap({ 
   residents, 
   isActive, 
   focusResident,
   hqLocation,
   onMapClick,
-  barangayName
+  barangayName,
+  evacuationCenters = [],
+  onSelectEvacuationCenter
 }: { 
   residents: Resident[], 
   isActive: boolean,
   focusResident?: Resident | null,
   hqLocation?: { lat: number, lng: number } | null,
   onMapClick?: (lat: number, lng: number) => void,
-  barangayName?: string
+  barangayName?: string,
+  evacuationCenters?: EvacuationCenter[],
+  onSelectEvacuationCenter?: (center: EvacuationCenter) => void
 }) {
   const [reports, setReports] = useState<Report[]>([]);
   const [focusCenter, setFocusCenter] = useState<[number, number] | null>(null);
@@ -271,18 +318,6 @@ export default function BarangayMap({
         ? [validResidents[0].latitude!, validResidents[0].longitude!]
         : [12.8797, 121.7740];
 
-  const barangaySamples = [
-    {
-      name: `Brgy. ${barangayName || 'Jurisdiction'}`,
-      points: hqLocation ? [
-        [hqLocation.lat + 0.005, hqLocation.lng + 0.005],
-        [hqLocation.lat - 0.005, hqLocation.lng + 0.005],
-        [hqLocation.lat - 0.005, hqLocation.lng - 0.005],
-        [hqLocation.lat + 0.005, hqLocation.lng - 0.005],
-      ] as [number, number][] : [],
-      risk: isActive ? 0.9 : 0.2,
-    }
-  ];
 
   return (
     <div className="h-full w-full relative group/map">
@@ -359,21 +394,7 @@ export default function BarangayMap({
               <h2 className="text-[10px] font-black uppercase tracking-widest">Map Configuration</h2>
             </div>
             <div className="p-3">
-              <label className="flex items-center justify-between p-2 rounded-xl hover:bg-zinc-100 cursor-pointer transition-colors group">
-                <div className="flex flex-col">
-                  <span className="text-[10px] font-black text-zinc-900 uppercase">Boundaries</span>
-                  <span className="text-[8px] text-zinc-500 font-bold uppercase tracking-tight">Barangay Zones</span>
-                </div>
-                <div className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="sr-only peer"
-                    checked={showBarangayBoundaries}
-                    onChange={(e) => setShowBarangayBoundaries(e.target.checked)}
-                  />
-                  <div className="w-9 h-5 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-zinc-900"></div>
-                </div>
-              </label>
+               <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest text-center py-2 opacity-50">Map Overlays Active</p>
             </div>
           </div>
         )}
@@ -475,21 +496,6 @@ export default function BarangayMap({
         <FlyToLocation center={focusResident?.latitude && focusResident?.longitude ? [focusResident.latitude, focusResident.longitude] : focusCenter} />
         <LocationHandler watchLocation={locationTrigger} />
 
-        {/* Barangay boundaries */}
-        {showBarangayBoundaries && barangaySamples.map((b, i) => (
-          <Polygon
-            key={`b-${i}`}
-            positions={b.points}
-            pathOptions={{ fillColor: b.risk > 0.5 ? '#ef4444' : '#22c55e', color: b.risk > 0.5 ? '#ef4444' : '#22c55e', fillOpacity: 0.15, weight: 1, dashArray: '5, 10' }}
-          >
-            <Popup>
-              <div className="p-1">
-                <p className="text-[10px] font-black uppercase tracking-widest">{b.name}</p>
-                <p className="text-[9px] text-zinc-500 font-bold">JURISDICTIONAL BOUNDARY</p>
-              </div>
-            </Popup>
-          </Polygon>
-        ))}
 
         {/* Existing Resident Markers */}
         {validResidents.map((r) => (
@@ -543,6 +549,34 @@ export default function BarangayMap({
                 </div>
                 <p className="text-[9px] text-zinc-500 italic mb-2 uppercase font-bold tracking-tighter">Reported by {r.reporterName}</p>
                 <p className="text-xs text-zinc-600 mb-2 font-medium">{r.description || 'Verified hazard point.'}</p>
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+
+        {/* Evacuation Centers */}
+        {evacuationCenters.map((ec) => (
+          <Marker
+            key={ec.id}
+            position={[ec.latitude, ec.longitude]}
+            icon={createEvacuationIcon(ec.name, ec.type || undefined)}
+          >
+            <Popup>
+              <div className="p-3 min-w-48">
+                <p className="text-[10px] font-black uppercase text-emerald-600 mb-1">EVACUATION CENTER</p>
+                <p className="font-bold text-sm text-zinc-900 leading-none mb-2">{ec.name}</p>
+                <div className="flex items-center justify-between text-[10px] font-bold text-zinc-500 uppercase mb-3">
+                   <span>Occupancy:</span>
+                   <span className="text-zinc-900">{ec._count?.evacuees || 0} / {ec.capacity || '∞'}</span>
+                </div>
+                {onSelectEvacuationCenter && (
+                  <button 
+                    onClick={() => onSelectEvacuationCenter(ec)}
+                    className="w-full py-2 bg-emerald-600 text-white rounded-lg text-[9px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-colors"
+                  >
+                    Open Registry
+                  </button>
+                )}
               </div>
             </Popup>
           </Marker>

@@ -21,6 +21,7 @@ import '../../widgets/view_on_map_button.dart';
 import '../common/reported_incidents_screen.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
+import 'evacuation_management_screen.dart';
 
 class BarangayHeadDashboard extends StatefulWidget {
   const BarangayHeadDashboard({super.key});
@@ -126,7 +127,9 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
 
   Future<void> _fetchReports() async {
     try {
-      final response = await http.get(Uri.parse('${ApiConfig.baseUrl}/api/reports'));
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/reports'),
+      );
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
         setState(() {
@@ -1193,6 +1196,17 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                 onTap: () {},
               ),
               _buildQuickActionItem(
+                icon: Icons.home_work_outlined,
+                label: 'Evacuation',
+                color: Colors.green,
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const EvacuationManagementScreen(),
+                  ),
+                ),
+              ),
+              _buildQuickActionItem(
                 icon: Icons.edit_note,
                 label: 'Edit Profile',
                 color: Colors.orange,
@@ -1456,42 +1470,66 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                               size: 20,
                             ),
                           ),
-                        
-                        // Residents and Family (Added consistency with HazardMapScreen)
-                ...(() {
-                  final bool isActive = _activeDisaster != null;
-                  return _residents.where((r) => r['latitude'] != null && r['longitude'] != null).map((r) {
-                    final bool isSafeNow = (r['isSafe'] == true);
-                    final bool hasSOS = (r['hasResponded'] == true);
-                    
-                    final Color markerColor = !isActive 
-                        ? (AppTheme.primaryColor)
-                        : (isSafeNow ? Colors.green : (hasSOS ? Colors.red : (Colors.grey)));
 
-                    return Marker(
-                      point: LatLng((r['latitude'] as num).toDouble(), (r['longitude'] as num).toDouble()),
-                      width: 15,
-                      height: 15,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: markerColor, width: 1),
-                          boxShadow: [BoxShadow(blurRadius: 2, color: markerColor.withOpacity(0.3))],
-                        ),
-                        child: Icon(
-                          (isActive && isSafeNow) ? Icons.check_circle : Icons.person_pin_circle,
-                          color: markerColor,
-                          size: 8,
-                        ),
-                      ),
-                    );
-                  });
-                })(),
-                        
+                        // Residents and Family (Added consistency with HazardMapScreen)
+                        ...(() {
+                          final bool isActive = _activeDisaster != null;
+                          return _residents
+                              .where(
+                                (r) =>
+                                    r['latitude'] != null &&
+                                    r['longitude'] != null,
+                              )
+                              .map((r) {
+                                final bool isSafeNow = (r['isSafe'] == true);
+                                final bool hasSOS = (r['hasResponded'] == true);
+
+                                final Color markerColor = !isActive
+                                    ? (AppTheme.primaryColor)
+                                    : (isSafeNow
+                                          ? Colors.green
+                                          : (hasSOS
+                                                ? Colors.red
+                                                : (Colors.grey)));
+
+                                return Marker(
+                                  point: LatLng(
+                                    (r['latitude'] as num).toDouble(),
+                                    (r['longitude'] as num).toDouble(),
+                                  ),
+                                  width: 15,
+                                  height: 15,
+                                  child: Container(
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      shape: BoxShape.circle,
+                                      border: Border.all(
+                                        color: markerColor,
+                                        width: 1,
+                                      ),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          blurRadius: 2,
+                                          color: markerColor.withOpacity(0.3),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Icon(
+                                      (isActive && isSafeNow)
+                                          ? Icons.check_circle
+                                          : Icons.person_pin_circle,
+                                      color: markerColor,
+                                      size: 8,
+                                    ),
+                                  ),
+                                );
+                              });
+                        })(),
+
                         // Incident Reports
                         ..._userReports.map((r) {
-                          final color = _disasterColors[r['type']] ?? Colors.red;
+                          final color =
+                              _disasterColors[r['type']] ?? Colors.red;
                           return Marker(
                             point: r['pos'] as LatLng,
                             width: 25,
@@ -1500,7 +1538,12 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 shape: BoxShape.circle,
-                                boxShadow: [BoxShadow(blurRadius: 4, color: Colors.black26)],
+                                boxShadow: [
+                                  BoxShadow(
+                                    blurRadius: 4,
+                                    color: Colors.black26,
+                                  ),
+                                ],
                                 border: Border.all(color: color, width: 2),
                               ),
                               child: Icon(

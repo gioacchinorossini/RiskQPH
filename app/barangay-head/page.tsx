@@ -2,22 +2,22 @@
 
 import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
-import { 
-  Users, 
-  ShieldCheck, 
-  ShieldAlert, 
-  Map as MapIcon, 
+import {
+  Users,
+  ShieldCheck,
+  ShieldAlert,
+  Map as MapIcon,
   MapPin,
-  LogOut, 
-  Search, 
-  AlertTriangle, 
-  Activity, 
-  Bell, 
-  BarChart3, 
-  Settings, 
-  Globe, 
-  Target, 
-  CheckCircle2, 
+  LogOut,
+  Search,
+  AlertTriangle,
+  Activity,
+  Bell,
+  BarChart3,
+  Settings,
+  Globe,
+  Target,
+  CheckCircle2,
   XCircle,
   HelpCircle,
   ChevronDown,
@@ -30,13 +30,18 @@ import {
   Landmark,
   Zap,
   UserPlus,
+  Building2,
+  Home,
+  HeartPulse,
+  GraduationCap,
+  Church
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
 // Dynamically import map to avoid SSR issues
-const BarangayMap = dynamic(() => import('./BarangayMap'), { 
+const BarangayMap = dynamic(() => import('./BarangayMap'), {
   ssr: false,
-  loading: () => <div className="h-full w-full bg-zinc-100 animate-pulse rounded-3xl" /> 
+  loading: () => <div className="h-full w-full bg-zinc-100 animate-pulse rounded-3xl" />
 });
 
 interface Resident {
@@ -61,6 +66,29 @@ interface Disaster {
   barangay: string;
 }
 
+interface EvacuationCenter {
+  id: string;
+  name: string;
+  barangay: string;
+  latitude: number;
+  longitude: number;
+  capacity: number | null;
+  _count?: {
+    evacuees: number;
+  };
+}
+
+interface Evacuee {
+  id: string;
+  firstName: string;
+  lastName: string;
+  middleName?: string | null;
+  gender?: string | null;
+  age?: number | null;
+  medicalNotes?: string | null;
+  createdAt: string;
+}
+
 export default function BarangayHeadDashboard() {
   const [user, setUser] = useState<any>(null);
   const [activeDisaster, setActiveDisaster] = useState<Disaster | null>(null);
@@ -78,6 +106,26 @@ export default function BarangayHeadDashboard() {
   const [hqLocation, setHqLocation] = useState<{ lat: number, lng: number } | null>(null);
   const [isSettingLocation, setIsSettingLocation] = useState(false);
   const [showIncidentLog, setShowIncidentLog] = useState(false);
+
+  // Evacuation States
+  const [evacuationCenters, setEvacuationCenters] = useState<EvacuationCenter[]>([]);
+  const [isSettingEC, setIsSettingEC] = useState(false);
+  const [showECManager, setShowECManager] = useState(false);
+  const [selectedEC, setSelectedEC] = useState<EvacuationCenter | null>(null);
+  const [showRegisterEvacuee, setShowRegisterEvacuee] = useState(false);
+  const [ecName, setEcName] = useState('');
+  const [ecCapacity, setEcCapacity] = useState('');
+  const [evacuees, setEvacuees] = useState<Evacuee[]>([]);
+  const [selectedEcIcon, setSelectedEcIcon] = useState('Landmark');
+  const [ecPosition, setEcPosition] = useState<{ lat: number, lng: number } | null>(null);
+
+  // Register Form State
+  const [regFirstName, setRegFirstName] = useState('');
+  const [regLastName, setRegLastName] = useState('');
+  const [regMiddleName, setRegMiddleName] = useState('');
+  const [regAge, setRegAge] = useState('');
+  const [regGender, setRegGender] = useState('Male');
+  const [regNotes, setRegNotes] = useState('');
 
   const router = useRouter();
 
@@ -103,28 +151,56 @@ export default function BarangayHeadDashboard() {
         if (data.profile) setHqLocation({ lat: data.profile.hqLatitude, lng: data.profile.hqLongitude });
       })
       .catch(err => console.error('Error fetching HQ location:', err));
+
+    // Load Evacuation Centers
+    fetchEvacuationCenters(parsed.barangay);
   }, []);
 
-  const handleMapClick = async (lat: number, lng: number) => {
-    if (!isSettingLocation) return;
-    const loc = { lat, lng };
-    setHqLocation(loc);
-    
+  const fetchEvacuationCenters = async (barangay: string) => {
     try {
-      await fetch('/api/barangay/location', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: user.barangay,
-          hqLatitude: lat,
-          hqLongitude: lng,
-        }),
-      });
+      const res = await fetch(`/api/evacuation-center?barangay=${barangay}`);
+      const data = await res.json();
+      setEvacuationCenters(data.centers || []);
     } catch (err) {
-      console.error('Error saving HQ location:', err);
+      console.error('Error fetching ECs:', err);
     }
-    
-    setIsSettingLocation(false);
+  };
+
+  const fetchEvacuees = async (ecId: string) => {
+    try {
+      const res = await fetch(`/api/evacuation-center/residents?evacuationCenterId=${ecId}`);
+      const data = await res.json();
+      setEvacuees(data.evacuees || []);
+    } catch (err) {
+      console.error('Error fetching evacuees:', err);
+    }
+  };
+
+  const handleMapClick = async (lat: number, lng: number) => {
+    if (isSettingLocation) {
+      const loc = { lat, lng };
+      setHqLocation(loc);
+
+      try {
+        await fetch('/api/barangay/location', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            name: user.barangay,
+            hqLatitude: lat,
+            hqLongitude: lng,
+          }),
+        });
+      } catch (err) {
+        console.error('Error saving HQ location:', err);
+      }
+
+      setIsSettingLocation(false);
+    } else if (isSettingEC) {
+      setEcPosition({ lat, lng });
+      setIsSettingEC(false);
+      setShowECManager(true);
+    }
   };
 
   const fetchData = async (barangay: string) => {
@@ -206,7 +282,7 @@ export default function BarangayHeadDashboard() {
 
   const handleDeleteUser = async (id: string) => {
     if (!confirm('Are you sure you want to delete this account? This action cannot be undone.')) return;
-    
+
     try {
       const res = await fetch(`/api/profile?id=${id}`, {
         method: 'DELETE',
@@ -260,13 +336,13 @@ export default function BarangayHeadDashboard() {
       <aside className="w-20 lg:w-72 border-r border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-950 flex flex-col z-50">
         <div className="p-6 lg:p-8">
           <div className="flex items-center gap-3">
-             <div className="h-10 w-10 min-w-10 rounded-xl bg-red-600 flex items-center justify-center shadow-lg shadow-red-600/20 rotate-3 transition-transform hover:rotate-0">
-               <span className="text-white font-black italic tracking-tighter text-sm">RQ</span>
-             </div>
-             <div className="hidden lg:block">
-               <h1 className="text-lg font-black tracking-tighter uppercase leading-none">RISKQ<span className="text-red-600">PH</span></h1>
-               <p className="text-[8px] font-black tracking-[0.3em] uppercase opacity-40">COMMUNITY MONITOR</p>
-             </div>
+            <div className="h-10 w-10 min-w-10 rounded-xl bg-red-600 flex items-center justify-center shadow-lg shadow-red-600/20 rotate-3 transition-transform hover:rotate-0">
+              <span className="text-white font-black italic tracking-tighter text-sm">RQ</span>
+            </div>
+            <div className="hidden lg:block">
+              <h1 className="text-lg font-black tracking-tighter uppercase leading-none">RISKQ<span className="text-red-600">PH</span></h1>
+              <p className="text-[8px] font-black tracking-[0.3em] uppercase opacity-40">COMMUNITY MONITOR</p>
+            </div>
           </div>
         </div>
 
@@ -279,56 +355,62 @@ export default function BarangayHeadDashboard() {
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id as any)}
-              className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-300 group ${
-                activeTab === item.id 
-                  ? 'bg-zinc-900 text-white dark:bg-white dark:text-black shadow-xl shadow-zinc-900/10' 
-                  : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-900'
-              }`}
+              className={`w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-300 group ${activeTab === item.id
+                ? 'bg-zinc-900 text-white dark:bg-white dark:text-black shadow-xl shadow-zinc-900/10'
+                : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-900'
+                }`}
             >
               <item.icon size={20} strokeWidth={2.5} className={activeTab === item.id ? 'scale-110' : 'group-hover:scale-110 transition-transform'} />
               <span className="hidden lg:block text-xs font-black uppercase tracking-wider">{item.label}</span>
             </button>
           ))}
-          
+
           <div className="pt-4 mt-4 border-t border-zinc-100 dark:border-zinc-900 space-y-2">
-             <button
-               onClick={() => router.push('/barangay-head/add-user')}
-               className="w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-300 group text-zinc-400 hover:text-red-600 hover:bg-red-600/5 dark:hover:bg-red-600/10"
-             >
-               <UserPlus size={20} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
-               <span className="hidden lg:block text-xs font-black uppercase tracking-wider">Add Account</span>
-             </button>
-             <button
-               onClick={() => router.push('/barangay-head/admin-add-user')}
-               className="w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-300 group text-zinc-400 hover:text-red-600 hover:bg-red-600/5 dark:hover:bg-red-600/10"
-             >
-               <ShieldAlert size={20} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
-               <span className="hidden lg:block text-xs font-black uppercase tracking-wider">Admin Protocol</span>
-             </button>
+            <button
+              onClick={() => router.push('/barangay-head/add-user')}
+              className="w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-300 group text-zinc-400 hover:text-red-600 hover:bg-red-600/5 dark:hover:bg-red-600/10"
+            >
+              <UserPlus size={20} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
+              <span className="hidden lg:block text-xs font-black uppercase tracking-wider">Add Account</span>
+            </button>
+            <button
+              onClick={() => router.push('/barangay-head/admin-add-user')}
+              className="w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-300 group text-zinc-400 hover:text-red-600 hover:bg-red-600/5 dark:hover:bg-red-600/10"
+            >
+              <ShieldAlert size={20} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
+              <span className="hidden lg:block text-xs font-black uppercase tracking-wider">Admin Protocol</span>
+            </button>
+            <button
+              onClick={() => setShowECManager(true)}
+              className="w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-300 group text-zinc-400 hover:text-emerald-600 hover:bg-emerald-600/5 dark:hover:bg-emerald-600/10"
+            >
+              <Landmark size={20} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
+              <span className="hidden lg:block text-xs font-black uppercase tracking-wider">Evacuation</span>
+            </button>
           </div>
         </nav>
 
         <div className="p-6 border-t border-zinc-200 dark:border-zinc-800 space-y-4">
           <div className="hidden lg:block p-4 rounded-3xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800">
-             <div className="flex items-center gap-3 mb-3">
-               <div className="w-8 h-8 rounded-full bg-zinc-300 dark:bg-zinc-800 flex items-center justify-center text-xs font-black uppercase">
-                 {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
-               </div>
-               <div className="min-w-0">
-                 <p className="text-[10px] font-black uppercase truncate">{user?.firstName} {user?.lastName}</p>
-                 <p className="text-[8px] font-bold text-zinc-500 uppercase tracking-widest">BRGY. {user?.barangay} HEAD</p>
-               </div>
-             </div>
-             <button 
+            <div className="flex items-center gap-3 mb-3">
+              <div className="w-8 h-8 rounded-full bg-zinc-300 dark:bg-zinc-800 flex items-center justify-center text-xs font-black uppercase">
+                {user?.firstName?.charAt(0)}{user?.lastName?.charAt(0)}
+              </div>
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase truncate">{user?.firstName} {user?.lastName}</p>
+                <p className="text-[8px] font-bold text-zinc-500 uppercase tracking-widest">BRGY. {user?.barangay} HEAD</p>
+              </div>
+            </div>
+            <button
               onClick={() => {
                 localStorage.removeItem('user');
                 router.push('/login');
               }}
               className="w-full h-10 rounded-2xl bg-white dark:bg-zinc-800 text-red-600 text-[10px] font-black uppercase tracking-widest hover:bg-red-600 hover:text-white transition-all shadow-sm flex items-center justify-center gap-2"
             >
-               <LogOut size={12} strokeWidth={3} />
-               Sign Out
-             </button>
+              <LogOut size={12} strokeWidth={3} />
+              Sign Out
+            </button>
           </div>
           <button className="lg:hidden w-full flex items-center justify-center p-3 text-red-600">
             <LogOut size={24} />
@@ -341,24 +423,24 @@ export default function BarangayHeadDashboard() {
         {/* Top Header Stat Banner */}
         <header className="sticky top-0 z-40 w-full bg-zinc-50/80 dark:bg-black/80 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800 p-6 lg:px-12 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex flex-col">
-             <h2 className="text-2xl font-black tracking-tight uppercase leading-none mb-1">
-               {activeTab === 'dashboard' ? 'Barangay Dashboard' : activeTab === 'residents' ? 'Resident List' : 'History'}
-             </h2>
-             <div className="flex items-center gap-2 text-zinc-400">
-               <MapPin size={10} className="text-red-600" />
-               <p className="text-[9px] font-black uppercase tracking-[0.25em]">Barangay Jurisdiction: <span className="text-zinc-600 dark:text-zinc-300">{user?.barangay}</span></p>
-             </div>
+            <h2 className="text-2xl font-black tracking-tight uppercase leading-none mb-1">
+              {activeTab === 'dashboard' ? 'Barangay Dashboard' : activeTab === 'residents' ? 'Resident List' : 'History'}
+            </h2>
+            <div className="flex items-center gap-2 text-zinc-400">
+              <MapPin size={10} className="text-red-600" />
+              <p className="text-[9px] font-black uppercase tracking-[0.25em]">Barangay Jurisdiction: <span className="text-zinc-600 dark:text-zinc-300">{user?.barangay}</span></p>
+            </div>
           </div>
 
           <div className="flex items-center gap-3">
-             <div className={`p-4 lg:px-6 lg:py-4 rounded-[2rem] border ${borderTheme} ${primaryTheme} transition-all duration-700 flex items-center gap-4 shadow-sm`}>
-               <div className="flex flex-col">
-                 <p className="text-[8px] font-black uppercase tracking-[0.2em] opacity-60">Barangay Status</p>
-                 <p className="text-xs font-black uppercase tracking-widest">{isActive ? 'EMERGENCY ACTIVE' : 'SYSTEM STATUS SAFE'}</p>
-               </div>
-               <div className={`w-3 h-3 rounded-full ${isActive ? 'bg-red-600 animate-pulse' : 'bg-emerald-600'}`}></div>
-             </div>
-             <button className="h-14 w-1 flex md:hidden"></button> {/* Spacer */}
+            <div className={`p-4 lg:px-6 lg:py-4 rounded-[2rem] border ${borderTheme} ${primaryTheme} transition-all duration-700 flex items-center gap-4 shadow-sm`}>
+              <div className="flex flex-col">
+                <p className="text-[8px] font-black uppercase tracking-[0.2em] opacity-60">Barangay Status</p>
+                <p className="text-xs font-black uppercase tracking-widest">{isActive ? 'EMERGENCY ACTIVE' : 'SYSTEM STATUS SAFE'}</p>
+              </div>
+              <div className={`w-3 h-3 rounded-full ${isActive ? 'bg-red-600 animate-pulse' : 'bg-emerald-600'}`}></div>
+            </div>
+            <button className="h-14 w-1 flex md:hidden"></button> {/* Spacer */}
           </div>
         </header>
 
@@ -372,7 +454,7 @@ export default function BarangayHeadDashboard() {
                   <div className="absolute top-0 right-0 p-12 opacity-[0.03] select-none pointer-events-none">
                     <Activity size={300} strokeWidth={1} />
                   </div>
-                  
+
                   <div className="relative z-10 grid grid-cols-1 md:grid-cols-5 gap-8 items-center">
                     <div className="md:col-span-3 space-y-6">
                       <div className={`h-12 w-12 rounded-2xl flex items-center justify-center shadow-lg transition-all duration-700 ${isActive ? 'bg-red-600 text-white animate-pulse rotate-6' : 'bg-emerald-600 text-white'}`}>
@@ -383,21 +465,20 @@ export default function BarangayHeadDashboard() {
                           {isActive ? <>CEASE ALL <span className="text-red-600 italic">NON-CRITICAL</span> OPERATIONS</> : <>ALL CITIZENS <span className="text-emerald-600">CONFIRMED SAFE</span></>}
                         </h3>
                         <p className="text-zinc-500 dark:text-zinc-400 text-xs lg:text-sm font-bold max-w-lg leading-relaxed uppercase tracking-wider">
-                          {isActive 
+                          {isActive
                             ? `COMMENCING EVACUATION PROTOCOLS FOR BRGY. ${user?.barangay}. ${activeDisaster.type}: ${activeDisaster.description || 'Active hazard monitoring engaged.'}`
                             : `SYSTEM MONITORING ACTIVE IN BRGY. ${user?.barangay}. No active hazards detected within jurisdictional boundaries.`}
                         </p>
                       </div>
-                      
+
                       <div className="flex flex-wrap gap-4 pt-4">
-                        <button 
+                        <button
                           onClick={() => isActive ? handleToggleDisaster() : setShowModal(true)}
                           disabled={isActivating}
-                          className={`min-w-[240px] h-16 rounded-[1.5rem] font-black uppercase tracking-[0.2em] text-[10px] items-center justify-center gap-3 transition-all duration-500 flex shadow-lg hover:shadow-2xl active:scale-95 ${
-                            isActive 
-                              ? 'bg-zinc-900 text-white hover:bg-black dark:bg-white dark:text-black dark:hover:bg-zinc-200' 
-                              : 'bg-red-600 text-white hover:bg-red-700 shadow-red-600/30'
-                          }`}
+                          className={`min-w-[240px] h-16 rounded-[1.5rem] font-black uppercase tracking-[0.2em] text-[10px] items-center justify-center gap-3 transition-all duration-500 flex shadow-lg hover:shadow-2xl active:scale-95 ${isActive
+                            ? 'bg-zinc-900 text-white hover:bg-black dark:bg-white dark:text-black dark:hover:bg-zinc-200'
+                            : 'bg-red-600 text-white hover:bg-red-700 shadow-red-600/30'
+                            }`}
                         >
                           {isActivating ? (
                             <Loader2 className="animate-spin" size={18} />
@@ -408,28 +489,28 @@ export default function BarangayHeadDashboard() {
                             </>
                           )}
                         </button>
-                        
+
                         {isActive && (
-                           <button className="px-10 h-16 rounded-[1.5rem] border border-red-600 text-red-600 font-black uppercase tracking-[0.2em] text-[10px] hover:bg-red-600 hover:text-white transition-all duration-300">
-                             Send Mass Notification
-                           </button>
+                          <button className="px-10 h-16 rounded-[1.5rem] border border-red-600 text-red-600 font-black uppercase tracking-[0.2em] text-[10px] hover:bg-red-600 hover:text-white transition-all duration-300">
+                            Send Mass Notification
+                          </button>
                         )}
                       </div>
                     </div>
 
                     <div className="md:col-span-2 grid grid-cols-2 gap-4">
-                        <div className="bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 rounded-[2rem] flex flex-col justify-center">
-                          <p className="text-[10px] font-black tracking-widest text-zinc-500 uppercase mb-2">Total Citizens</p>
-                          <p className="text-4xl font-black tracking-tighter">{stats.total}</p>
-                        </div>
-                        <div className={`p-6 rounded-[2rem] border transition-all duration-700 ${isActive ? 'bg-red-600 border-red-700 text-white shadow-xl shadow-red-600/10' : 'bg-emerald-600 border-emerald-700 text-white'}`}>
-                          <p className="text-[10px] font-black tracking-widest opacity-60 uppercase mb-2">{isActive ? 'MISSING' : 'SAFE'}</p>
-                          <p className="text-4xl font-black tracking-tighter">{isActive ? stats.missing : stats.safe}</p>
-                        </div>
-                        <div className="bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 rounded-[2rem] flex flex-col justify-center">
-                          <p className="text-[10px] font-black tracking-widest text-zinc-500 uppercase mb-2">Responders</p>
-                          <p className="text-4xl font-black tracking-tighter">{Math.floor(stats.total * 0.05)}</p>
-                        </div>
+                      <div className="bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 rounded-[2rem] flex flex-col justify-center">
+                        <p className="text-[10px] font-black tracking-widest text-zinc-500 uppercase mb-2">Total Citizens</p>
+                        <p className="text-4xl font-black tracking-tighter">{stats.total}</p>
+                      </div>
+                      <div className={`p-6 rounded-[2rem] border transition-all duration-700 ${isActive ? 'bg-red-600 border-red-700 text-white shadow-xl shadow-red-600/10' : 'bg-emerald-600 border-emerald-700 text-white'}`}>
+                        <p className="text-[10px] font-black tracking-widest opacity-60 uppercase mb-2">{isActive ? 'MISSING' : 'SAFE'}</p>
+                        <p className="text-4xl font-black tracking-tighter">{isActive ? stats.missing : stats.safe}</p>
+                      </div>
+                      <div className="bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 rounded-[2rem] flex flex-col justify-center">
+                        <p className="text-[10px] font-black tracking-widest text-zinc-500 uppercase mb-2">Responders</p>
+                        <p className="text-4xl font-black tracking-tighter">{Math.floor(stats.total * 0.05)}</p>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -438,113 +519,108 @@ export default function BarangayHeadDashboard() {
                 <div className="lg:col-span-12 space-y-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
-                       <MapIcon className="text-red-600" size={24} />
-                       <h3 className="text-sm font-black uppercase tracking-widest">JURISDICTIONAL RADAR</h3>
+                      <MapIcon className="text-red-600" size={24} />
+                      <h3 className="text-sm font-black uppercase tracking-widest">JURISDICTIONAL RADAR</h3>
                     </div>
                     <div className="flex items-center gap-4">
-                       <button 
-                         onClick={() => setIsSettingLocation(!isSettingLocation)}
-                         className={`h-10 px-6 rounded-xl border font-black uppercase tracking-widest text-[9px] transition-all ${
-                           isSettingLocation 
-                            ? 'bg-zinc-900 text-white border-zinc-900 animate-pulse' 
-                            : 'border-zinc-200 text-zinc-500 hover:border-zinc-900 hover:text-zinc-900'
-                         }`}
-                       >
-                         {isSettingLocation ? 'ClICK ON MAP TO SET...' : 'SET BARANGAY HQ'}
-                       </button>
-                       <div className="flex items-center gap-2">
-                          <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span>
-                          <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">LIVE SATELLITE FEED</p>
-                       </div>
+                      {isSettingLocation || isSettingEC ? (
+                        <div className={`flex items-center gap-3 px-4 py-2 rounded-2xl animate-pulse ${isSettingEC ? 'bg-emerald-600' : 'bg-red-600'}`}>
+                          <MapPin size={14} className="text-white" />
+                          <p className="text-[10px] font-black uppercase text-white tracking-widest">
+                            {isSettingLocation ? 'ClICK ON MAP TO SET HQ...' : `ClICK TO ESTABLISH: ${ecName || 'SAFE ZONE'}`}
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                           <button
+                             onClick={() => setIsSettingLocation(!isSettingLocation)}
+                             className={`h-10 px-6 rounded-xl border font-black uppercase tracking-widest text-[9px] transition-all border-zinc-200 text-zinc-500 hover:border-zinc-900 hover:text-zinc-900`}
+                           >
+                             SET BARANGAY HQ
+                           </button>
+                           <button
+                             onClick={() => setIsSettingEC(true)}
+                             className="h-10 px-6 rounded-xl bg-emerald-600 text-white font-black uppercase tracking-widest text-[9px] hover:bg-emerald-700 transition-all flex items-center gap-2"
+                           >
+                             <Landmark size={12} />
+                             ESTABLISH SAFE ZONE
+                           </button>
+                        </div>
+                      )}
+                      <div className="flex items-center gap-2">
+                        <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">LIVE SATELLITE FEED</p>
+                      </div>
                     </div>
                   </div>
-                  <div className={`h-[700px] shadow-2xl relative transition-all overflow-hidden rounded-[3rem] border border-zinc-200 dark:border-zinc-800 ${isSettingLocation ? 'ring-4 ring-red-600/20' : ''}`}>
-                     <BarangayMap 
-                       residents={filteredResidents} 
-                       isActive={isActive} 
-                       focusResident={focusResident}
-                       hqLocation={hqLocation}
-                       onMapClick={handleMapClick}
-                       barangayName={user?.barangay}
-                     />
-                     
-                     {/* HUD Overlays on Map */}
-                     <div className="absolute top-6 left-6 z-[1000] p-6 bg-white/90 dark:bg-zinc-950/90 backdrop-blur-xl rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-2xl space-y-4 pointer-events-none select-none">
-                        <div className="flex items-center gap-4">
-                           <div className="w-3.5 h-3.5 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/50"></div>
-                           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-800 dark:text-zinc-200">SAFE CITIZEN</p>
-                        </div>
-                        <div className="flex items-center gap-4">
-                           <div className="w-3.5 h-3.5 rounded-full bg-red-500 animate-ping shadow-lg shadow-red-500/50"></div>
-                           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-800 dark:text-zinc-200">URGENT ASSISTANCE</p>
-                        </div>
-                     </div>
+                  <div className={`h-[700px] shadow-2xl relative transition-all overflow-hidden rounded-[3rem] border border-zinc-200 dark:border-zinc-800 ${(isSettingLocation || isSettingEC) ? 'ring-8 ring-emerald-600/20' : ''}`}>
+                    <BarangayMap
+                      residents={filteredResidents}
+                      isActive={isActive}
+                      focusResident={focusResident}
+                      hqLocation={hqLocation}
+                      onMapClick={handleMapClick}
+                      barangayName={user?.barangay}
+                      evacuationCenters={evacuationCenters}
+                      onSelectEvacuationCenter={(ec) => {
+                        setSelectedEC(ec);
+                        fetchEvacuees(ec.id);
+                        setShowRegisterEvacuee(true);
+                      }}
+                    />
 
-                     {/* Incident Log Overlay Toggle */}
-                         <button 
-                            onClick={() => setShowIncidentLog(!showIncidentLog)}
-                            className={`absolute top-6 right-6 z-[1005] h-14 px-6 rounded-2xl backdrop-blur-xl border font-black uppercase tracking-widest text-[10px] transition-all flex items-center gap-3 shadow-2xl group ${
-                              showIncidentLog 
-                                ? 'bg-red-600 text-white border-red-500' 
-                                : 'bg-white/90 dark:bg-zinc-950/90 text-zinc-900 dark:text-white border-zinc-200 dark:border-zinc-800 hover:scale-105 active:scale-95'
-                            }`}
-                         >
-                            <Bell size={18} className={showIncidentLog ? 'animate-bounce' : 'group-hover:rotate-12 transition-transform'} />
-                            {showIncidentLog ? 'CLOSE LOG' : 'SHOW ACTIVITY LOG'}
-                         </button>
+                    {/* Incident Log Floating Panel */}
+                    {showIncidentLog && (
+                      <div className="absolute top-24 right-6 z-[1005] w-96 max-h-[500px] flex flex-col bg-white/95 dark:bg-zinc-950/95 backdrop-blur-2xl rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 shadow-2xl animate-in slide-in-from-top-4 fade-in duration-300">
+                        <div className="p-6 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <Activity className="text-red-600" size={18} />
+                            <h4 className="text-[11px] font-black uppercase tracking-widest">LIVE INCIDENT STREAM</h4>
+                          </div>
+                          <span className="flex h-2 w-2 rounded-full bg-red-600 animate-pulse"></span>
+                        </div>
 
-                     {/* Incident Log Floating Panel */}
-                     {showIncidentLog && (
-                        <div className="absolute top-24 right-6 z-[1005] w-96 max-h-[500px] flex flex-col bg-white/95 dark:bg-zinc-950/95 backdrop-blur-2xl rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 shadow-2xl animate-in slide-in-from-top-4 fade-in duration-300">
-                           <div className="p-6 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
-                              <div className="flex items-center gap-3">
-                                 <Activity className="text-red-600" size={18} />
-                                 <h4 className="text-[11px] font-black uppercase tracking-widest">LIVE INCIDENT STREAM</h4>
+                        <div className="p-6 flex-1 overflow-y-auto space-y-4">
+                          {isActive ? (
+                            residents.filter(r => !r.isSafe).length > 0 ? (
+                              residents.filter(r => !r.isSafe).map((r, i) => (
+                                <div
+                                  key={i}
+                                  onClick={() => {
+                                    setFocusResident(r);
+                                    setShowIncidentLog(false);
+                                  }}
+                                  className="p-4 rounded-2xl border border-red-600/10 bg-red-600/5 hover:bg-red-600/10 transition-all cursor-pointer group"
+                                >
+                                  <div className="flex items-center justify-between mb-2">
+                                    <p className="text-[9px] font-black uppercase text-red-600">Priority Tracker</p>
+                                    <Target size={12} className="text-red-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                  </div>
+                                  <p className="text-[11px] font-black uppercase">{r.firstName} {r.lastName}</p>
+                                  <p className="text-[8px] font-bold text-zinc-500 uppercase tracking-widest mt-1">LAT: {r.latitude?.toFixed(4)} | LNG: {r.longitude?.toFixed(4)}</p>
+                                </div>
+                              ))
+                            ) : (
+                              <div className="py-12 flex flex-col items-center justify-center opacity-40 text-center">
+                                <ShieldCheck size={48} strokeWidth={1} className="mb-3" />
+                                <p className="text-[9px] font-black uppercase">No recent activity</p>
                               </div>
-                              <span className="flex h-2 w-2 rounded-full bg-red-600 animate-pulse"></span>
-                           </div>
-                           
-                           <div className="p-6 flex-1 overflow-y-auto space-y-4">
-                              {isActive ? (
-                                 residents.filter(r => !r.isSafe).length > 0 ? (
-                                    residents.filter(r => !r.isSafe).map((r, i) => (
-                                       <div 
-                                          key={i} 
-                                          onClick={() => {
-                                             setFocusResident(r);
-                                             setShowIncidentLog(false);
-                                          }}
-                                          className="p-4 rounded-2xl border border-red-600/10 bg-red-600/5 hover:bg-red-600/10 transition-all cursor-pointer group"
-                                       >
-                                          <div className="flex items-center justify-between mb-2">
-                                             <p className="text-[9px] font-black uppercase text-red-600">Priority Tracker</p>
-                                             <Target size={12} className="text-red-600 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                          </div>
-                                          <p className="text-[11px] font-black uppercase">{r.firstName} {r.lastName}</p>
-                                          <p className="text-[8px] font-bold text-zinc-500 uppercase tracking-widest mt-1">LAT: {r.latitude?.toFixed(4)} | LNG: {r.longitude?.toFixed(4)}</p>
-                                       </div>
-                                    ))
-                                 ) : (
-                                    <div className="py-12 flex flex-col items-center justify-center opacity-40 text-center">
-                                       <ShieldCheck size={48} strokeWidth={1} className="mb-3" />
-                                       <p className="text-[9px] font-black uppercase">No recent activity</p>
-                                    </div>
-                                 )
-                              ) : (
-                                 <div className="py-12 flex flex-col items-center justify-center opacity-40 text-center">
-                                    <ShieldCheck size={48} strokeWidth={1} className="mb-3" />
-                                    <p className="text-[9px] font-black uppercase">No Active Threats</p>
-                                 </div>
-                              )}
-                           </div>
-                           
-                           <div className="p-6 border-t border-zinc-200 dark:border-zinc-800">
-                              <button className="w-full h-12 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-black text-[9px] font-black uppercase tracking-widest hover:opacity-90 transition-all">
-                                 Open Archive Terminal
-                              </button>
-                           </div>
+                            )
+                          ) : (
+                            <div className="py-12 flex flex-col items-center justify-center opacity-40 text-center">
+                              <ShieldCheck size={48} strokeWidth={1} className="mb-3" />
+                              <p className="text-[9px] font-black uppercase">No Active Threats</p>
+                            </div>
+                          )}
                         </div>
-                     )}
+
+                        <div className="p-6 border-t border-zinc-200 dark:border-zinc-800">
+                          <button className="w-full h-12 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-black text-[9px] font-black uppercase tracking-widest hover:opacity-90 transition-all">
+                            Open Archive Terminal
+                          </button>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
               </section>
@@ -556,50 +632,49 @@ export default function BarangayHeadDashboard() {
               {/* Citizen Monitor Table Section */}
               <section className="space-y-8">
                 <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-                    <div className="flex items-center gap-4">
-                       <div className="p-3 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800">
-                         <Users className="text-red-600" size={24} />
-                       </div>
-                       <div>
-                         <h3 className="text-2xl font-black tracking-tight uppercase">Citizen Directory</h3>
-                         <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Manage all registered households in your jurisdiction</p>
-                       </div>
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-white dark:bg-zinc-900 rounded-2xl shadow-sm border border-zinc-200 dark:border-zinc-800">
+                      <Users className="text-red-600" size={24} />
                     </div>
-                    
-                    <div className="flex flex-wrap items-center gap-4">
-                       <button 
-                         onClick={() => router.push('/barangay-head/add-user')}
-                         className="h-12 px-8 rounded-2xl bg-zinc-900 dark:bg-white text-white dark:text-black text-[10px] font-black uppercase tracking-widest hover:bg-red-600 dark:hover:bg-red-600 hover:text-white transition-all flex items-center gap-3 shadow-xl shadow-zinc-900/10"
-                       >
-                         <UserPlus size={18} />
-                         Add User
-                       </button>
-                       <div className="relative group">
-                         <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-red-600 transition-colors" size={16} />
-                         <input 
-                           type="text" 
-                           placeholder="FIND CITIZEN..."
-                           value={search}
-                           onChange={(e) => setSearch(e.target.value)}
-                           className="h-12 w-64 pl-12 pr-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black text-[10px] font-black uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-red-600/20 focus:border-red-600 shadow-sm"
-                         />
-                      </div>
-                      <div className="flex p-1 bg-zinc-200 dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800">
-                         {['all', 'safe', 'missing'].map((f) => (
-                           <button
-                             key={f}
-                             onClick={() => setFilter(f as any)}
-                             className={`px-6 h-10 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${
-                               filter === f 
-                                 ? 'bg-white dark:bg-zinc-800 text-red-600 shadow-sm shadow-zinc-900/5' 
-                                 : 'text-zinc-500 hover:text-zinc-900'
-                             }`}
-                           >
-                             {f}
-                           </button>
-                         ))}
-                      </div>
+                    <div>
+                      <h3 className="text-2xl font-black tracking-tight uppercase">Citizen Directory</h3>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Manage all registered households in your jurisdiction</p>
                     </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-4">
+                    <button
+                      onClick={() => router.push('/barangay-head/add-user')}
+                      className="h-12 px-8 rounded-2xl bg-zinc-900 dark:bg-white text-white dark:text-black text-[10px] font-black uppercase tracking-widest hover:bg-red-600 dark:hover:bg-red-600 hover:text-white transition-all flex items-center gap-3 shadow-xl shadow-zinc-900/10"
+                    >
+                      <UserPlus size={18} />
+                      Add User
+                    </button>
+                    <div className="relative group">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-red-600 transition-colors" size={16} />
+                      <input
+                        type="text"
+                        placeholder="FIND CITIZEN..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                        className="h-12 w-64 pl-12 pr-4 rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black text-[10px] font-black uppercase tracking-widest focus:outline-none focus:ring-2 focus:ring-red-600/20 focus:border-red-600 shadow-sm"
+                      />
+                    </div>
+                    <div className="flex p-1 bg-zinc-200 dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800">
+                      {['all', 'safe', 'missing'].map((f) => (
+                        <button
+                          key={f}
+                          onClick={() => setFilter(f as any)}
+                          className={`px-6 h-10 rounded-xl text-[9px] font-black uppercase tracking-widest transition-all ${filter === f
+                            ? 'bg-white dark:bg-zinc-800 text-red-600 shadow-sm shadow-zinc-900/5'
+                            : 'text-zinc-500 hover:text-zinc-900'
+                            }`}
+                        >
+                          {f}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="bg-white dark:bg-zinc-950 rounded-[3rem] border border-zinc-200 dark:border-zinc-800 overflow-hidden shadow-2xl">
@@ -616,12 +691,12 @@ export default function BarangayHeadDashboard() {
                       </thead>
                       <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
                         {filteredResidents.length === 0 ? (
-                           <tr>
-                              <td colSpan={5} className="px-8 py-20 text-center opacity-30 uppercase font-black text-xs space-y-4">
-                                 <HelpCircle className="mx-auto" size={48} strokeWidth={1} />
-                                 <p>No citizens matching your search parameters.</p>
-                              </td>
-                           </tr>
+                          <tr>
+                            <td colSpan={5} className="px-8 py-20 text-center opacity-30 uppercase font-black text-xs space-y-4">
+                              <HelpCircle className="mx-auto" size={48} strokeWidth={1} />
+                              <p>No citizens matching your search parameters.</p>
+                            </td>
+                          </tr>
                         ) : (
                           filteredResidents.map((r) => (
                             <tr key={r.id} className="group hover:bg-zinc-50 dark:hover:bg-zinc-900/50 transition-colors">
@@ -637,48 +712,46 @@ export default function BarangayHeadDashboard() {
                                 </div>
                               </td>
                               <td className="px-8 py-6">
-                                <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${
-                                  r.role === 'responder' ? 'bg-cyan-50 text-cyan-600 border border-cyan-100' : 'bg-zinc-100 text-zinc-500 border border-zinc-200'
-                                }`}>
-                                   {r.role}
+                                <div className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest ${r.role === 'responder' ? 'bg-cyan-50 text-cyan-600 border border-cyan-100' : 'bg-zinc-100 text-zinc-500 border border-zinc-200'
+                                  }`}>
+                                  {r.role}
                                 </div>
                               </td>
                               <td className="px-8 py-6">
-                                <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${
-                                  isActive 
-                                    ? (r.isSafe ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100')
-                                    : 'bg-zinc-100 text-zinc-500 border-zinc-200'
-                                }`}>
-                                   {isActive ? (
-                                      <>
-                                        {r.isSafe ? <ShieldCheck size={12} fill="currentColor" /> : <ShieldAlert size={12} fill="currentColor" />}
-                                        {r.isSafe ? 'Marked Safe' : 'PENDING'}
-                                      </>
-                                   ) : (
-                                      <>
-                                        <Activity size={12} fill="currentColor" />
-                                        Monitoring
-                                      </>
-                                   )}
+                                <div className={`inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-[9px] font-black uppercase tracking-widest border ${isActive
+                                  ? (r.isSafe ? 'bg-emerald-50 text-emerald-600 border-emerald-100' : 'bg-red-50 text-red-600 border-red-100')
+                                  : 'bg-zinc-100 text-zinc-500 border-zinc-200'
+                                  }`}>
+                                  {isActive ? (
+                                    <>
+                                      {r.isSafe ? <ShieldCheck size={12} fill="currentColor" /> : <ShieldAlert size={12} fill="currentColor" />}
+                                      {r.isSafe ? 'Marked Safe' : 'PENDING'}
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Activity size={12} fill="currentColor" />
+                                      Monitoring
+                                    </>
+                                  )}
                                 </div>
                               </td>
                               <td className="px-8 py-6 text-[10px] font-bold text-zinc-500">
                                 {r.safetyUpdatedAt ? new Date(r.safetyUpdatedAt).toLocaleString() : 'N/A'}
                               </td>
                               <td className="px-8 py-6 text-right flex items-center justify-end gap-2">
-                                <button 
+                                <button
                                   onClick={() => router.push(`/barangay-head/edit-user/${r.id}`)}
                                   className="h-10 px-4 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-black text-[9px] font-black uppercase tracking-widest hover:bg-red-600 dark:hover:bg-red-600 hover:text-white transition-all shadow-lg shadow-zinc-900/5"
                                 >
                                   Edit
                                 </button>
-                                <button 
+                                <button
                                   onClick={() => handleDeleteUser(r.id)}
                                   className="h-10 w-10 flex items-center justify-center rounded-xl bg-red-600/10 text-red-600 hover:bg-red-600 hover:text-white transition-all shadow-sm"
                                 >
                                   <ShieldAlert size={16} />
                                 </button>
-                                <button 
+                                <button
                                   onClick={() => {
                                     setFocusResident(r);
                                     setActiveTab('dashboard');
@@ -713,74 +786,389 @@ export default function BarangayHeadDashboard() {
       {/* Activation Modal */}
       {showModal && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
-           <div className="w-full max-w-lg bg-white dark:bg-zinc-950 rounded-[3rem] border border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
-              <div className="p-8 lg:p-10">
-                 <header className="mb-8 flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-2xl bg-red-600 flex items-center justify-center shadow-lg shadow-red-600/30">
-                       <ShieldAlert size={28} color="white" strokeWidth={2.5} />
-                    </div>
-                    <div>
-                       <h3 className="text-xl font-black tracking-tight uppercase leading-none mb-1">Create Emergency Alert</h3>
-                       <p className="text-[10px] font-black uppercase tracking-widest text-red-600">This will notify all residents</p>
-                    </div>
-                 </header>
+          <div className="w-full max-w-lg bg-white dark:bg-zinc-950 rounded-[3rem] border border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+            <div className="p-8 lg:p-10">
+              <header className="mb-8 flex items-center gap-4">
+                <div className="h-12 w-12 rounded-2xl bg-red-600 flex items-center justify-center shadow-lg shadow-red-600/30">
+                  <ShieldAlert size={28} color="white" strokeWidth={2.5} />
+                </div>
+                <div>
+                  <h3 className="text-xl font-black tracking-tight uppercase leading-none mb-1">Create Emergency Alert</h3>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-red-600">This will notify all residents</p>
+                </div>
+              </header>
 
-                 <div className="space-y-6">
-                    <div className="space-y-2">
-                       <label className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400 ml-1">Emergency Category</label>
-                       <div className="grid grid-cols-3 gap-3">
-                          {[
-                            { id: 'Flooding', icon: Droplets },
-                            { id: 'Fire', icon: Flame },
-                            { id: 'Typhoon', icon: Wind },
-                            { id: 'Earthquake', icon: Activity },
-                            { id: 'Landslide', icon: Mountain },
-                            { id: 'General', icon: AlertTriangle },
-                          ].map((cat) => (
-                             <button
-                               key={cat.id}
-                               onClick={() => setDisasterType(cat.id)}
-                               className={`p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${
-                                 disasterType === cat.id 
-                                   ? 'bg-red-600 border-red-600 text-white shadow-xl shadow-red-600/20' 
-                                   : 'bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:border-red-600/30'
-                               }`}
-                             >
-                               <cat.icon size={20} />
-                               <span className="text-[8px] font-black uppercase tracking-widest">{cat.id}</span>
-                             </button>
-                          ))}
-                       </div>
-                    </div>
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400 ml-1">Emergency Category</label>
+                  <div className="grid grid-cols-3 gap-3">
+                    {[
+                      { id: 'Flooding', icon: Droplets },
+                      { id: 'Fire', icon: Flame },
+                      { id: 'Typhoon', icon: Wind },
+                      { id: 'Earthquake', icon: Activity },
+                      { id: 'Landslide', icon: Mountain },
+                      { id: 'General', icon: AlertTriangle },
+                    ].map((cat) => (
+                      <button
+                        key={cat.id}
+                        onClick={() => setDisasterType(cat.id)}
+                        className={`p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${disasterType === cat.id
+                          ? 'bg-red-600 border-red-600 text-white shadow-xl shadow-red-600/20'
+                          : 'bg-zinc-50 dark:bg-zinc-900 border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:border-red-600/30'
+                          }`}
+                      >
+                        <cat.icon size={20} />
+                        <span className="text-[8px] font-black uppercase tracking-widest">{cat.id}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-                    <div className="space-y-2">
-                       <label className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400 ml-1">Specific Instructions</label>
-                       <textarea 
-                         placeholder="E.G. EVACUATE TO COVERED COURT IMMEDIATELY..."
-                         value={disasterDesc}
-                         onChange={(e) => setDisasterDesc(e.target.value)}
-                         className="w-full h-32 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-red-600/20 focus:border-red-600 transition-all resize-none shadow-inner"
-                       />
-                    </div>
-                 </div>
-
-                 <div className="mt-10 flex gap-4">
-                    <button 
-                      onClick={() => setShowModal(false)}
-                      className="flex-1 h-14 rounded-2xl bg-zinc-100 dark:bg-zinc-900 text-zinc-500 font-black uppercase tracking-widest text-[10px] hover:text-zinc-900 transition-all"
-                    >
-                       Cancel
-                    </button>
-                    <button 
-                      onClick={handleToggleDisaster}
-                      disabled={isActivating}
-                      className="flex-1 h-14 rounded-2xl bg-red-600 text-white font-black uppercase tracking-widest text-[10px] shadow-lg shadow-red-600/20 hover:bg-zinc-900 transition-all flex items-center justify-center gap-2"
-                    >
-                      {isActivating ? <Loader2 className="animate-spin" /> : 'Confirm Alert'}
-                    </button>
-                 </div>
+                <div className="space-y-2">
+                  <label className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-400 ml-1">Specific Instructions</label>
+                  <textarea
+                    placeholder="E.G. EVACUATE TO COVERED COURT IMMEDIATELY..."
+                    value={disasterDesc}
+                    onChange={(e) => setDisasterDesc(e.target.value)}
+                    className="w-full h-32 p-6 rounded-3xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-red-600/20 focus:border-red-600 transition-all resize-none shadow-inner"
+                  />
+                </div>
               </div>
-           </div>
+
+              <div className="mt-10 flex gap-4">
+                <button
+                  onClick={() => setShowModal(false)}
+                  className="flex-1 h-14 rounded-2xl bg-zinc-100 dark:bg-zinc-900 text-zinc-500 font-black uppercase tracking-widest text-[10px] hover:text-zinc-900 transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleToggleDisaster}
+                  disabled={isActivating}
+                  className="flex-1 h-14 rounded-2xl bg-red-600 text-white font-black uppercase tracking-widest text-[10px] shadow-lg shadow-red-600/20 hover:bg-zinc-900 transition-all flex items-center justify-center gap-2"
+                >
+                  {isActivating ? <Loader2 className="animate-spin" /> : 'Confirm Alert'}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Evacuation Center Manager Modal */}
+      {showECManager && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="w-full max-w-2xl bg-white dark:bg-zinc-950 rounded-[3rem] border border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+            <div className="p-8 lg:p-10">
+              <header className="mb-8 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-2xl bg-emerald-600 flex items-center justify-center shadow-lg shadow-emerald-600/30">
+                    <Landmark size={28} color="white" strokeWidth={2.5} />
+                  </div>
+                  <div>
+                    <h3 className="text-xl font-black tracking-tight uppercase leading-none mb-1">Evacuation Centers</h3>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Manage jurisdictional safe zones</p>
+                  </div>
+                </div>
+                <button 
+                  onClick={() => {
+                    setShowECManager(false);
+                    setEcPosition(null);
+                  }} 
+                  className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-full transition-colors"
+                >
+                  <XCircle size={24} className="text-zinc-400" />
+                </button>
+              </header>
+
+              <div className="space-y-6">
+                <div className="p-6 bg-zinc-50 dark:bg-zinc-900 rounded-[2rem] border border-zinc-200 dark:border-zinc-800 space-y-4">
+                  <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Add New Center</h4>
+                  <div className="grid grid-cols-2 gap-4">
+                    <input
+                      placeholder="CENTER NAME (E.G. COVERED COURT)"
+                      value={ecName}
+                      onChange={(e) => setEcName(e.target.value)}
+                      className="h-12 px-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black text-[10px] font-black uppercase focus:ring-2 focus:ring-emerald-600/20 outline-none"
+                    />
+                    <input
+                      placeholder="MAX CAPACITY"
+                      type="number"
+                      value={ecCapacity}
+                      onChange={(e) => setEcCapacity(e.target.value)}
+                      className="h-12 px-6 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-black text-[10px] font-black uppercase focus:ring-2 focus:ring-emerald-600/20 outline-none"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <h5 className="text-[8px] font-black uppercase tracking-widest text-zinc-400 ml-1">Center Symbol</h5>
+                    <div className="grid grid-cols-7 gap-2">
+                      {[
+                        { id: 'Landmark', icon: Landmark },
+                        { id: 'Building', icon: Building2 },
+                        { id: 'Home', icon: Home },
+                        { id: 'Medical', icon: HeartPulse },
+                        { id: 'School', icon: GraduationCap },
+                        { id: 'Church', icon: Church },
+                        { id: 'Activity', icon: Activity },
+                      ].map((item) => (
+                        <button
+                          key={item.id}
+                          onClick={() => setSelectedEcIcon(item.id)}
+                          className={`aspect-square rounded-xl border transition-all flex items-center justify-center ${selectedEcIcon === item.id
+                            ? 'bg-emerald-600 border-emerald-600 text-white shadow-lg'
+                            : 'bg-white dark:bg-black border-zinc-200 dark:border-zinc-800 text-zinc-400 hover:border-emerald-600/50'
+                            }`}
+                          type="button"
+                          title={item.id}
+                        >
+                          <item.icon size={18} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {ecPosition ? (
+                    <button
+                      onClick={async () => {
+                        if (!user?.barangay) return;
+                        try {
+                          const res = await fetch('/api/evacuation-center', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              name: ecName || 'New Evacuation Center',
+                              barangay: user.barangay,
+                              latitude: ecPosition.lat,
+                              longitude: ecPosition.lng,
+                              capacity: ecCapacity,
+                              type: selectedEcIcon,
+                            }),
+                          });
+                          if (res.ok) {
+                            fetchEvacuationCenters(user.barangay);
+                            setEcName('');
+                            setEcCapacity('');
+                            setEcPosition(null);
+                            setShowECManager(false);
+                          }
+                        } catch (err) {
+                          console.error('Error saving EC:', err);
+                        }
+                      }}
+                      className="w-full h-12 rounded-xl bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all flex items-center justify-center gap-2 shadow-lg shadow-emerald-600/20"
+                    >
+                      <CheckCircle2 size={14} />
+                      Finalize Establishment
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => {
+                        setIsSettingEC(true);
+                        setShowECManager(false);
+                      }}
+                      className="w-full h-12 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-black text-[10px] font-black uppercase tracking-widest hover:bg-emerald-600 dark:hover:bg-emerald-600 hover:text-white transition-all flex items-center justify-center gap-2"
+                    >
+                      <MapPin size={14} />
+                      Pick Location on Map
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-3 max-h-[300px] overflow-y-auto pr-2">
+                  {evacuationCenters.length === 0 ? (
+                    <div className="py-10 text-center opacity-30 text-[10px] font-black uppercase">No centers established yet</div>
+                  ) : (
+                    evacuationCenters.map((ec) => (
+                      <div key={ec.id} className="p-4 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-2xl flex items-center justify-between group hover:border-emerald-600/50 transition-all">
+                        <div>
+                          <p className="text-xs font-black uppercase">{ec.name}</p>
+                          <p className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest">
+                            Capacity: {ec._count?.evacuees || 0} / {ec.capacity || 'UNLIMITED'}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => {
+                              setSelectedEC(ec);
+                              fetchEvacuees(ec.id);
+                              setShowRegisterEvacuee(true);
+                              setShowECManager(false);
+                            }}
+                            className="h-8 px-4 rounded-lg bg-zinc-900 dark:bg-white text-white dark:text-black text-[8px] font-black uppercase hover:bg-emerald-600 dark:hover:bg-emerald-600 hover:text-white transition-all"
+                          >
+                            Registry
+                          </button>
+                          <button
+                            onClick={async () => {
+                              if (confirm('Delete this center?')) {
+                                await fetch(`/api/evacuation-center?id=${ec.id}`, { method: 'DELETE' });
+                                fetchEvacuationCenters(user.barangay);
+                              }
+                            }}
+                            className="h-8 w-8 flex items-center justify-center rounded-lg bg-red-100 text-red-600 hover:bg-red-600 hover:text-white transition-all"
+                          >
+                            <XCircle size={14} />
+                          </button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Evacuee Registration Modal */}
+      {showRegisterEvacuee && selectedEC && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="w-full max-w-4xl bg-white dark:bg-zinc-950 rounded-[3rem] border border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 flex h-[80vh]">
+            {/* Left Side: Form */}
+            <div className="w-1/2 p-8 lg:p-10 border-r border-zinc-100 dark:border-zinc-900 flex flex-col">
+              <header className="mb-8">
+                <div className="flex items-center gap-3 mb-2">
+                  <Landmark className="text-emerald-600" size={18} />
+                  <h3 className="text-lg font-black tracking-tight uppercase leading-none">{selectedEC.name}</h3>
+                </div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Register New Rescued Person</p>
+              </header>
+
+              <div className="flex-1 space-y-4 overflow-y-auto pr-2">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[8px] font-black uppercase tracking-widest text-zinc-400">First Name</label>
+                    <input
+                      value={regFirstName}
+                      onChange={(e) => setRegFirstName(e.target.value)}
+                      className="w-full h-10 px-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-[10px] font-bold outline-none uppercase"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[8px] font-black uppercase tracking-widest text-zinc-400">Last Name</label>
+                    <input
+                      value={regLastName}
+                      onChange={(e) => setRegLastName(e.target.value)}
+                      className="w-full h-10 px-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-[10px] font-bold outline-none uppercase"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[8px] font-black uppercase tracking-widest text-zinc-400">Age</label>
+                    <input
+                      type="number"
+                      value={regAge}
+                      onChange={(e) => setRegAge(e.target.value)}
+                      className="w-full h-10 px-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-[10px] font-bold outline-none uppercase"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[8px] font-black uppercase tracking-widest text-zinc-400">Gender</label>
+                    <select
+                      value={regGender}
+                      onChange={(e) => setRegGender(e.target.value)}
+                      className="w-full h-10 px-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-[10px] font-bold outline-none uppercase"
+                    >
+                      <option>Male</option>
+                      <option>Female</option>
+                      <option>Other</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[8px] font-black uppercase tracking-widest text-zinc-400">Medical Notes / Requirements</label>
+                  <textarea
+                    value={regNotes}
+                    onChange={(e) => setRegNotes(e.target.value)}
+                    placeholder="E.G. DIABETIC, REQUIRES INSULIN..."
+                    className="w-full h-24 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-[10px] font-bold outline-none uppercase resize-none"
+                  />
+                </div>
+
+                <button
+                  onClick={async () => {
+                    if (!regFirstName || !regLastName) return;
+                    try {
+                      const res = await fetch('/api/evacuation-center/register', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          evacuationCenterId: selectedEC.id,
+                          firstName: regFirstName,
+                          lastName: regLastName,
+                          age: regAge,
+                          gender: regGender,
+                          medicalNotes: regNotes,
+                          addedById: user.id
+                        })
+                      });
+                      if (res.ok) {
+                        setRegFirstName('');
+                        setRegLastName('');
+                        setRegAge('');
+                        setRegNotes('');
+                        fetchEvacuees(selectedEC.id);
+                        fetchEvacuationCenters(user.barangay);
+                      }
+                    } catch (err) {
+                      console.error(err);
+                    }
+                  }}
+                  className="w-full h-12 rounded-xl bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
+                >
+                  Confirm Registration
+                </button>
+                <button
+                  onClick={() => setShowRegisterEvacuee(false)}
+                  className="w-full h-10 text-[9px] font-black uppercase text-zinc-400 hover:text-zinc-600"
+                >
+                  Close Terminal
+                </button>
+              </div>
+            </div>
+
+            {/* Right Side: List */}
+            <div className="w-1/2 bg-zinc-50 dark:bg-zinc-900 p-8 lg:p-10 flex flex-col">
+              <header className="mb-8">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-zinc-400 mb-2">Current Occupants</h4>
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl font-black text-emerald-600 leading-none">{evacuees.length}</span>
+                  <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Registered</span>
+                </div>
+              </header>
+
+              <div className="flex-1 overflow-y-auto space-y-3 pr-2">
+                {evacuees.length === 0 ? (
+                  <div className="py-20 text-center opacity-30 text-[10px] font-black uppercase">Static terminal - focus required</div>
+                ) : (
+                  evacuees.map((ev) => (
+                    <div key={ev.id} className="p-4 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-800 rounded-2xl flex items-center justify-between group">
+                      <div>
+                        <p className="text-[10px] font-black uppercase">{ev.firstName} {ev.lastName}</p>
+                        <p className="text-[8px] font-bold text-zinc-500 uppercase">{ev.gender} • AGE {ev.age || '?'}</p>
+                      </div>
+                      <button
+                        onClick={async () => {
+                          if (confirm('De-register this person?')) {
+                            await fetch(`/api/evacuation-center/residents?id=${ev.id}`, { method: 'DELETE' });
+                            fetchEvacuees(selectedEC.id);
+                            fetchEvacuationCenters(user.barangay);
+                          }
+                        }}
+                        className="h-8 w-8 flex items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-700 text-zinc-400 hover:bg-red-600 hover:text-white transition-all opacity-0 group-hover:opacity-100"
+                      >
+                        <XCircle size={14} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

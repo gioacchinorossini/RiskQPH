@@ -40,6 +40,7 @@ class _HazardMapScreenState extends State<HazardMapScreen> {
   bool _isLoading = false;
   LatLng? _hqLocation;
   Map<String, dynamic>? _activeDisaster;
+  List<dynamic> _evacuationCenters = [];
 
   final String _baseUrl = ApiConfig.baseUrl;
 
@@ -134,12 +135,53 @@ class _HazardMapScreenState extends State<HazardMapScreen> {
       _fetchFamilyAndResidents();
       _startResidentsStream();
     });
+    _fetchEvacuationCenters();
   }
 
   @override
   void dispose() {
     _sseClient?.close();
     super.dispose();
+  }
+
+  void _showEvacuationCenterInfo(Map<String, dynamic> ec) {
+    showModalBottomSheet(
+      context: context,
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              ec['name'].toString().toUpperCase(),
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+            const SizedBox(height: 8),
+            Text('TYPE: EVACUATION CENTER', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+            const SizedBox(height: 16),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('CURRENT OCCUPANCY:'),
+                Text('${ec['_count']?['evacuees'] ?? 0} / ${ec['capacity'] ?? "∞"}', style: const TextStyle(fontWeight: FontWeight.bold)),
+              ],
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.teal,
+                foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 50),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('DISMISS'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   void _startResidentsStream() async {
@@ -352,6 +394,30 @@ class _HazardMapScreenState extends State<HazardMapScreen> {
     }
   }
 
+  Future<void> _fetchEvacuationCenters() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.currentUser;
+    if (user == null || user.barangay == null) return;
+
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/evacuation-center?barangay=${user.barangay}'),
+        headers: {'ngrok-skip-browser-warning': 'true'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (mounted) {
+          setState(() {
+            _evacuationCenters = data['centers'];
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching ECs for map: $e');
+    }
+  }
+
   Future<void> _loadBarangayBoundaries() async {
     // Mocking sample barangay data for Manila for demonstration
     // In a real app, this would fetch from a GeoJSON or API
@@ -447,6 +513,7 @@ class _HazardMapScreenState extends State<HazardMapScreen> {
         _fetchReports(),
         _fetchFamilyAndResidents(),
         _fetchHqLocation(),
+        _fetchEvacuationCenters(),
       ]);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -799,6 +866,61 @@ class _HazardMapScreenState extends State<HazardMapScreen> {
                         },
                       ),
                     ),
+
+                  // Evacuation Center Markers
+                  ..._evacuationCenters.map((ec) {
+                    IconData ecIcon = Icons.account_balance;
+                    switch (ec['type']) {
+                      case 'Building': ecIcon = Icons.domain; break;
+                      case 'Home': ecIcon = Icons.home; break;
+                      case 'Medical': ecIcon = Icons.monitor_heart; break;
+                      case 'School': ecIcon = Icons.school; break;
+                      case 'Church': ecIcon = Icons.church; break;
+                      case 'Activity': ecIcon = Icons.query_stats; break;
+                      default: ecIcon = Icons.account_balance;
+                    }
+
+                    return Marker(
+                      point: LatLng(ec['latitude'], ec['longitude']),
+                      width: 80,
+                      height: 80,
+                      child: GestureDetector(
+                        onTap: () {
+                           _showEvacuationCenterInfo(ec);
+                        },
+                        child: Column(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(4),
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: Colors.grey.shade400, width: 2),
+                                boxShadow: [
+                                  BoxShadow(blurRadius: 8, color: Colors.black.withOpacity(0.1)),
+                                ],
+                              ),
+                              child: Icon(ecIcon, color: Colors.grey.shade700, size: 24),
+                            ),
+                            const SizedBox(height: 4),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withOpacity(0.8),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                ec['name'].toString().toUpperCase(),
+                                style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
                   if (_hqLocation != null && _showBarangayHall)
                     Marker(
                       point: _hqLocation!,

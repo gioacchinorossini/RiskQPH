@@ -30,6 +30,7 @@ model User {
   safetyStatus   UserSafety[]
   familyRequestsSent    FamilyRequest[] @relation("RequestApplicant")
   familyRequestsReceived FamilyRequest[] @relation("RequestHead")
+  evacueesRegistered    Evacuee[] @relation("EvacueeAddedBy")
 }
 
 model Disaster {
@@ -116,4 +117,38 @@ model FamilyRequest {
   @@unique([headId, applicantId])
   @@index([headId])
   @@index([applicantId])
+}
+
+model EvacuationCenter {
+  id        String   @id @default(cuid())
+  name      String
+  barangay  String
+  latitude  Float
+  longitude Float
+  capacity  Int?
+  type      String?
+  evacuees  Evacuee[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([barangay])
+}
+
+model Evacuee {
+  id                 String           @id @default(cuid())
+  evacuationCenterId String
+  evacuationCenter   EvacuationCenter @relation(fields: [evacuationCenterId], references: [id])
+  firstName          String
+  lastName           String
+  middleName         String?
+  gender            String?
+  age               Int?
+  medicalNotes      String?
+  addedById         String
+  addedBy           User             @relation("EvacueeAddedBy", fields: [addedById], references: [id])
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@index([evacuationCenterId])
+  @@index([addedById])
 }

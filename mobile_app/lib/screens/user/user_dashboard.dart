@@ -21,7 +21,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'edit_profile_screen.dart';
-import 'incident_report_screen.dart';
+import '../common/reported_incidents_screen.dart';
 import '../../widgets/safety_overlay.dart';
 import 'package:http/http.dart' as http;
 import '../../config/api_config.dart';
@@ -1235,17 +1235,21 @@ class _UserDashboardState extends State<UserDashboard> {
                       mainAxisAlignment: MainAxisAlignment.spaceAround,
                       children: [
                         _buildQuickActionItem(
-                          icon: Icons.report_problem_outlined,
-                          label: 'Report Incident',
+                          icon: Icons.report_gmailerrorred_outlined,
+                          label: 'Reported Incidents',
                           color: Colors.red,
                           onTap: () {
                             Navigator.push(
                               context,
                               MaterialPageRoute(
                                 builder: (context) =>
-                                    const IncidentReportScreen(),
+                                    const ReportedIncidentsScreen(),
                               ),
-                            );
+                            ).then((reported) {
+                                if (reported == true) {
+                                  _fetchReports();
+                                }
+                            });
                           },
                         ),
                         _buildQuickActionItem(
