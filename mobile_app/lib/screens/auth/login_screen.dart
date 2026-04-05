@@ -182,7 +182,7 @@ class _LoginScreenState extends State<LoginScreen> {
           if (role.contains('barangay_head')) {
             Navigator.pushReplacementNamed(context, '/barangay_head_dashboard');
           } else if (role.contains('responder')) {
-            Navigator.pushReplacementNamed(context, '/user_dashboard');
+            Navigator.pushReplacementNamed(context, '/responder_dashboard');
           } else {
             Navigator.pushReplacementNamed(context, '/user_dashboard');
           }

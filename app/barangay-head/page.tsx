@@ -29,6 +29,7 @@ import {
   Mountain,
   Landmark,
   Zap,
+  UserPlus,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 
@@ -75,6 +76,7 @@ export default function BarangayHeadDashboard() {
   const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'residents'>('dashboard');
   const [hqLocation, setHqLocation] = useState<{ lat: number, lng: number } | null>(null);
   const [isSettingLocation, setIsSettingLocation] = useState(false);
+  const [showIncidentLog, setShowIncidentLog] = useState(false);
 
   const router = useRouter();
 
@@ -250,9 +252,9 @@ export default function BarangayHeadDashboard() {
 
         <nav className="flex-1 px-4 lg:px-6 space-y-2 py-4">
           {[
-            { id: 'dashboard', label: 'Command Center', icon: Activity },
-            { id: 'residents', label: 'Citizen Monitor', icon: Users },
-            { id: 'history', label: 'Event Logs', icon: BarChart3 },
+            { id: 'dashboard', label: 'Dashboard', icon: Activity },
+            { id: 'residents', label: 'Residents', icon: Users },
+            { id: 'history', label: 'History', icon: BarChart3 },
           ].map((item) => (
             <button
               key={item.id}
@@ -267,6 +269,16 @@ export default function BarangayHeadDashboard() {
               <span className="hidden lg:block text-xs font-black uppercase tracking-wider">{item.label}</span>
             </button>
           ))}
+          
+          <div className="pt-4 mt-4 border-t border-zinc-100 dark:border-zinc-900">
+             <button
+               onClick={() => router.push('/barangay-head/admin-add-user')}
+               className="w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-300 group text-zinc-400 hover:text-red-600 hover:bg-red-600/5 dark:hover:bg-red-600/10"
+             >
+               <ShieldAlert size={20} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
+               <span className="hidden lg:block text-xs font-black uppercase tracking-wider">Admin Protocol</span>
+             </button>
+          </div>
         </nav>
 
         <div className="p-6 border-t border-zinc-200 dark:border-zinc-800 space-y-4">
@@ -303,7 +315,7 @@ export default function BarangayHeadDashboard() {
         <header className="sticky top-0 z-40 w-full bg-zinc-50/80 dark:bg-black/80 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800 p-6 lg:px-12 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex flex-col">
              <h2 className="text-2xl font-black tracking-tight uppercase leading-none mb-1">
-               {activeTab === 'dashboard' ? 'OPERATIONS HUB' : activeTab === 'residents' ? 'CITIZEN DIRECTORY' : 'STATISTICAL LOGS'}
+               {activeTab === 'dashboard' ? 'Barangay Dashboard' : activeTab === 'residents' ? 'Resident List' : 'History'}
              </h2>
              <div className="flex items-center gap-2 text-zinc-400">
                <MapPin size={10} className="text-red-600" />
@@ -396,7 +408,7 @@ export default function BarangayHeadDashboard() {
                 </div>
 
                 {/* Map Area */}
-                <div className="lg:col-span-8 space-y-6">
+                <div className="lg:col-span-12 space-y-6">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                        <MapIcon className="text-red-600" size={24} />
@@ -419,7 +431,7 @@ export default function BarangayHeadDashboard() {
                        </div>
                     </div>
                   </div>
-                  <div className={`h-[600px] shadow-2xl relative transition-all ${isSettingLocation ? 'ring-4 ring-red-600/20' : ''}`}>
+                  <div className={`h-[700px] shadow-2xl relative transition-all overflow-hidden rounded-[3rem] border border-zinc-200 dark:border-zinc-800 ${isSettingLocation ? 'ring-4 ring-red-600/20' : ''}`}>
                      <BarangayMap 
                        residents={filteredResidents} 
                        isActive={isActive} 
@@ -430,53 +442,82 @@ export default function BarangayHeadDashboard() {
                      />
                      
                      {/* HUD Overlays on Map */}
-                     <div className="absolute top-4 left-4 z-[1000] p-4 bg-white/90 dark:bg-zinc-950/90 backdrop-blur rounded-2xl border border-zinc-200 dark:border-zinc-800 shadow-xl space-y-3 pointer-events-none selec-none">
-                        <div className="flex items-center gap-3">
-                           <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
-                           <p className="text-[9px] font-black uppercase tracking-widest">SAFE CITIZEN</p>
+                     <div className="absolute top-6 left-6 z-[1000] p-6 bg-white/90 dark:bg-zinc-950/90 backdrop-blur-xl rounded-3xl border border-zinc-200 dark:border-zinc-800 shadow-2xl space-y-4 pointer-events-none select-none">
+                        <div className="flex items-center gap-4">
+                           <div className="w-3.5 h-3.5 rounded-full bg-emerald-500 shadow-lg shadow-emerald-500/50"></div>
+                           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-800 dark:text-zinc-200">SAFE CITIZEN</p>
                         </div>
-                        <div className="flex items-center gap-3">
-                           <div className="w-3 h-3 rounded-full bg-red-500 animate-ping"></div>
-                           <p className="text-[9px] font-black uppercase tracking-widest">URGENT ASSISTANCE</p>
+                        <div className="flex items-center gap-4">
+                           <div className="w-3.5 h-3.5 rounded-full bg-red-500 animate-ping shadow-lg shadow-red-500/50"></div>
+                           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-800 dark:text-zinc-200">URGENT ASSISTANCE</p>
                         </div>
                      </div>
-                  </div>
-                </div>
 
-                {/* Right Panel: Recent Alerts/Activity */}
-                <div className="lg:col-span-4 space-y-6">
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                       <Bell className="text-red-600" size={24} />
-                       <h3 className="text-sm font-black uppercase tracking-widest">ACTIVITY LOG</h3>
-                    </div>
-                    <p className="text-[9px] font-black uppercase tracking-widest text-white px-3 py-1 bg-zinc-900 rounded-full">REALTIME</p>
-                  </div>
-                  
-                  <div className="bg-white dark:bg-zinc-950 p-8 rounded-[3rem] border border-zinc-200 dark:border-zinc-800 shadow-xl min-h-[600px] flex flex-col">
-                    <div className="space-y-6 flex-1 overflow-y-auto pr-2">
-                      {isActive ? (
-                        residents.filter(r => !r.isSafe).slice(0, 10).map((r, i) => (
-                           <div key={i} className="group p-4 rounded-[1.5rem] border border-red-600/10 bg-red-600/5 hover:bg-red-600/10 transition-all cursor-pointer">
-                             <div className="flex items-center justify-between mb-2">
-                               <p className="text-[10px] font-black uppercase text-red-600">Pending Safety Marker</p>
-                               <span className="text-[8px] font-bold opacity-40">2m ago</span>
-                             </div>
-                             <p className="text-xs font-black uppercase mb-1">{r.firstName} {r.lastName}</p>
-                             <p className="text-[9px] font-medium text-zinc-500 uppercase tracking-widest">Location: {r.latitude?.toFixed(4)}, {r.longitude?.toFixed(4)}</p>
+                     {/* Incident Log Overlay Toggle */}
+                         <button 
+                            onClick={() => setShowIncidentLog(!showIncidentLog)}
+                            className={`absolute top-6 right-6 z-[1005] h-14 px-6 rounded-2xl backdrop-blur-xl border font-black uppercase tracking-widest text-[10px] transition-all flex items-center gap-3 shadow-2xl group ${
+                              showIncidentLog 
+                                ? 'bg-red-600 text-white border-red-500' 
+                                : 'bg-white/90 dark:bg-zinc-950/90 text-zinc-900 dark:text-white border-zinc-200 dark:border-zinc-800 hover:scale-105 active:scale-95'
+                            }`}
+                         >
+                            <Bell size={18} className={showIncidentLog ? 'animate-bounce' : 'group-hover:rotate-12 transition-transform'} />
+                            {showIncidentLog ? 'CLOSE LOG' : 'SHOW ACTIVITY LOG'}
+                         </button>
+
+                     {/* Incident Log Floating Panel */}
+                     {showIncidentLog && (
+                        <div className="absolute top-24 right-6 z-[1005] w-96 max-h-[500px] flex flex-col bg-white/95 dark:bg-zinc-950/95 backdrop-blur-2xl rounded-[2.5rem] border border-zinc-200 dark:border-zinc-800 shadow-2xl animate-in slide-in-from-top-4 fade-in duration-300">
+                           <div className="p-6 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between">
+                              <div className="flex items-center gap-3">
+                                 <Activity className="text-red-600" size={18} />
+                                 <h4 className="text-[11px] font-black uppercase tracking-widest">LIVE INCIDENT STREAM</h4>
+                              </div>
+                              <span className="flex h-2 w-2 rounded-full bg-red-600 animate-pulse"></span>
                            </div>
-                        ))
-                      ) : (
-                        <div className="flex flex-col items-center justify-center flex-1 text-center py-20 opacity-30">
-                           <ShieldCheck size={64} strokeWidth={1} className="mb-4" />
-                           <p className="text-xs font-black uppercase tracking-widest">No Priority Alerts</p>
+                           
+                           <div className="p-6 flex-1 overflow-y-auto space-y-4">
+                              {isActive ? (
+                                 residents.filter(r => !r.isSafe).length > 0 ? (
+                                    residents.filter(r => !r.isSafe).map((r, i) => (
+                                       <div 
+                                          key={i} 
+                                          onClick={() => {
+                                             setFocusResident(r);
+                                             setShowIncidentLog(false);
+                                          }}
+                                          className="p-4 rounded-2xl border border-red-600/10 bg-red-600/5 hover:bg-red-600/10 transition-all cursor-pointer group"
+                                       >
+                                          <div className="flex items-center justify-between mb-2">
+                                             <p className="text-[9px] font-black uppercase text-red-600">Priority Tracker</p>
+                                             <Target size={12} className="text-red-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                          </div>
+                                          <p className="text-[11px] font-black uppercase">{r.firstName} {r.lastName}</p>
+                                          <p className="text-[8px] font-bold text-zinc-500 uppercase tracking-widest mt-1">LAT: {r.latitude?.toFixed(4)} | LNG: {r.longitude?.toFixed(4)}</p>
+                                       </div>
+                                    ))
+                                 ) : (
+                                    <div className="py-12 flex flex-col items-center justify-center opacity-40 text-center">
+                                       <ShieldCheck size={48} strokeWidth={1} className="mb-3" />
+                                       <p className="text-[9px] font-black uppercase">No recent activity</p>
+                                    </div>
+                                 )
+                              ) : (
+                                 <div className="py-12 flex flex-col items-center justify-center opacity-40 text-center">
+                                    <ShieldCheck size={48} strokeWidth={1} className="mb-3" />
+                                    <p className="text-[9px] font-black uppercase">No Active Threats</p>
+                                 </div>
+                              )}
+                           </div>
+                           
+                           <div className="p-6 border-t border-zinc-200 dark:border-zinc-800">
+                              <button className="w-full h-12 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-black text-[9px] font-black uppercase tracking-widest hover:opacity-90 transition-all">
+                                 Open Archive Terminal
+                              </button>
+                           </div>
                         </div>
-                      )}
-                    </div>
-                    
-                    <button className="w-full h-14 mt-8 rounded-2xl bg-zinc-100 dark:bg-zinc-900 text-zinc-500 text-[10px] font-black uppercase tracking-widest hover:text-zinc-900 transition-all border border-transparent hover:border-zinc-200">
-                      View Full Incident Logs
-                    </button>
+                     )}
                   </div>
                 </div>
               </section>
@@ -495,7 +536,14 @@ export default function BarangayHeadDashboard() {
                     </div>
                     
                     <div className="flex flex-wrap items-center gap-4">
-                      <div className="relative group">
+                       <button 
+                         onClick={() => router.push('/barangay-head/add-user')}
+                         className="h-12 px-8 rounded-2xl bg-zinc-900 dark:bg-white text-white dark:text-black text-[10px] font-black uppercase tracking-widest hover:bg-red-600 dark:hover:bg-red-600 hover:text-white transition-all flex items-center gap-3 shadow-xl shadow-zinc-900/10"
+                       >
+                         <UserPlus size={18} />
+                         Add Resident
+                       </button>
+                       <div className="relative group">
                          <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-400 group-focus-within:text-red-600 transition-colors" size={16} />
                          <input 
                            type="text" 
@@ -578,7 +626,13 @@ export default function BarangayHeadDashboard() {
                               <td className="px-8 py-6 text-[10px] font-bold text-zinc-500">
                                 {r.safetyUpdatedAt ? new Date(r.safetyUpdatedAt).toLocaleString() : 'N/A'}
                               </td>
-                              <td className="px-8 py-6 text-right">
+                              <td className="px-8 py-6 text-right flex items-center justify-end gap-2">
+                                <button 
+                                  onClick={() => router.push(`/barangay-head/edit-user/${r.id}`)}
+                                  className="h-10 px-6 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-black text-[9px] font-black uppercase tracking-widest hover:bg-red-600 dark:hover:bg-red-600 hover:text-white transition-all shadow-lg shadow-zinc-900/5"
+                                >
+                                  Edit Account
+                                </button>
                                 <button 
                                   onClick={() => {
                                     setFocusResident(r);
@@ -612,8 +666,8 @@ export default function BarangayHeadDashboard() {
                        <ShieldAlert size={28} color="white" strokeWidth={2.5} />
                     </div>
                     <div>
-                       <h3 className="text-xl font-black tracking-tight uppercase leading-none mb-1">Engage Disaster Protocol</h3>
-                       <p className="text-[10px] font-black uppercase tracking-widest text-red-600">This will notify all citizens</p>
+                       <h3 className="text-xl font-black tracking-tight uppercase leading-none mb-1">Create Emergency Alert</h3>
+                       <p className="text-[10px] font-black uppercase tracking-widest text-red-600">This will notify all residents</p>
                     </div>
                  </header>
 
@@ -661,14 +715,14 @@ export default function BarangayHeadDashboard() {
                       onClick={() => setShowModal(false)}
                       className="flex-1 h-14 rounded-2xl bg-zinc-100 dark:bg-zinc-900 text-zinc-500 font-black uppercase tracking-widest text-[10px] hover:text-zinc-900 transition-all"
                     >
-                       Abort Activation
+                       Cancel
                     </button>
                     <button 
                       onClick={handleToggleDisaster}
                       disabled={isActivating}
                       className="flex-1 h-14 rounded-2xl bg-red-600 text-white font-black uppercase tracking-widest text-[10px] shadow-lg shadow-red-600/20 hover:bg-zinc-900 transition-all flex items-center justify-center gap-2"
                     >
-                      {isActivating ? <Loader2 className="animate-spin" /> : 'CONFIRM ACTIVATION'}
+                      {isActivating ? <Loader2 className="animate-spin" /> : 'Confirm Alert'}
                     </button>
                  </div>
               </div>

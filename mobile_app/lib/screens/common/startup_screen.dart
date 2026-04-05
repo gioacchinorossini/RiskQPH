@@ -44,6 +44,8 @@ class _StartupScreenState extends State<StartupScreen> {
       final role = auth.currentUser!.role.toString();
       if (role.contains('barangay_head')) {
         Navigator.pushReplacementNamed(context, '/barangay_head_dashboard');
+      } else if (role.contains('responder')) {
+        Navigator.pushReplacementNamed(context, '/responder_dashboard');
       } else {
         Navigator.pushReplacementNamed(context, '/user_dashboard');
       }

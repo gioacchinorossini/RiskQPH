@@ -11,6 +11,7 @@ import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
 import 'screens/user/user_dashboard.dart';
 import 'screens/barangay_head/barangay_head_dashboard.dart';
+import 'screens/responder/responder_dashboard.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -43,6 +44,7 @@ class MyApp extends StatelessWidget {
           '/register': (context) => const RegisterScreen(),
           '/user_dashboard': (context) => const UserDashboard(),
           '/barangay_head_dashboard': (context) => const BarangayHeadDashboard(),
+          '/responder_dashboard': (context) => const ResponderDashboard(),
         },
       ),
     );
