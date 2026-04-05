@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../lib/prisma';
-import { z } from 'zod';
+import { disasterEventEmitter } from '@/lib/events';
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const barangay = searchParams.get('barangay');
+    const userId = searchParams.get('userId');
 
     if (!barangay) {
       return NextResponse.json({ message: 'Missing barangay' }, { status: 400 });
@@ -14,7 +15,20 @@ export async function GET(req: NextRequest) {
     const disaster = await prisma.disaster.findFirst({
       where: { barangay, isActive: true },
       orderBy: { createdAt: 'desc' },
+      include: userId ? {
+        safetyReports: {
+          where: { userId },
+          select: { isSafe: true }
+        }
+      } : undefined
     });
+
+    if (disaster && userId) {
+      const report = (disaster as any).safetyReports?.[0];
+      return NextResponse.json({ 
+        disaster: { ...disaster, isSafe: report?.isSafe || false } 
+      }, { status: 200 });
+    }
 
     return NextResponse.json({ disaster }, { status: 200 });
   } catch (e) {
@@ -26,7 +40,7 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { headId, barangay, type, isActive } = body;
+    const { headId, barangay, type, isActive, description } = body;
 
     // Verify head
     const head = await prisma.user.findUnique({ where: { id: headId } });
@@ -40,6 +54,9 @@ export async function POST(req: NextRequest) {
         where: { barangay, isActive: true },
         data: { isActive: false },
       });
+      
+      disasterEventEmitter.emit('disasterChange', { barangay, isActive: false });
+      
       return NextResponse.json({ message: 'Disaster mode deactivated' }, { status: 200 });
     }
 
@@ -47,9 +64,12 @@ export async function POST(req: NextRequest) {
       data: {
         barangay,
         type: type || 'General Emergency',
+        description: description || null,
         isActive: true,
       },
     });
+
+    disasterEventEmitter.emit('disasterChange', { barangay, isActive: true, disaster });
 
     return NextResponse.json({ disaster }, { status: 201 });
   } catch (e) {

@@ -24,6 +24,7 @@ import 'edit_profile_screen.dart';
 import '../../widgets/safety_overlay.dart';
 import 'package:http/http.dart' as http;
 import '../../config/api_config.dart';
+import 'dart:io';
 
 class UserDashboard extends StatefulWidget {
   const UserDashboard({super.key});
@@ -42,10 +43,9 @@ class _UserDashboardState extends State<UserDashboard> {
   LatLng? _previewLocation;
 
   // Disaster Mode State
-  Timer? _disasterCheckTimer;
   Map<String, dynamic>? _activeDisaster;
   bool _isSafeReported = false;
-  bool _isCheckingSafety = false;
+  HttpClient? _sseClient;
 
   @override
   void initState() {
@@ -85,16 +85,71 @@ class _UserDashboardState extends State<UserDashboard> {
       eventProvider.startConnectivityMonitoring();
       Provider.of<AttendanceProvider>(context, listen: false).loadAttendances();
       _determinePreviewPosition();
-      _checkDisaster(); // Initial check
-      _startDisasterCheck();
+      _checkDisaster(); // Initial check to get current state
+      _startDisasterStream(); // Start real-time stream
     });
   }
 
-  void _startDisasterCheck() {
-    _disasterCheckTimer?.cancel();
-    _disasterCheckTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
-      if (mounted) _checkDisaster();
+  void _startDisasterStream() {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.currentUser;
+    if (user == null || user.barangay == null) return;
+
+    final url = Uri.parse('${ApiConfig.baseUrl}/api/disaster/events?barangay=${user.barangay}');
+    
+    _sseClient?.close(force: true);
+    _sseClient = HttpClient();
+    
+    Future.microtask(() async {
+      try {
+        final request = await _sseClient!.getUrl(url);
+        request.headers.set('Accept', 'text/event-stream');
+        request.headers.set('Cache-Control', 'no-cache');
+        request.headers.set('ngrok-skip-browser-warning', 'true');
+        
+        final response = await request.close();
+        response.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
+          if (line.trim().isEmpty) return;
+          if (line.startsWith('data: ')) {
+            try {
+              final data = jsonDecode(line.substring(6));
+              if (mounted) {
+                setState(() {
+                  if (data['isActive'] == true) {
+                    _activeDisaster = data['disaster'];
+                    _isSafeReported = false;
+                  } else {
+                    _activeDisaster = null;
+                    _isSafeReported = false;
+                  }
+                });
+              }
+            } catch (e) {
+              debugPrint('Error parsing SSE data: $e');
+            }
+          }
+        }, onDone: () {
+          if (mounted) {
+            debugPrint('SSE Stream closed. Reconnecting...');
+            Future.delayed(const Duration(seconds: 5), _startDisasterStream);
+          }
+        }, onError: (e) {
+          debugPrint('SSE Stream Error: $e');
+          if (mounted) Future.delayed(const Duration(seconds: 10), _startDisasterStream);
+        });
+      } catch (e) {
+        debugPrint('Failed to connect to SSE: $e');
+        if (mounted) Future.delayed(const Duration(seconds: 10), _startDisasterStream);
+      }
     });
+  }
+
+  @override
+  void dispose() {
+    _sseClient?.close(force: true);
+    _scrollController.dispose();
+    _scrollThrottleTimer?.cancel();
+    super.dispose();
   }
 
   Future<void> _checkDisaster() async {
@@ -104,7 +159,7 @@ class _UserDashboardState extends State<UserDashboard> {
 
     try {
       final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/disaster?barangay=${user.barangay}'),
+        Uri.parse('${ApiConfig.baseUrl}/api/disaster?barangay=${user.barangay}&userId=${user.id}'),
         headers: {'ngrok-skip-browser-warning': 'true'},
       );
 
@@ -114,8 +169,8 @@ class _UserDashboardState extends State<UserDashboard> {
           if (mounted) {
             setState(() {
               _activeDisaster = data['disaster'];
+              _isSafeReported = data['disaster']['isSafe'] == true;
             });
-            _checkIfAlreadySafe(user.id, data['disaster']['id']);
           }
         } else {
           if (mounted) {
@@ -130,32 +185,6 @@ class _UserDashboardState extends State<UserDashboard> {
       debugPrint('Error checking disaster: $e');
     }
   }
-
-  Future<void> _checkIfAlreadySafe(String userId, String disasterId) async {
-    if (_isSafeReported || _isCheckingSafety) return;
-    _isCheckingSafety = true;
-    try {
-      // We'll use the residents API or a specific safety check API
-      final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/barangay/residents?barangay=${Provider.of<AuthProvider>(context, listen: false).currentUser?.barangay}&disasterId=$disasterId'),
-        headers: {'ngrok-skip-browser-warning': 'true'},
-      );
-
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final residents = data['residents'] as List;
-        final me = residents.firstWhere((r) => r['id'] == userId, orElse: () => null);
-        if (me != null && me['isSafe'] == true) {
-          if (mounted) setState(() => _isSafeReported = true);
-        }
-      }
-    } catch (e) {
-      debugPrint('Error checking safety status: $e');
-    } finally {
-      _isCheckingSafety = false;
-    }
-  }
-
 
   Future<void> _determinePreviewPosition() async {
     try {
@@ -176,11 +205,13 @@ class _UserDashboardState extends State<UserDashboard> {
   @override
   Widget build(BuildContext context) {
     final user = Provider.of<AuthProvider>(context).currentUser;
+    final primaryColor = (_activeDisaster != null && !_isSafeReported && user?.role == UserRole.resident) ? Colors.red : AppTheme.primaryColor;
+    
     return Scaffold(
       backgroundColor: Colors.white,
       body: Stack(
         children: [
-          _buildMainContent(user),
+          _buildMainContent(user, primaryColor),
           if (_activeDisaster != null && !_isSafeReported && user?.role == UserRole.resident)
             Container(
               color: Colors.black.withOpacity(0.7),
@@ -204,7 +235,7 @@ class _UserDashboardState extends State<UserDashboard> {
     );
   }
 
-  Widget _buildMainContent(User? user) {
+  Widget _buildMainContent(User? user, Color primaryColor) {
     // Moved the original Scaffold body content here
     final double screenWidth = MediaQuery.of(context).size.width;
     final double screenHeight = MediaQuery.of(context).size.height;
@@ -215,6 +246,7 @@ class _UserDashboardState extends State<UserDashboard> {
     final bool is300PLUS = screenWidth > 300;
     final bool is700PLUS = screenWidth > 700;
     final double sliverAppBarHeight = MediaQuery.of(context).size.height * 1.0;
+
     double maxQrSize;
     if (is700PLUS) {
       if (screenHeight > 800) {
@@ -356,7 +388,7 @@ class _UserDashboardState extends State<UserDashboard> {
     }
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: AppTheme.primaryColor,
+        backgroundColor: primaryColor,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
@@ -408,7 +440,7 @@ class _UserDashboardState extends State<UserDashboard> {
                   collapsedHeight: MediaQuery.of(context).size.height * 0.15,
                   pinned: true,
                   floating: false,
-                  backgroundColor: AppTheme.primaryColor,
+                  backgroundColor: primaryColor,
                   shape: ContinuousRectangleBorder(
                     borderRadius: BorderRadius.only(
                       bottomLeft: Radius.circular(100),
@@ -503,7 +535,7 @@ class _UserDashboardState extends State<UserDashboard> {
                               Text(
                                 user?.name ?? 'Profile Name',
                                 style: TextStyle(
-                                  color: AppTheme.primaryColor,
+                                  color: primaryColor,
                                   fontSize: is600PLUS ? 20 : 16,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -514,7 +546,7 @@ class _UserDashboardState extends State<UserDashboard> {
                               Text(
                                 user?.barangay != null ? 'Brgy. ${user!.barangay}' : 'N/A',
                                 style: TextStyle(
-                                  color: AppTheme.primaryColor.withOpacity(0.8),
+                                  color: primaryColor.withOpacity(0.8),
                                   fontSize: is600PLUS ? 16 : 12,
                                   fontWeight: FontWeight.w500,
                                 ),
@@ -707,7 +739,7 @@ class _UserDashboardState extends State<UserDashboard> {
                       ),
                       child: Icon(
                         Icons.keyboard_arrow_down_rounded,
-                        color: AppTheme.primaryColor,
+                        color: primaryColor,
                         size: 24,
                       ),
                     ),
@@ -721,6 +753,7 @@ class _UserDashboardState extends State<UserDashboard> {
       bottomNavigationBar: (_scrollOffset > 50 || _hasBeenCollapsed)
           ? BottomNavigationBar(
               currentIndex: _selectedIndex,
+              selectedItemColor: primaryColor,
               onTap: (index) {
                 setState(() {
                   _selectedIndex = index;
@@ -775,6 +808,47 @@ class _UserDashboardState extends State<UserDashboard> {
                 },
               ),
               const SizedBox(height: 0),
+              if (_activeDisaster != null) ...[
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.warning_amber_rounded, color: Colors.red.shade700, size: 20),
+                          const SizedBox(width: 8),
+                          Text(
+                            '${_activeDisaster!['type']?.toString().toUpperCase() ?? 'GENERAL EMERGENCY'} ADVISORY',
+                            style: TextStyle(
+                              color: Colors.red.shade700,
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        (_activeDisaster!['description'] != null && _activeDisaster!['description'].toString().trim().isNotEmpty)
+                            ? _activeDisaster!['description']
+                            : 'Disaster ongoing. Please stay safe and follow official instructions.',
+                        style: TextStyle(
+                          color: Colors.red.shade900,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+              ],
               const SizedBox(height: 16),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,

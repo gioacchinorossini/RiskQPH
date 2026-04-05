@@ -31,6 +31,7 @@ class _HazardMapScreenState extends State<HazardMapScreen> {
   double _mapZoom = 15.0;
   List<Map<String, dynamic>> _userReports = [];
   bool _isLoading = false;
+  LatLng? _hqLocation;
 
   final String _baseUrl = ApiConfig.baseUrl;
 
@@ -86,6 +87,35 @@ class _HazardMapScreenState extends State<HazardMapScreen> {
     _fetchReports();
     _determinePosition();
     _loadBarangayBoundaries();
+    _fetchHqLocation();
+  }
+
+  Future<void> _fetchHqLocation() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.currentUser;
+    if (user == null || user.barangay == null) return;
+
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/barangay/location?name=${user.barangay}'),
+        headers: {'ngrok-skip-browser-warning': 'true'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['profile'] != null && mounted) {
+          final lat = data['profile']['hqLatitude'];
+          final lng = data['profile']['hqLongitude'];
+          if (lat != null && lng != null) {
+            setState(() {
+              _hqLocation = LatLng(lat as double, lng as double);
+            });
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching HQ location: $e');
+    }
   }
 
   Future<void> _loadBarangayBoundaries() async {
@@ -322,6 +352,38 @@ class _HazardMapScreenState extends State<HazardMapScreen> {
                         Icons.person_pin_circle,
                         color: Colors.blueAccent,
                         size: 40,
+                      ),
+                    ),
+                  if (_hqLocation != null)
+                    Marker(
+                      point: _hqLocation!,
+                      width: 80,
+                      height: 80,
+                      child: Column(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: Colors.black,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(color: Colors.white, width: 2),
+                              boxShadow: [BoxShadow(blurRadius: 10, color: Colors.black26)],
+                            ),
+                            child: const Icon(Icons.account_balance, color: Colors.white, size: 24),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            margin: const EdgeInsets.only(top: 4),
+                            decoration: BoxDecoration(
+                              color: Colors.black,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'BARANGAY HALL',
+                              style: TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ..._userReports.where((r) => r['isResolved'] == false).map((r) {

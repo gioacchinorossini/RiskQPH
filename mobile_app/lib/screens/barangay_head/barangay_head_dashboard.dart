@@ -9,7 +9,6 @@ import '../../providers/event_provider.dart';
 import '../../providers/attendance_provider.dart';
 import '../../models/user.dart';
 import '../../models/event.dart';
-import '../user/attendance_history_screen.dart';
 import '../common/hazard_map_screen.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -18,6 +17,7 @@ import '../user/edit_profile_screen.dart';
 import 'package:http/http.dart' as http;
 import '../../config/api_config.dart';
 import 'package:flutter/services.dart';
+import 'dart:io';
 
 class BarangayHeadDashboard extends StatefulWidget {
   const BarangayHeadDashboard({super.key});
@@ -34,12 +34,15 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
   bool _hasBeenCollapsed = false;
   final MapController _previewMapController = MapController();
   LatLng? _previewLocation;
+  LatLng? _hqLocation;
 
   // Disaster Mode State
-  Timer? _disasterCheckTimer;
   Map<String, dynamic>? _activeDisaster;
   List<dynamic> _residents = [];
   bool _isCheckingSafety = false;
+  HttpClient? _disasterSseClient;
+  HttpClient? _residentsSseClient;
+  Timer? _disasterCheckTimer;
 
   // Barangay Selection State
   List<String> _allBarangays = [];
@@ -84,9 +87,42 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
       Provider.of<AttendanceProvider>(context, listen: false).loadAttendances();
       _determinePreviewPosition();
       _checkDisaster(); // Initial check
-      _startDisasterCheck();
+      _fetchHqLocation(); // Initial check
+      _startDisasterStream();
       _loadBarangays();
     });
+  }
+
+  Future<void> _fetchHqLocation() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.currentUser;
+    if (user == null || user.barangay == null) return;
+
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/barangay/location?name=${user.barangay}'),
+        headers: {'ngrok-skip-browser-warning': 'true'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['profile'] != null && mounted) {
+          final lat = data['profile']['hqLatitude'];
+          final lng = data['profile']['hqLongitude'];
+          if (lat != null && lng != null) {
+            setState(() {
+              _hqLocation = LatLng(lat as double, lng as double);
+            });
+            // center to HQ if no user location yet
+            if (_previewLocation == null) {
+              _previewMapController.move(_hqLocation!, 15);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching HQ location: $e');
+    }
   }
 
   Future<void> _loadBarangays() async {
@@ -151,10 +187,92 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
     }
   }
 
-  void _startDisasterCheck() {
-    _disasterCheckTimer?.cancel();
-    _disasterCheckTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
-      if (mounted) _checkDisaster();
+  void _startDisasterStream() {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.currentUser;
+    if (user == null || user.barangay == null) return;
+
+    final url = Uri.parse('${ApiConfig.baseUrl}/api/disaster/events?barangay=${user.barangay}');
+    
+    _disasterSseClient?.close(force: true);
+    _disasterSseClient = HttpClient();
+    
+    Future.microtask(() async {
+      try {
+        final request = await _disasterSseClient!.getUrl(url);
+        request.headers.set('Accept', 'text/event-stream');
+        request.headers.set('Cache-Control', 'no-cache');
+        request.headers.set('ngrok-skip-browser-warning', 'true');
+        
+        final response = await request.close();
+        response.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
+          if (line.trim().isEmpty) return;
+          if (line.startsWith('data: ')) {
+            final data = jsonDecode(line.substring(6));
+            if (mounted) {
+              setState(() {
+                if (data['isActive'] == true) {
+                  _activeDisaster = data['disaster'];
+                  _startResidentsStream(); 
+                } else {
+                  _activeDisaster = null;
+                  _residents = [];
+                  _residentsSseClient?.close(force: true);
+                }
+              });
+            }
+          }
+        }, onDone: () {
+          if (mounted) Future.delayed(const Duration(seconds: 5), _startDisasterStream);
+        });
+      } catch (e) {
+        if (mounted) Future.delayed(const Duration(seconds: 10), _startDisasterStream);
+      }
+    });
+  }
+
+  void _startResidentsStream() {
+    final user = Provider.of<AuthProvider>(context, listen: false).currentUser;
+    if (_activeDisaster == null || user?.barangay == null) return;
+
+    final url = Uri.parse('${ApiConfig.baseUrl}/api/barangay/residents/events?barangay=${user!.barangay}');
+    
+    _residentsSseClient?.close(force: true);
+    _residentsSseClient = HttpClient();
+    
+    Future.microtask(() async {
+      try {
+        final request = await _residentsSseClient!.getUrl(url);
+        request.headers.set('Accept', 'text/event-stream');
+        request.headers.set('Cache-Control', 'no-cache');
+        request.headers.set('ngrok-skip-browser-warning', 'true');
+        
+        final response = await request.close();
+        response.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
+          if (line.trim().isEmpty) return;
+          if (line.startsWith('data: ')) {
+            final residentData = jsonDecode(line.substring(6));
+            if (mounted) {
+              setState(() {
+                final index = _residents.indexWhere((r) => r['id'] == residentData['id']);
+                if (index != -1) {
+                  _residents[index] = residentData;
+                } else {
+                  _residents.add(residentData);
+                }
+              });
+            }
+          }
+        }, onDone: () {
+          if (mounted && _activeDisaster != null) {
+            Future.delayed(const Duration(seconds: 5), _startResidentsStream);
+          }
+        });
+      } catch (e) {
+        if (mounted && _activeDisaster != null) {
+          Future.delayed(const Duration(seconds: 10), _startResidentsStream);
+        }
+      }
     });
   }
 
@@ -212,20 +330,68 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
 
     final bool isCurrentlyActive = _activeDisaster != null;
 
+    final TextEditingController descriptionController = TextEditingController();
+    String selectedType = 'General Emergency';
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(isCurrentlyActive ? 'Deactivate Disaster Mode?' : 'ACTIVATE DISASTER MODE?'),
-        content: Text(isCurrentlyActive 
-          ? 'This will stop the safety check for all residents in ${user.barangay}.'
-          : 'This will notify all residents in ${user.barangay} and require them to mark themselves as safe.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text(isCurrentlyActive ? 'Deactivate' : 'ACTIVATE', style: TextStyle(color: isCurrentlyActive ? Colors.grey : Colors.red)),
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(isCurrentlyActive ? 'Deactivate Disaster Mode?' : 'ACTIVATE DISASTER MODE?'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(isCurrentlyActive 
+                ? 'This will stop the safety check for all residents in ${user.barangay}.'
+                : 'This will notify all residents in ${user.barangay} and require them to mark themselves as safe.'),
+              if (!isCurrentlyActive) ...[
+                const SizedBox(height: 16),
+                DropdownButtonFormField<String>(
+                  value: selectedType,
+                  decoration: const InputDecoration(
+                    labelText: 'Crisis Type',
+                    border: OutlineInputBorder(),
+                  ),
+                  items: [
+                    'General Emergency',
+                    'Flood',
+                    'Fire',
+                    'Earthquake',
+                    'Typhoon',
+                    'Landslide',
+                  ].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                  onChanged: (val) => setDialogState(() => selectedType = val!),
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: descriptionController,
+                  decoration: const InputDecoration(
+                    labelText: 'Specific Instructions (Optional)',
+                    hintText: 'e.g., Evacuate to higher ground immediately.',
+                    border: OutlineInputBorder(),
+                  ),
+                  maxLines: 3,
+                ),
+              ],
+            ],
           ),
-        ],
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(
+                isCurrentlyActive ? 'Deactivate' : 'ACTIVATE',
+                style: TextStyle(
+                  color: isCurrentlyActive ? Colors.grey : Colors.red,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
 
@@ -241,7 +407,8 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
             'headId': user.id,
             'barangay': user.barangay,
             'isActive': !isCurrentlyActive,
-            'type': 'Emergency Alert',
+            'type': selectedType,
+            'description': descriptionController.text.trim(),
           }),
         );
 
@@ -277,8 +444,12 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
 
   @override
   void dispose() {
+    _disasterSseClient?.close(force: true);
+    _residentsSseClient?.close(force: true);
     _disasterCheckTimer?.cancel();
     _scrollController.dispose();
+    _scrollThrottleTimer?.cancel();
+    _previewMapController.dispose();
     super.dispose();
   }
 
@@ -945,6 +1116,36 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                             width: 30,
                             height: 30,
                             child: const Icon(Icons.my_location, color: Colors.blue, size: 20),
+                          ),
+                        if (_hqLocation != null)
+                          Marker(
+                            point: _hqLocation!,
+                            width: 60,
+                            height: 60,
+                            child: Column(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black,
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(color: Colors.white, width: 1),
+                                  ),
+                                  child: const Icon(Icons.account_balance, color: Colors.white, size: 14),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: Colors.black.withOpacity(0.8),
+                                    borderRadius: BorderRadius.circular(4),
+                                  ),
+                                  child: Text(
+                                    'BRGY HQ',
+                                    style: TextStyle(color: Colors.white, fontSize: 6, fontWeight: FontWeight.bold),
+                                  ),
+                                ),
+                              ],
+                            ),
                           ),
                     ..._residents.map((r) {
                           final isSafe = r['isSafe'] == true;

@@ -31,12 +31,13 @@ model User {
 }
 
 model Disaster {
-  id        String   @id @default(cuid())
-  barangay  String
-  isActive  Boolean  @default(true)
-  type      String?  
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id          String   @id @default(cuid())
+  barangay    String
+  isActive    Boolean  @default(true)
+  type        String?  
+  description String?  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
   safetyReports UserSafety[]
 }
 
@@ -72,6 +73,14 @@ model FamilyMember {
 
   @@index([headId])
   @@index([userId])
+}
+
+model BarangayProfile {
+  id        String   @id @default(cuid())
+  name      String   @unique // The name of the barangay
+  hqLatitude  Float?
+  hqLongitude Float?
+  updatedAt DateTime @updatedAt
 }
 
 model Report {
