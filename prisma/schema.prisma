@@ -27,6 +27,31 @@ model User {
   reports      Report[]
   familyMembers FamilyMember[] @relation("FamilyHead")
   linkedAsFamily FamilyMember[] @relation("FamilyLink")
+  safetyStatus   UserSafety[]
+}
+
+model Disaster {
+  id        String   @id @default(cuid())
+  barangay  String
+  isActive  Boolean  @default(true)
+  type      String?  
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  safetyReports UserSafety[]
+}
+
+model UserSafety {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  disasterId String
+  disaster   Disaster @relation(fields: [disasterId], references: [id])
+  isSafe     Boolean  @default(false)
+  updatedAt  DateTime @updatedAt
+
+  @@index([userId])
+  @@index([disasterId])
+  @@unique([userId, disasterId])
 }
 
 model FamilyMember {

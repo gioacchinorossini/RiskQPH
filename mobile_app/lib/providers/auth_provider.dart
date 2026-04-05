@@ -135,8 +135,8 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<bool> updateProfile({
-    required String firstName,
-    required String lastName,
+    String? firstName,
+    String? lastName,
     String? middleName,
     String? birthdate,
     String? gender,
@@ -149,22 +149,25 @@ class AuthProvider extends ChangeNotifier {
 
     try {
       final uri = Uri.parse(ApiConfig.baseUrl + '/api/profile');
+      
+      final Map<String, dynamic> payload = {
+        'id': _currentUser!.id,
+      };
+      if (firstName != null) payload['firstName'] = firstName;
+      if (lastName != null) payload['lastName'] = lastName;
+      if (middleName != null) payload['middleName'] = middleName;
+      if (birthdate != null) payload['birthdate'] = birthdate;
+      if (gender != null) payload['gender'] = gender;
+      if (barangay != null) payload['barangay'] = barangay;
+      if (address != null) payload['address'] = address;
+
       final response = await http.post(
         uri,
         headers: {
           'Content-Type': 'application/json',
           'ngrok-skip-browser-warning': 'true',
         },
-        body: jsonEncode({
-          'id': _currentUser!.id,
-          'firstName': firstName,
-          'lastName': lastName,
-          'middleName': middleName,
-          'birthdate': birthdate,
-          'gender': gender,
-          'barangay': barangay,
-          'address': address,
-        }),
+        body: jsonEncode(payload),
       );
 
       if (response.statusCode == 200) {
@@ -211,15 +214,22 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> loadUserFromStorage() async {
     try {
+      debugPrint('AuthProvider: Loading user from storage...');
       final prefs = await SharedPreferences.getInstance();
       final userData = prefs.getString('user');
       if (userData != null) {
+        debugPrint('AuthProvider: Found user data in storage');
         final decoded = jsonDecode(userData) as Map<String, dynamic>;
         _currentUser = User.fromJson(decoded);
+        debugPrint('AuthProvider: User loaded successfully: ${_currentUser?.name} (${_currentUser?.role})');
         notifyListeners();
+      } else {
+        debugPrint('AuthProvider: No user data found in storage');
       }
     } catch (e) {
-      // swallow
+      debugPrint('AuthProvider: Error loading user from storage: $e');
+      // If data is corrupt, clear it to allow fresh login
+      await _clearUserFromStorage();
     }
   }
 

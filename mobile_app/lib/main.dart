@@ -9,7 +9,8 @@ import 'utils/theme.dart';
 import 'screens/common/startup_screen.dart';
 import 'screens/auth/login_screen.dart';
 import 'screens/auth/register_screen.dart';
-import 'screens/student/student_dashboard.dart';
+import 'screens/user/user_dashboard.dart';
+import 'screens/barangay_head/barangay_head_dashboard.dart';
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,7 +41,8 @@ class MyApp extends StatelessWidget {
           '/startup': (context) => const StartupScreen(),
           '/login': (context) => const LoginScreen(),
           '/register': (context) => const RegisterScreen(),
-          '/student_dashboard': (context) => const StudentDashboard(),
+          '/user_dashboard': (context) => const UserDashboard(),
+          '/barangay_head_dashboard': (context) => const BarangayHeadDashboard(),
         },
       ),
     );

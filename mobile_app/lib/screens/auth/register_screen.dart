@@ -228,7 +228,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
 
       if (success && mounted) {
-        Navigator.pushReplacementNamed(context, '/student_dashboard');
+        Navigator.pushReplacementNamed(context, '/user_dashboard');
       }
     }
   }

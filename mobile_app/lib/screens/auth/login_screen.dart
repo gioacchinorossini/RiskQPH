@@ -178,12 +178,13 @@ class _LoginScreenState extends State<LoginScreen> {
       if (success && mounted) {
         final user = authProvider.currentUser;
         if (user != null) {
-          if (user.role == UserRole.admin) {
-            Navigator.pushReplacementNamed(context, '/student_dashboard'); // Simplify: direct to student dashboard as placeholder
-          } else if (user.role == UserRole.officer) {
-            Navigator.pushReplacementNamed(context, '/student_dashboard');
+          final role = user.role.toString();
+          if (role.contains('barangay_head')) {
+            Navigator.pushReplacementNamed(context, '/barangay_head_dashboard');
+          } else if (role.contains('responder')) {
+            Navigator.pushReplacementNamed(context, '/user_dashboard');
           } else {
-            Navigator.pushReplacementNamed(context, '/student_dashboard');
+            Navigator.pushReplacementNamed(context, '/user_dashboard');
           }
         }
       }

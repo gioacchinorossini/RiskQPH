@@ -21,15 +21,18 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'edit_profile_screen.dart';
+import '../../widgets/safety_overlay.dart';
+import 'package:http/http.dart' as http;
+import '../../config/api_config.dart';
 
-class StudentDashboard extends StatefulWidget {
-  const StudentDashboard({super.key});
+class UserDashboard extends StatefulWidget {
+  const UserDashboard({super.key});
 
   @override
-  State<StudentDashboard> createState() => _StudentDashboardState();
+  State<UserDashboard> createState() => _UserDashboardState();
 }
 
-class _StudentDashboardState extends State<StudentDashboard> {
+class _UserDashboardState extends State<UserDashboard> {
   int _selectedIndex = 0;
   final ScrollController _scrollController = ScrollController();
   double _scrollOffset = 0.0;
@@ -37,6 +40,12 @@ class _StudentDashboardState extends State<StudentDashboard> {
   bool _hasBeenCollapsed = false;
   final MapController _previewMapController = MapController();
   LatLng? _previewLocation;
+
+  // Disaster Mode State
+  Timer? _disasterCheckTimer;
+  Map<String, dynamic>? _activeDisaster;
+  bool _isSafeReported = false;
+  bool _isCheckingSafety = false;
 
   @override
   void initState() {
@@ -76,8 +85,77 @@ class _StudentDashboardState extends State<StudentDashboard> {
       eventProvider.startConnectivityMonitoring();
       Provider.of<AttendanceProvider>(context, listen: false).loadAttendances();
       _determinePreviewPosition();
+      _checkDisaster(); // Initial check
+      _startDisasterCheck();
     });
   }
+
+  void _startDisasterCheck() {
+    _disasterCheckTimer?.cancel();
+    _disasterCheckTimer = Timer.periodic(const Duration(seconds: 15), (timer) {
+      if (mounted) _checkDisaster();
+    });
+  }
+
+  Future<void> _checkDisaster() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.currentUser;
+    if (user == null || user.barangay == null) return;
+
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/disaster?barangay=${user.barangay}'),
+        headers: {'ngrok-skip-browser-warning': 'true'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['disaster'] != null) {
+          if (mounted) {
+            setState(() {
+              _activeDisaster = data['disaster'];
+            });
+            _checkIfAlreadySafe(user.id, data['disaster']['id']);
+          }
+        } else {
+          if (mounted) {
+            setState(() {
+              _activeDisaster = null;
+              _isSafeReported = false;
+            });
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking disaster: $e');
+    }
+  }
+
+  Future<void> _checkIfAlreadySafe(String userId, String disasterId) async {
+    if (_isSafeReported || _isCheckingSafety) return;
+    _isCheckingSafety = true;
+    try {
+      // We'll use the residents API or a specific safety check API
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/barangay/residents?barangay=${Provider.of<AuthProvider>(context, listen: false).currentUser?.barangay}&disasterId=$disasterId'),
+        headers: {'ngrok-skip-browser-warning': 'true'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final residents = data['residents'] as List;
+        final me = residents.firstWhere((r) => r['id'] == userId, orElse: () => null);
+        if (me != null && me['isSafe'] == true) {
+          if (mounted) setState(() => _isSafeReported = true);
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking safety status: $e');
+    } finally {
+      _isCheckingSafety = false;
+    }
+  }
+
 
   Future<void> _determinePreviewPosition() async {
     try {
@@ -96,17 +174,41 @@ class _StudentDashboardState extends State<StudentDashboard> {
   }
 
   @override
-  void dispose() {
-    _scrollThrottleTimer?.cancel();
-    _scrollController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final user = Provider.of<AuthProvider>(context).currentUser;
+    return Scaffold(
+      backgroundColor: Colors.white,
+      body: Stack(
+        children: [
+          _buildMainContent(user),
+          if (_activeDisaster != null && !_isSafeReported && user?.role == UserRole.resident)
+            Container(
+              color: Colors.black.withOpacity(0.7),
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 32),
+                  child: SafetyOverlay(
+                    userId: user!.id,
+                    disasterId: _activeDisaster!['id'],
+                    disasterType: _activeDisaster!['type'] ?? 'Emergency',
+                    onMarkedSafe: () {
+                      setState(() => _isSafeReported = true);
+                    },
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+      floatingActionButton: null,
+    );
+  }
+
+  Widget _buildMainContent(User? user) {
+    // Moved the original Scaffold body content here
     final double screenWidth = MediaQuery.of(context).size.width;
     final double screenHeight = MediaQuery.of(context).size.height;
+    // ... (rest of the size logic)
     final bool is600PLUS = screenWidth > 600;
     final bool is500PLUS = screenWidth > 500;
     final bool is400PLUS = screenWidth > 400;
@@ -445,7 +547,7 @@ class _StudentDashboardState extends State<StudentDashboard> {
                 opacity: (1 - (_scrollOffset / 200)).clamp(0, 1),
                 child: Center(
                   child: Text(
-                    user?.name ?? 'Student Name',
+                    user?.name ?? 'User Name',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: is600PLUS ? 36 : 28,
@@ -807,7 +909,15 @@ class _StudentDashboardState extends State<StudentDashboard> {
                               TileLayer(
                                 urlTemplate:
                                     'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                                userAgentPackageName: 'com.example.mobile_app',
+                                userAgentPackageName: 'RiskQPH/1.0 (ph.gov.riskqph.mobile; contact: admin@riskqph.ph)',
+                              ),
+                              RichAttributionWidget(
+                                attributions: [
+                                  TextSourceAttribution(
+                                    'OpenStreetMap contributors',
+                                    onTap: () {},
+                                  ),
+                                ],
                               ),
                               MarkerLayer(
                                 markers: [
@@ -1525,5 +1635,112 @@ class _StudentDashboardState extends State<StudentDashboard> {
         Navigator.pushReplacementNamed(context, '/login');
       }
     }
+  }
+}
+
+class _MissingListScreen extends StatefulWidget {
+  final String barangay;
+  final String disasterId;
+
+  const _MissingListScreen({required this.barangay, required this.disasterId});
+
+  @override
+  State<_MissingListScreen> createState() => _MissingListScreenState();
+}
+
+class _MissingListScreenState extends State<_MissingListScreen> {
+  List<dynamic> _residents = [];
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchResidents();
+  }
+
+  Future<void> _fetchResidents() async {
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/barangay/residents?barangay=${widget.barangay}&disasterId=${widget.disasterId}'),
+        headers: {'ngrok-skip-browser-warning': 'true'},
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        setState(() {
+          _residents = data['residents'];
+          _isLoading = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching residents: $e');
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final missing = _residents.where((r) => r['isSafe'] == false).toList();
+    final safe = _residents.where((r) => r['isSafe'] == true).toList();
+
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Resident Safety Status'),
+        bottom: _isLoading ? const PreferredSize(preferredSize: Size.fromHeight(2), child: LinearProgressIndicator()) : null,
+      ),
+      body: _isLoading ? const Center(child: CircularProgressIndicator()) : DefaultTabController(
+        length: 2,
+        child: Column(
+          children: [
+            TabBar(
+              labelColor: AppTheme.primaryColor,
+              unselectedLabelColor: Colors.grey,
+              tabs: [
+                Tab(text: 'MISSING (${missing.length})'),
+                Tab(text: 'SAFE (${safe.length})'),
+              ],
+            ),
+            Expanded(
+              child: TabBarView(
+                children: [
+                  _buildList(missing, isMissing: true),
+                  _buildList(safe, isMissing: false),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildList(List<dynamic> list, {required bool isMissing}) {
+    if (list.isEmpty) {
+      return Center(
+        child: Text(
+          isMissing ? 'No missing residents' : 'No residents marked safe yet',
+          style: const TextStyle(color: Colors.grey),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      itemCount: list.length,
+      itemBuilder: (context, index) {
+        final r = list[index];
+        return ListTile(
+          leading: CircleAvatar(
+            backgroundColor: isMissing ? Colors.red.withOpacity(0.1) : Colors.green.withOpacity(0.1),
+            child: Icon(
+              isMissing ? Icons.person_off : Icons.check_circle,
+              color: isMissing ? Colors.red : Colors.green,
+            ),
+          ),
+          title: Text('${r['firstName']} ${r['lastName']}'),
+          subtitle: isMissing 
+            ? const Text('Last seen: Unknown', style: TextStyle(color: Colors.red))
+            : Text('Marked safe: ${r['safetyStatus'][0]['updatedAt'] != null ? DateFormat('hh:mm a').format(DateTime.parse(r['safetyStatus'][0]['updatedAt'])) : 'N/A'}'),
+        );
+      },
+    );
   }
 }

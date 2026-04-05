@@ -22,15 +22,33 @@ class _StartupScreenState extends State<StartupScreen> {
 
   Future<void> _bootstrap() async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
-    await auth.testConnection();
+    
+    debugPrint('Startup: Bootstrapping application...');
+    
+    // 1. Load user from storage FIRST (highest priority)
     await auth.loadUserFromStorage();
+    
+    // 2. Test connection in background or with a timeout
+    // We don't necessarily want to block the entire UI if connection is slow
+    // but we check it here for initial status
+    await auth.testConnection();
+
     if (!mounted || _navigated) return;
+    
     setState(() {
       _navigated = true;
     });
+
     if (auth.isAuthenticated) {
-      Navigator.pushReplacementNamed(context, '/student_dashboard');
+      debugPrint('Startup: User is authenticated, navigating to dashboard...');
+      final role = auth.currentUser!.role.toString();
+      if (role.contains('barangay_head')) {
+        Navigator.pushReplacementNamed(context, '/barangay_head_dashboard');
+      } else {
+        Navigator.pushReplacementNamed(context, '/user_dashboard');
+      }
     } else {
+      debugPrint('Startup: User not authenticated, navigating to login...');
       Navigator.pushReplacementNamed(context, '/login');
     }
   }

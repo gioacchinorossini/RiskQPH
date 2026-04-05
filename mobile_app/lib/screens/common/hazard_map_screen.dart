@@ -10,12 +10,14 @@ import 'package:geolocator/geolocator.dart';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../../providers/auth_provider.dart';
 import '../../utils/theme.dart';
 import '../../config/api_config.dart';
 
 class HazardMapScreen extends StatefulWidget {
-  const HazardMapScreen({super.key});
+  final List<Map<String, dynamic>>? residentsToRescue;
+  const HazardMapScreen({super.key, this.residentsToRescue});
 
   @override
   State<HazardMapScreen> createState() => _HazardMapScreenState();
@@ -283,7 +285,15 @@ class _HazardMapScreenState extends State<HazardMapScreen> {
             children: [
               TileLayer(
                 urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-                userAgentPackageName: 'com.example.mobile_app',
+                userAgentPackageName: 'RiskQPH/1.0 (ph.gov.riskqph.mobile; contact: admin@riskqph.ph)',
+              ),
+              RichAttributionWidget(
+                attributions: [
+                  TextSourceAttribution(
+                    'OpenStreetMap contributors',
+                    onTap: () {},
+                  ),
+                ],
               ),
               if (_showBarangayBoundaries)
                 PolygonLayer(
@@ -378,6 +388,65 @@ class _HazardMapScreenState extends State<HazardMapScreen> {
                       ),
                     ),
                   )).toList(),
+                  if (widget.residentsToRescue != null)
+                    ...widget.residentsToRescue!.where((r) => r['latitude'] != null && r['longitude'] != null).map((r) {
+                      final name = '${r['firstName'] ?? ""} ${r['lastName'] ?? ""}'.trim();
+                      final isSafe = r['isSafe'] == true;
+                      String timeStr = 'N/A';
+                      try {
+                        if (r['updatedAt'] != null) {
+                          final dt = DateTime.parse(r['updatedAt']);
+                          timeStr = DateFormat('HH:mm:ss').format(dt);
+                        }
+                      } catch (_) {}
+                      
+                      final color = isSafe ? Colors.green : (r['hasResponded'] == true ? Colors.red : Colors.redAccent);
+
+                      return Marker(
+                        point: LatLng(r['latitude'], r['longitude']),
+                        width: 80,
+                        height: 90,
+                        child: GestureDetector(
+                          onTap: () => isSafe ? _showResidentSafeDetail(r, name, timeStr) : _showResidentRescueDetail(r, name, timeStr),
+                          child: Column(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(4),
+                                decoration: BoxDecoration(
+                                  color: isSafe ? Colors.green : (r['hasResponded'] == true ? Colors.red : Colors.white), 
+                                  shape: BoxShape.circle, 
+                                  border: Border.all(color: color, width: 2), 
+                                  boxShadow: [
+                                    BoxShadow(
+                                      blurRadius: 10, 
+                                      color: color.withOpacity(0.5),
+                                      spreadRadius: (r['hasResponded'] == true || isSafe) ? 2 : 0,
+                                    )
+                                  ]
+                                ),
+                                child: Icon(
+                                  isSafe ? Icons.check : (r['hasResponded'] == true ? Icons.sos : Icons.warning), 
+                                  color: (isSafe || r['hasResponded'] == true) ? Colors.white : Colors.red, 
+                                  size: 24,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                                decoration: BoxDecoration(color: color.withOpacity(0.9), borderRadius: BorderRadius.circular(4)),
+                                child: Text(
+                                  isSafe ? 'SAFE: $name' : (r['hasResponded'] == true ? 'SOS: $name' : (name.isEmpty ? 'SOS' : name)), 
+                                  style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold), 
+                                  maxLines: 1, 
+                                  overflow: TextOverflow.ellipsis
+                                ),
+                              ),
+                              Text(timeStr, style: TextStyle(color: color, fontSize: 8, fontWeight: FontWeight.bold, backgroundColor: Colors.white70)),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
                 ],
               ),
             ],
@@ -535,6 +604,60 @@ class _HazardMapScreenState extends State<HazardMapScreen> {
         backgroundColor: AppTheme.primaryColor,
         child: const Icon(Icons.my_location),
       ),
+    );
+  }
+
+  void _showResidentSafeDetail(Map<String, dynamic> resident, String name, String timeStr) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.check_circle_outline, color: Colors.green, size: 48),
+              const SizedBox(height: 16),
+              Text('CONFIRMED SAFE', style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.green, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Text(name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              ListTile(leading: const Icon(Icons.access_time), title: const Text('Marked Safe At'), subtitle: Text(timeStr)),
+              ListTile(leading: const Icon(Icons.location_on), title: const Text('Coordinates'), subtitle: Text('${resident['latitude']}, ${resident['longitude']}')),
+              const SizedBox(height: 16),
+              ElevatedButton(onPressed: () => Navigator.pop(context), style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white), child: const Text('CLOSE')),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showResidentRescueDetail(Map<String, dynamic> resident, String name, String timeStr) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (context) {
+        return Container(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 48),
+              const SizedBox(height: 16),
+              Text('RESCUE REQUEST', style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: Colors.red, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Text(name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 16),
+              ListTile(leading: const Icon(Icons.access_time), title: const Text('Last GPS Available'), subtitle: Text(timeStr)),
+              ListTile(leading: const Icon(Icons.location_on), title: const Text('Coordinates'), subtitle: Text('${resident['latitude']}, ${resident['longitude']}')),
+              const SizedBox(height: 16),
+              ElevatedButton(onPressed: () => Navigator.pop(context), style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white), child: const Text('DISMISS')),
+            ],
+          ),
+        );
+      },
     );
   }
 

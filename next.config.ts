@@ -2,7 +2,7 @@ import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
   // @ts-ignore
-  allowedDevOrigins: ['nonprohibitory-yu-unlenient.ngrok-free.dev', '10.242.107.183'],
+  allowedDevOrigins: ['nonprohibitory-yu-unlenient.ngrok-free.dev', '10.242.107.183', '192.168.254.102', '192.168.254.102:3000', 'localhost', 'localhost:3000'],
   devIndicators: {
     appIsrStatus: false,
   },

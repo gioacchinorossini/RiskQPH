@@ -21,6 +21,7 @@ export default function Home() {
           <nav className="hidden items-center gap-8 md:flex">
             <a href="#" className="text-sm font-medium text-zinc-900 dark:text-zinc-400 hover:text-red-500 dark:hover:text-zinc-100 transition-colors">Emergency</a>
             <a href="#" className="text-sm font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">Dashboards</a>
+            <a href="/admin/add-barangay-head" className="text-sm font-medium text-red-600 dark:text-red-500 hover:text-red-700 dark:hover:text-red-400 transition-colors font-bold uppercase tracking-tighter">Admin Panels</a>
             <a href="#" className="text-sm font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">Resources</a>
           </nav>
           <div className="flex items-center gap-4">
