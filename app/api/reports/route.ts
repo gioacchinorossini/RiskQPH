@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 import { writeFile, mkdir } from "fs/promises";
 import path from "path";
+import { notificationEventEmitter } from "@/lib/events";
 
 const prisma = new PrismaClient();
 
@@ -44,6 +45,14 @@ export async function POST(req: NextRequest) {
         imageUrl,
         userId: userId || null,
       },
+    });
+
+    // Broadcast the new report to all listening clients (SSE)
+    notificationEventEmitter.emit('newNotification', {
+      ...report,
+      title: `New ${type} Reported`,
+      desc: description,
+      category: 'Proximity'
     });
 
     return NextResponse.json(report, { status: 201 });

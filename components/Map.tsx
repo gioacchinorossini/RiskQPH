@@ -21,7 +21,8 @@ import {
   MapPin, ThumbsUp, ThumbsDown, CheckCircle, Flag, 
   Layers, History, Edit3, X, ZapOff, Droplets, 
   WifiOff, Construction, MoreHorizontal, Building2, 
-  Navigation, Check, AlertTriangle, Camera
+  Navigation, Check, AlertTriangle, Camera,
+  Settings, Users, ChevronRight, ClipboardList
 } from 'lucide-react';
 
 const disasterTypeConfig: Record<string, { color: string, icon: any }> = {
@@ -136,9 +137,12 @@ const Map = ({ showBarangays: initialShowBarangays = true }: { showBarangays?: b
   // UI State
   const [isReportsPanelOpen, setIsReportsPanelOpen] = useState(false);
   const [isLayersPanelOpen, setIsLayersPanelOpen] = useState(false);
+  const [isFamilyPanelOpen, setIsFamilyPanelOpen] = useState(false);
   const [isReportMode, setIsReportMode] = useState(false);
   const [showBarangayBoundaries, setShowBarangayBoundaries] = useState(initialShowBarangays);
   const [reportingLocation, setReportingLocation] = useState<[number, number] | null>(null);
+  const [isActionGroupExpanded, setIsActionGroupExpanded] = useState(false);
+  const [user, setUser] = useState<any>(null);
   
   // Report Form State
   const [selectedType, setSelectedType] = useState<string | null>(null);
@@ -155,6 +159,11 @@ const Map = ({ showBarangays: initialShowBarangays = true }: { showBarangays?: b
       setInitialState(JSON.parse(saved));
     } else {
       setInitialState({ center: [12.8797, 121.7740], zoom: 6 });
+    }
+
+    const savedUser = localStorage.getItem('user');
+    if (savedUser) {
+      setUser(JSON.parse(savedUser));
     }
   }, []);
 
@@ -193,12 +202,6 @@ const Map = ({ showBarangays: initialShowBarangays = true }: { showBarangays?: b
     const interval = setInterval(fetchReports, 10000); // Polling for sync
     return () => clearInterval(interval);
   }, []);
-
-  const hazards = [
-    { pos: [14.5995, 120.9842] as [number, number], title: "Manila Region", desc: "Critical Flooding potential in NCR.", type: "Flooding" },
-    { pos: [10.3157, 123.8854] as [number, number], title: "Cebu City", desc: "Moderate Storm Surge warning.", type: "Typhoon" },
-    { pos: [7.0736, 125.6128] as [number, number], title: "Davao Region", desc: "Minor Seismic Activity recorded.", type: "Earthquake" }
-  ];
 
   const barangaySamples = [
     {
@@ -283,193 +286,241 @@ const Map = ({ showBarangays: initialShowBarangays = true }: { showBarangays?: b
 
   return (
     <div className="relative h-full w-full overflow-hidden">
-      {/* Top Right: Recent Reports */}
-      <div className="absolute top-4 right-4 z-[1000] flex flex-col items-end gap-3">
-        <button
-          onClick={() => {
-            setIsReportsPanelOpen(!isReportsPanelOpen);
-            if (!isReportsPanelOpen) setIsLayersPanelOpen(false);
-          }}
-          className={`p-3 rounded-2xl shadow-xl border transition-all ${
-            isReportsPanelOpen ? 'bg-zinc-900 border-zinc-800 text-white' : 'bg-white border-zinc-200 text-zinc-900 group hover:bg-zinc-50'
-          }`}
-        >
-          {isReportsPanelOpen ? <X size={20} /> : <History size={20} className="group-hover:scale-110 transition-transform" />}
-        </button>
+      {/* Unified Action Menu (Top Left - Horizontal, matching mobile app) */}
+      <div className="absolute top-6 left-6 z-[2000] flex flex-col items-start gap-4">
+        <div className="flex items-center gap-2 p-1.5 bg-zinc-900/90 backdrop-blur-xl border border-zinc-800 rounded-[24px] shadow-2xl">
+          <button
+            onClick={() => {
+              setIsActionGroupExpanded(!isActionGroupExpanded);
+              if (!isActionGroupExpanded) {
+                setIsLayersPanelOpen(false);
+                setIsReportsPanelOpen(false);
+                setIsFamilyPanelOpen(false);
+              }
+            }}
+            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all duration-300 ${
+              isActionGroupExpanded ? 'bg-red-600 text-white rotate-90' : 'bg-white text-zinc-900'
+            }`}
+          >
+            {isActionGroupExpanded ? <X size={20} /> : <ChevronRight size={20} />}
+          </button>
 
-        {isReportsPanelOpen && (
-          <div className="w-64 max-h-[70vh] bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-zinc-200 overflow-hidden flex flex-col animate-in slide-in-from-right duration-300">
-            <div className="p-4 bg-zinc-900 text-white">
-              <h2 className="text-sm font-bold flex items-center gap-2">
-                <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
-                Recent Reports
-              </h2>
+          {isActionGroupExpanded && (
+            <div className="flex items-center gap-2 pr-1 animate-in slide-in-from-left-4 duration-300">
+              <div className="w-[1px] h-6 bg-zinc-800 mx-1" />
+              
+              {/* Settings/Layers */}
+              <button
+                onClick={() => {
+                  setIsLayersPanelOpen(!isLayersPanelOpen);
+                  setIsReportsPanelOpen(false);
+                  setIsFamilyPanelOpen(false);
+                }}
+                className={`w-10 h-10 flex items-center justify-center rounded-full transition-all ${
+                  isLayersPanelOpen ? 'bg-zinc-700 text-white' : 'bg-transparent text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                }`}
+                title="Settings/Layers"
+              >
+                <Settings size={20} />
+              </button>
+
+              {/* Family (Resident Only) */}
+              {user?.role === 'resident' && (
+                <button
+                  onClick={() => {
+                    setIsFamilyPanelOpen(!isFamilyPanelOpen);
+                    setIsLayersPanelOpen(false);
+                    setIsReportsPanelOpen(false);
+                  }}
+                  className={`w-10 h-10 flex items-center justify-center rounded-full transition-all ${
+                    isFamilyPanelOpen ? 'bg-zinc-700 text-white' : 'bg-transparent text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                  }`}
+                  title="My Family"
+                >
+                  <Users size={20} />
+                </button>
+              )}
+
+              {/* Reports List */}
+              <button
+                onClick={() => {
+                  setIsReportsPanelOpen(!isReportsPanelOpen);
+                  setIsLayersPanelOpen(false);
+                  setIsFamilyPanelOpen(false);
+                }}
+                className={`w-10 h-10 flex items-center justify-center rounded-full transition-all ${
+                  isReportsPanelOpen ? 'bg-zinc-700 text-white' : 'bg-transparent text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                }`}
+                title="Recent Reports"
+              >
+                <ClipboardList size={20} />
+              </button>
+
+              {/* Report Mode */}
+              <button
+                onClick={() => {
+                  setIsReportMode(!isReportMode);
+                }}
+                className={`w-10 h-10 flex items-center justify-center rounded-full transition-all ${
+                  isReportMode ? 'bg-red-600 text-white drop-shadow-[0_0_10px_rgba(239,68,68,0.4)]' : 'bg-transparent text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                }`}
+                title="Report Incident Mode"
+              >
+                <Edit3 size={20} className={isReportMode ? 'animate-pulse' : ''} />
+              </button>
             </div>
-            <div className="overflow-y-auto flex-1 p-2 space-y-1">
-              {reports.length === 0 ? (
-                <p className="text-xs text-zinc-500 text-center py-4">No recent reports found.</p>
-              ) : (
-                reports.map((r) => {
-                  const config = disasterTypeConfig[r.type] || { color: '#6366f1', icon: MapPin };
-                  return (
-                    <button
-                      key={r.id}
-                      onClick={() => setFocusCenter([r.latitude, r.longitude])}
-                      className="w-full text-left p-2.5 rounded-xl hover:bg-zinc-100 transition-all border border-transparent hover:border-zinc-200 group"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-zinc-100 group-hover:bg-white transition-colors flex-shrink-0" style={{ color: config.color }}>
-                          <config.icon size={16} />
+          )}
+        </div>
+
+        {/* Panel Popups (Aligned with the menu) */}
+        <div className="flex flex-col gap-3">
+          {isReportsPanelOpen && (
+            <div className="w-72 max-h-[60vh] bg-white/95 backdrop-blur-xl rounded-[28px] shadow-2xl border border-zinc-200/50 overflow-hidden flex flex-col animate-in slide-in-from-top-4 duration-300">
+              <div className="p-5 bg-zinc-900 text-white flex items-center justify-between">
+                <h2 className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
+                  <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                  Live Reports
+                </h2>
+                <button onClick={() => setIsReportsPanelOpen(false)} className="p-1 hover:bg-zinc-800 rounded-full transition-colors">
+                  <X size={14} />
+                </button>
+              </div>
+              <div className="overflow-y-auto flex-1 p-3 space-y-2">
+                {reports.length === 0 ? (
+                  <p className="text-[10px] text-zinc-500 text-center py-8 font-medium italic">No recent reports found in this area.</p>
+                ) : (
+                  reports.map((r) => {
+                    const config = disasterTypeConfig[r.type] || { color: '#6366f1', icon: MapPin };
+                    return (
+                      <button
+                        key={r.id}
+                        onClick={() => setFocusCenter([r.latitude, r.longitude])}
+                        className="w-full text-left p-3 rounded-2xl hover:bg-zinc-50 transition-all border border-transparent hover:border-zinc-100 group flex items-center gap-3"
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-zinc-100 group-hover:bg-white transition-colors flex items-center justify-center flex-shrink-0" style={{ color: config.color }}>
+                          <config.icon size={18} />
                         </div>
                         <div className="min-w-0">
                           <p className="text-[11px] font-bold text-zinc-900 truncate">{r.type}</p>
-                          <p className="text-[10px] text-zinc-500 truncate">{r.description || 'No description'}</p>
+                          <p className="text-[10px] text-zinc-500 truncate">{r.description || 'No description provided'}</p>
                         </div>
-                      </div>
-                    </button>
-                  );
-                })
-              )}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
             </div>
-          </div>
-        )}
-      </div>
+          )}
 
-      {/* Top Left: Layers & Report Mode */}
-      <div className="absolute top-4 left-4 z-[1000] flex flex-col items-start gap-3">
-        {/* Layers Toggle */}
-        <button
-          onClick={() => {
-            setIsLayersPanelOpen(!isLayersPanelOpen);
-            if (!isLayersPanelOpen) setIsReportsPanelOpen(false);
-          }}
-          className={`p-3 rounded-2xl shadow-xl border transition-all ${
-            isLayersPanelOpen ? 'bg-zinc-900 border-zinc-800 text-white' : 'bg-white border-zinc-200 text-zinc-900 group hover:bg-zinc-50'
-          }`}
-        >
-          {isLayersPanelOpen ? <X size={20} /> : <Layers size={20} className="group-hover:scale-110 transition-transform" />}
-        </button>
-
-        {isLayersPanelOpen && (
-          <div className="w-56 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-zinc-200 overflow-hidden animate-in slide-in-from-left duration-300">
-            <div className="p-4 bg-zinc-900 text-white">
-              <h2 className="text-sm font-bold">Map Layers</h2>
-            </div>
-            <div className="p-3">
-              <label className="flex items-center justify-between p-2 rounded-xl hover:bg-zinc-100 cursor-pointer transition-colors group">
-                <div className="flex flex-col">
-                  <span className="text-xs font-bold text-zinc-900">Barangay Boundaries</span>
-                  <span className="text-[10px] text-zinc-500">Risk Color Coding</span>
+          {isLayersPanelOpen && (
+            <div className="w-64 bg-white/95 backdrop-blur-xl rounded-[28px] shadow-2xl border border-zinc-200/50 overflow-hidden animate-in slide-in-from-top-4 duration-300">
+              <div className="p-5 bg-zinc-900 text-white flex items-center justify-between">
+                <h2 className="text-xs font-black uppercase tracking-widest">Map Layers</h2>
+                <button onClick={() => setIsLayersPanelOpen(false)} className="p-1 hover:bg-zinc-800 rounded-full transition-colors">
+                  <X size={14} />
+                </button>
+              </div>
+              <div className="p-4 space-y-4">
+                <div 
+                  onClick={() => setShowBarangayBoundaries(!showBarangayBoundaries)}
+                  className="flex items-center justify-between p-3 rounded-2xl hover:bg-zinc-50 cursor-pointer transition-all group border border-transparent hover:border-zinc-100"
+                >
+                  <div className="flex flex-col">
+                    <span className="text-[11px] font-bold text-zinc-900">Barangay Boundaries</span>
+                    <span className="text-[9px] text-zinc-500">Risk Level Shading</span>
+                  </div>
+                  <div className={`w-10 h-6 rounded-full transition-all flex items-center px-1 ${showBarangayBoundaries ? 'bg-zinc-900' : 'bg-zinc-200'}`}>
+                    <div className={`w-4 h-4 rounded-full bg-white transition-all shadow-sm ${showBarangayBoundaries ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </div>
                 </div>
-                <div className="relative inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="sr-only peer"
-                    checked={showBarangayBoundaries}
-                    onChange={(e) => setShowBarangayBoundaries(e.target.checked)}
-                  />
-                  <div className="w-9 h-5 bg-zinc-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-zinc-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-zinc-900"></div>
-                </div>
-              </label>
+              </div>
             </div>
-          </div>
-        )}
-
-        {/* Report Mode Toggle */}
-        <button
-          onClick={() => {
-            setIsReportMode(!isReportMode);
-            if (!isReportMode) {
-              // Show toast or something?
-            }
-          }}
-          className={`p-3 rounded-2xl shadow-xl border transition-all ${
-            isReportMode ? 'bg-red-600 border-red-700 text-white ring-4 ring-red-100' : 'bg-white border-zinc-200 text-zinc-900 group hover:bg-zinc-50'
-          }`}
-        >
-          <Edit3 size={20} className={isReportMode ? 'animate-pulse' : 'group-hover:scale-110 transition-transform'} />
-        </button>
+          )}
+        </div>
       </div>
 
       {/* Bottom Right: Location Toggle */}
-      <div className="absolute bottom-10 right-4 z-[1000]">
+      <div className="absolute bottom-10 right-10 z-[1000]">
         <button
           onClick={() => setLocationTrigger(prev => prev + 1)}
-          className="p-4 bg-white border border-zinc-200 text-zinc-900 rounded-full shadow-2xl group hover:bg-zinc-50 transition-all hover:scale-110 active:scale-95"
+          className="w-14 h-14 bg-white border border-zinc-200 text-zinc-900 rounded-full shadow-2xl group hover:bg-zinc-900 hover:text-white transition-all hover:scale-110 active:scale-95 flex items-center justify-center overflow-hidden relative"
           title="Find My Location"
         >
-          <Navigation size={24} className="group-hover:text-blue-600 transition-colors" />
+          <Navigation size={24} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
+          <div className="absolute inset-x-0 bottom-0 h-1 bg-blue-600 opacity-0 group-hover:opacity-100 transition-opacity" />
         </button>
       </div>
 
       {/* Report Modal */}
       {reportingLocation && (
-        <div className="absolute inset-0 z-[2000] flex items-center justify-center bg-black/40 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300">
-            <div className="p-6 border-b border-zinc-100 flex items-center justify-between bg-zinc-50">
+        <div className="absolute inset-0 z-[3000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md animate-in fade-in duration-300">
+          <div className="bg-white rounded-[40px] shadow-2xl w-full max-w-md overflow-hidden animate-in zoom-in-95 duration-300 border border-white/20">
+            <div className="p-8 border-b border-zinc-100 flex items-center justify-between bg-zinc-50/50">
               <div>
-                <h3 className="text-xl font-bold text-zinc-900">Report Incident</h3>
-                <p className="text-xs text-zinc-500">Tap incident type to select</p>
+                <h3 className="text-2xl font-black text-zinc-900 tracking-tight">Report Incident</h3>
+                <p className="text-[11px] text-zinc-500 font-bold uppercase tracking-widest mt-1 opacity-60">Selection Required</p>
               </div>
               <button 
                 onClick={() => setReportingLocation(null)}
-                className="p-2 hover:bg-zinc-200 rounded-full transition-colors"
+                className="w-10 h-10 flex items-center justify-center bg-white hover:bg-zinc-200 rounded-full transition-all shadow-sm"
               >
                 <X size={20} className="text-zinc-500" />
               </button>
             </div>
             
-            <div className="p-6 space-y-6">
-              <div className="grid grid-cols-4 gap-3 max-h-[300px] overflow-y-auto p-1">
+            <div className="p-8 space-y-8">
+              <div className="grid grid-cols-3 gap-3 max-h-[340px] overflow-y-auto p-1 pr-2 custom-scrollbar">
                 {Object.entries(disasterTypeConfig).map(([type, config]) => (
                   <button
                     key={type}
                     onClick={() => setSelectedType(type)}
-                    className={`flex flex-col items-center gap-2 p-2 rounded-2xl transition-all ${
+                    className={`group flex flex-col items-center gap-3 p-4 rounded-[32px] transition-all ${
                       selectedType === type 
-                        ? 'bg-zinc-900 text-white scale-105 shadow-lg' 
+                        ? 'bg-zinc-900 text-white scale-[1.02] shadow-xl ring-4 ring-zinc-900/10' 
                         : 'bg-zinc-50 text-zinc-600 hover:bg-zinc-100 border border-transparent'
                     }`}
                   >
-                    <div className={`p-2.5 rounded-xl ${selectedType === type ? 'bg-white/20' : 'bg-white shadow-sm'}`}>
-                      <config.icon size={18} color={selectedType === type ? 'white' : config.color} />
+                    <div className={`w-12 h-12 flex items-center justify-center rounded-2xl transition-all ${selectedType === type ? 'bg-white/10 rotate-12' : 'bg-white shadow-sm'}`}>
+                      <config.icon size={22} color={selectedType === type ? 'white' : config.color} />
                     </div>
-                    <span className="text-[9px] font-bold text-center leading-tight">{type}</span>
+                    <span className="text-[10px] font-black text-center leading-tight uppercase tracking-tighter">{type}</span>
                   </button>
                 ))}
               </div>
               
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-zinc-900">Description</label>
+              <div className="space-y-3">
+                <label className="text-[11px] font-black uppercase tracking-widest text-zinc-400 pl-1">Description</label>
                 <textarea
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
-                  placeholder="Tell us what's happening..."
-                  className="w-full h-24 p-4 rounded-2xl bg-zinc-50 border border-zinc-200 focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent text-sm resize-none transition-all"
+                  placeholder="Provide essential details for responder accuracy..."
+                  className="w-full h-32 p-6 rounded-[32px] bg-zinc-50 border border-zinc-200 focus:outline-none focus:ring-4 focus:ring-zinc-900/5 focus:border-zinc-900 transition-all text-sm resize-none"
                 />
               </div>
 
-              <div className="flex flex-col gap-3">
-                <div className="flex items-center gap-2 px-4 py-3 bg-zinc-50 rounded-2xl border border-dashed border-zinc-300">
-                  <Camera size={16} className="text-zinc-400" />
-                  <span className="text-xs text-zinc-500 italic">Photos coming soon to web</span>
+              <div className="flex flex-col gap-4">
+                <div className="flex items-center gap-3 px-6 py-4 bg-zinc-50 rounded-[28px] border border-dashed border-zinc-300/50">
+                  <div className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-zinc-400">
+                    <Camera size={16} />
+                  </div>
+                  <span className="text-[11px] text-zinc-500 font-bold italic tracking-tight uppercase">Photo evidence coming soon</span>
                 </div>
                 
                 <button
                   disabled={!selectedType || isSubmitting}
                   onClick={submitReport}
-                  className={`w-full py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-all ${
+                  className={`w-full py-6 rounded-[32px] font-black uppercase tracking-[2px] text-xs flex items-center justify-center gap-3 transition-all ${
                     !selectedType || isSubmitting
                       ? 'bg-zinc-100 text-zinc-400 cursor-not-allowed'
-                      : 'bg-red-600 text-white hover:bg-red-700 shadow-xl shadow-red-100 active:scale-95'
+                      : 'bg-red-600 text-white hover:bg-red-700 shadow-2xl shadow-red-500/20 active:scale-95'
                   }`}
                 >
                   {isSubmitting ? (
-                    <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                    <div className="w-5 h-5 border-[3px] border-white/30 border-t-white rounded-full animate-spin"></div>
                   ) : (
                     <>
-                      <Navigation size={18} />
-                      Submit Emergency Report
+                      <Navigation size={18} fill="currentColor" />
+                      Dispatch Alert
                     </>
                   )}
                 </button>
@@ -513,28 +564,6 @@ const Map = ({ showBarangays: initialShowBarangays = true }: { showBarangays?: b
           );
         })}
 
-        {/* Global Hazards */}
-        {hazards.map((h, i) => {
-          const config = disasterTypeConfig[h.type] || { color: '#ef4444', icon: MapPin };
-          return (
-            <div key={`h-${i}`}>
-              <Marker position={h.pos} icon={createCustomIcon(h.type)}>
-                <Popup>
-                  <div className="p-1">
-                    <h3 className="font-bold text-sm text-zinc-900 mb-1">{h.title}</h3>
-                    <p className="text-xs text-zinc-600 mb-2">{h.desc}</p>
-                  </div>
-                </Popup>
-              </Marker>
-              <Circle
-                center={h.pos}
-                radius={10000}
-                pathOptions={{ fillColor: config.color, color: config.color, fillOpacity: 0.1 }}
-              />
-            </div>
-          )
-        })}
-
         {reports.filter((r: any) => !r.isResolved).map((r: any) => {
           const config = disasterTypeConfig[r.type] || { color: '#6366f1', icon: MapPin };
           const isOwnReport = r.userId === (typeof window !== 'undefined' ? localStorage.getItem('riskqph_user_id') : null);
@@ -542,53 +571,59 @@ const Map = ({ showBarangays: initialShowBarangays = true }: { showBarangays?: b
             <div key={r.id}>
               <Marker position={[r.latitude, r.longitude]} icon={createCustomIcon(r.type)}>
                 <Popup className="report-popup">
-                  <div className="w-56 p-1">
+                  <div className="w-64 p-2">
                     {r.imageUrl && (
-                      <img src={r.imageUrl} alt={r.type} className="w-full h-24 object-cover rounded-lg mb-2" />
+                      <div className="relative w-full h-32 rounded-2xl overflow-hidden mb-4 shadow-sm">
+                        <img src={r.imageUrl} alt={r.type} className="w-full h-full object-cover" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent" />
+                      </div>
                     )}
-                    <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center justify-between mb-2">
                       <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: r.isResolved ? '#22c55e' : config.color }}></span>
-                        <h3 className="font-bold text-sm text-zinc-900">{r.type}</h3>
+                        <div className="w-2.5 h-2.5 rounded-full animate-pulse" style={{ backgroundColor: config.color }} />
+                        <h3 className="font-black text-xs uppercase tracking-widest text-zinc-900">{r.type}</h3>
                       </div>
                       {r.isResolved && (
-                        <span className="text-[9px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-200">
+                        <span className="text-[8px] font-black text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full border border-emerald-100 tracking-tighter">
                           RESOLVED
                         </span>
                       )}
                     </div>
-                    <p className="text-[10px] text-zinc-500 mb-2 italic">Reported by {r.reporterName}</p>
-                    <p className="text-xs text-zinc-600 line-clamp-2 mb-3">{r.description}</p>
-
-                    <div className="flex items-center justify-between border-t border-zinc-100 pt-3">
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => handleAction(r.id, 'upvote')}
-                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isOwnReport
-                              ? 'bg-emerald-50 text-emerald-600 pointer-events-none'
-                              : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 cursor-pointer'
-                            }`}
-                        >
-                          <CheckCircle className="w-3.5 h-3.5" />
-                          Agree ({r.upvotes})
-                        </button>
+                    <div className="flex items-center gap-1.5 mb-3">
+                      <div className="w-4 h-4 rounded-full bg-zinc-100 flex items-center justify-center">
+                        <Users size={10} className="text-zinc-400" />
                       </div>
+                      <p className="text-[9px] font-bold text-zinc-400 uppercase tracking-tight">Reported by {r.reporterName}</p>
+                    </div>
+                    <p className="text-[11px] text-zinc-600 leading-relaxed font-medium mb-4 bg-zinc-50 p-3 rounded-xl border border-zinc-100/50">{r.description || 'No additional details provided by the reporter.'}</p>
+
+                    <div className="flex items-center gap-2 pt-3 border-t border-zinc-100">
                       <button
-                        onClick={() => handleAction(r.id, 'flag')}
-                        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isOwnReport
-                            ? 'bg-amber-50 text-amber-600 pointer-events-none'
-                            : 'bg-amber-50 text-amber-600 hover:bg-amber-100 cursor-pointer'
+                        onClick={() => handleAction(r.id, 'upvote')}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-extrabold transition-all ${isOwnReport
+                            ? 'bg-emerald-50 text-emerald-600 opacity-50 cursor-not-allowed'
+                            : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white border border-emerald-100'
                           }`}
                       >
-                        <Flag className="w-3.5 h-3.5" />
-                        Flag
+                        <CheckCircle size={14} />
+                        Agree ({r.upvotes})
+                      </button>
+                      <button
+                        onClick={() => handleAction(r.id, 'flag')}
+                        className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all ${isOwnReport
+                            ? 'bg-zinc-50 text-zinc-400 opacity-50 cursor-not-allowed'
+                            : 'bg-amber-50 text-amber-600 hover:bg-amber-500 hover:text-white border border-amber-100'
+                          }`}
+                        title="Flag as false info"
+                      >
+                        <Flag size={14} />
                       </button>
                     </div>
 
                     {!r.isResolved && (
                       <button
                         onClick={() => handleAction(r.id, 'resolve')}
-                        className="w-full mt-3 text-[10px] font-bold py-1.5 rounded-lg border border-green-600 text-green-600 hover:bg-green-600 hover:text-white transition-all"
+                        className="w-full mt-2 font-black text-[9px] py-2.5 rounded-xl border-2 border-emerald-600 text-emerald-600 hover:bg-emerald-600 hover:text-white transition-all uppercase tracking-widest bg-white"
                       >
                         Mark as Resolved
                       </button>

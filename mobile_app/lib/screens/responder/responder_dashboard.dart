@@ -7,6 +7,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/event_provider.dart';
 import '../../providers/attendance_provider.dart';
+import '../../providers/notification_provider.dart';
 import '../../models/user.dart';
 import '../common/hazard_map_screen.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -17,7 +18,7 @@ import '../../utils/theme.dart';
 import '../../widgets/view_on_map_button.dart';
 import '../user/edit_profile_screen.dart';
 import '../common/profile_tab_sliver.dart';
-import '../common/reported_incidents_screen.dart';
+import '../barangay_head/reported_incidents_management_screen.dart';
 import '../common/notifications_tab_sliver.dart';
 import '../../widgets/dashboard_info_card.dart';
 import 'package:http/http.dart' as http;
@@ -112,6 +113,7 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
       }
       eventProvider.startConnectivityMonitoring();
       Provider.of<AttendanceProvider>(context, listen: false).loadAttendances();
+      Provider.of<NotificationProvider>(context, listen: false).addDummyData();
       _determinePreviewPosition();
       _fetchReports(); // Fetch incident reports for map preview
       _checkDisaster(); // Initial check
@@ -823,7 +825,9 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
       bottomNavigationBar: (_scrollOffset > 50 || _hasBeenCollapsed)
           ? BottomNavigationBar(
               currentIndex: _selectedIndex,
+              type: BottomNavigationBarType.fixed,
               selectedItemColor: primaryColor,
+              unselectedItemColor: Colors.grey,
               onTap: (index) => setState(() => _selectedIndex = index),
               items: const [
                 BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
@@ -1075,7 +1079,7 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const ReportedIncidentsScreen(),
+                    builder: (context) => const ReportedIncidentsManagementScreen(),
                   ),
                 ),
               ),

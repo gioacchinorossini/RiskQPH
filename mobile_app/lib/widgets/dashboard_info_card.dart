@@ -6,6 +6,7 @@ class DashboardInfoCard extends StatelessWidget {
   final String value;
   final String subtext;
   final Color iconColor;
+  final bool isDisabled;
   final VoidCallback? onTap;
 
   const DashboardInfoCard({
@@ -15,6 +16,7 @@ class DashboardInfoCard extends StatelessWidget {
     required this.value,
     this.subtext = '',
     this.iconColor = Colors.blue,
+    this.isDisabled = false,
     this.onTap,
   });
 
@@ -34,7 +36,7 @@ class DashboardInfoCard extends StatelessWidget {
         ],
       ),
       child: InkWell(
-        onTap: onTap,
+        onTap: isDisabled ? null : onTap,
         borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(20),
@@ -44,10 +46,10 @@ class DashboardInfoCard extends StatelessWidget {
                 width: 56,
                 height: 56,
                 decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.1),
+                  color: (isDisabled ? Colors.grey : iconColor).withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(icon, color: iconColor, size: 28),
+                child: Icon(icon, color: isDisabled ? Colors.grey : iconColor, size: 28),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -65,10 +67,10 @@ class DashboardInfoCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       value,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: Colors.black87,
+                        color: isDisabled ? Colors.grey[400] : Colors.black87,
                       ),
                     ),
                     if (subtext.isNotEmpty) ...[

@@ -317,11 +317,11 @@ class _LoginScreenState extends State<LoginScreen> {
         if (user != null) {
           final role = user.role.toString();
           if (role.contains('barangay_head')) {
-            Navigator.pushReplacementNamed(context, '/barangay_head_dashboard');
+            Navigator.pushNamedAndRemoveUntil(context, '/barangay_head_dashboard', (route) => false);
           } else if (role.contains('responder')) {
-            Navigator.pushReplacementNamed(context, '/responder_dashboard');
+            Navigator.pushNamedAndRemoveUntil(context, '/responder_dashboard', (route) => false);
           } else {
-            Navigator.pushReplacementNamed(context, '/user_dashboard');
+            Navigator.pushNamedAndRemoveUntil(context, '/user_dashboard', (route) => false);
           }
         }
       }

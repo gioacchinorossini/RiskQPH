@@ -261,9 +261,10 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                             residentData['role']?.toString().toLowerCase() ??
                             '';
                         final String rId = residentData['id'].toString();
-                        if (user.role != UserRole.resident ||
+                        if ((user.role != UserRole.resident ||
                             rRole.contains('responder') ||
-                            _familyUserIds.contains(rId)) {
+                            _familyUserIds.contains(rId)) &&
+                            (residentData['barangayMemberStatus'] == 'verified' || residentData['barangayMemberStatus'] == null)) {
                           _filteredResidents.add(
                             Map<String, dynamic>.from(residentData),
                           );
@@ -371,8 +372,9 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                 .map((r) => Map<String, dynamic>.from(r))
                 .toList();
           } else {
-            // Officials see everyone
+            // Officials see everyone verified
             _filteredResidents = all
+                .where((r) => r['barangayMemberStatus'] == 'verified' || r['barangayMemberStatus'] == null)
                 .map((r) => Map<String, dynamic>.from(r))
                 .toList();
           }
@@ -2029,6 +2031,12 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                       },
                       backgroundColor: _isReportMode ? Colors.red : Colors.white,
                       elevation: 4,
+                      shape: CircleBorder(
+                        side: BorderSide(
+                          color: _isReportMode ? Colors.white : AppTheme.primaryColor.withOpacity(0.3),
+                          width: 2,
+                        ),
+                      ),
                       child: Icon(
                         _isReportMode ? Icons.edit_location : Icons.edit_location_outlined,
                         color: _isReportMode ? Colors.white : AppTheme.primaryColor,
@@ -2584,74 +2592,125 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                   if (isUserReport) ...[
                     const SizedBox(height: 24),
                     const Divider(),
-                    const SizedBox(height: 12),
-                    Row(
+                    const SizedBox(height: 20),
+                    
+                    // SITUATIONAL ACTIONS COLUMN
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        IgnorePointer(
-                          ignoring: isOwnReport,
-                          child: ActionChip(
-                            avatar: const Icon(
-                              Icons.check_circle_outline,
-                              size: 14,
-                              color: Colors.green,
+                        // 1. Resolve Action (Visible ONLY to owner or official (Head/Responder))
+                        if (hazard['isResolved'] != true && (isOwnReport || authProvider.currentUser?.role != UserRole.resident)) ...[
+                          ElevatedButton.icon(
+                            onPressed: () => _handleReportAction(hazard['id'], 'resolve'),
+                            icon: const Icon(Icons.verified, size: 18),
+                            label: const Text('MARK AS RESOLVED', 
+                              style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.green,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 16),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                             ),
-                            label: Text('Agree (${hazard['upvotes']})'),
-                            backgroundColor: Colors.green.withOpacity(0.05),
-                            onPressed: () =>
-                                _handleReportAction(hazard['id'], 'upvote'),
                           ),
-                        ),
-                        const Spacer(),
+                          const SizedBox(height: 12),
+                        ],
+
+                         // 2. Agree/Upvote Action (Themed uniform button)
                         IgnorePointer(
                           ignoring: isOwnReport,
-                          child: TextButton.icon(
-                            onPressed: () =>
-                                _handleReportAction(hazard['id'], 'flag'),
-                            icon: const Icon(
-                              Icons.flag_outlined,
-                              size: 16,
-                              color: Colors.orange,
-                            ),
-                            label: const Text(
-                              'Flag',
-                              style: TextStyle(
-                                color: Colors.orange,
-                                fontSize: 12,
+                          child: SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: () => _handleReportAction(hazard['id'], 'upvote'),
+                              icon: Icon(Icons.thumb_up_alt_rounded, 
+                                size: 18, 
+                                color: isOwnReport ? Colors.grey : Colors.green),
+                              label: Text(
+                                'AGREE TO THIS REPORT (${hazard['upvotes']})',
+                                style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: isOwnReport ? Colors.grey[100] : Colors.green.withOpacity(0.08),
+                                foregroundColor: isOwnReport ? Colors.grey : Colors.green,
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  side: BorderSide(color: (isOwnReport ? Colors.grey : Colors.green).withOpacity(0.2)),
+                                ),
                               ),
                             ),
                           ),
                         ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    if (hazard['isResolved'] != true)
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: () =>
-                              _handleReportAction(hazard['id'], 'resolve'),
-                          icon: const Icon(Icons.check_circle_outline),
-                          label: const Text('Mark as Resolved'),
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: Colors.green,
-                            side: const BorderSide(color: Colors.green),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
+
+                        // 4. Report False Info (Uniform style)
+                        if (!isOwnReport && authProvider.currentUser?.role == UserRole.resident) ...[
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: () => _handleReportAction(hazard['id'], 'flag'),
+                              icon: const Icon(Icons.flag_rounded, size: 18),
+                              label: const Text('REPORT AS FALSE INFORMATION', 
+                                style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.orange.withOpacity(0.08),
+                                foregroundColor: Colors.orange[800],
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  side: BorderSide(color: Colors.orange.withOpacity(0.2)),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
+                        ],
+
+                        // 3. Delete Action (Restricted to owner or official)
+                        if (isOwnReport || authProvider.currentUser?.role != UserRole.resident) ...[
+                          const SizedBox(height: 12),
+                          SizedBox(
+                            width: double.infinity,
+                            child: ElevatedButton.icon(
+                              onPressed: () => _handleReportAction(hazard['id'], 'delete'),
+                              icon: const Icon(Icons.delete_forever_rounded, size: 18),
+                              label: const Text('REMOVE INCIDENT REPORT', 
+                                style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: Colors.red.withOpacity(0.08),
+                                foregroundColor: Colors.red[800],
+                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                  side: BorderSide(color: Colors.red.withOpacity(0.2)),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
                   ],
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 24),
                   SizedBox(
                     width: double.infinity,
-                    child: ElevatedButton(
+                    child: ElevatedButton.icon(
                       onPressed: () => Navigator.pop(context),
+                      icon: const Icon(Icons.close_rounded, size: 18),
+                      label: const Text('CLOSE PANEL', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5)),
                       style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primaryColor,
+                        backgroundColor: Colors.grey[100],
+                        foregroundColor: Colors.black87,
+                        elevation: 0,
                         padding: const EdgeInsets.symmetric(vertical: 16),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          side: BorderSide(color: Colors.black.withOpacity(0.1)),
+                        ),
                       ),
-                      child: const Text('Close'),
                     ),
                   ),
                 ],
@@ -2708,23 +2767,41 @@ class _HazardMapScreenState extends State<HazardMapScreen>
 
   Future<void> _handleReportAction(String id, String action) async {
     try {
-      final response = await http.patch(
-        Uri.parse('$_baseUrl/api/reports/$id'),
-        body: json.encode({'action': action}),
-        headers: {'Content-Type': 'application/json'},
-      );
-      if (response.statusCode == 200) {
-        Navigator.pop(context); // Close current detail modal
-        _fetchReports(); // Refresh data
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Report ${action}d successfully'),
-            backgroundColor: Colors.green,
-          ),
+      late http.Response response;
+      
+      if (action == 'delete') {
+        response = await http.delete(
+          Uri.parse('$_baseUrl/api/reports/$id'),
+          headers: {
+            'Content-Type': 'application/json',
+            'ngrok-skip-browser-warning': 'true',
+          },
+        );
+      } else {
+        response = await http.patch(
+          Uri.parse('$_baseUrl/api/reports/$id'),
+          body: json.encode({'action': action}),
+          headers: {
+            'Content-Type': 'application/json',
+            'ngrok-skip-browser-warning': 'true',
+          },
         );
       }
+
+      if (response.statusCode == 200) {
+        if (mounted) {
+          Navigator.pop(context); // Close current detail modal
+          _fetchReports(); // Refresh data
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Report ${action == "delete" ? "removed" : action + "d"} successfully'),
+              backgroundColor: action == 'delete' ? Colors.red : Colors.green,
+            ),
+          );
+        }
+      }
     } catch (e) {
-      debugPrint('Error action: $e');
+      debugPrint('Error report action: $e');
     }
   }
 

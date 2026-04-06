@@ -7,6 +7,7 @@ import 'package:qr_flutter/qr_flutter.dart';
 import '../../providers/auth_provider.dart';
 import '../../providers/event_provider.dart';
 import '../../providers/attendance_provider.dart';
+import '../../providers/notification_provider.dart';
 import '../../models/user.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
@@ -14,7 +15,6 @@ import 'package:geolocator/geolocator.dart';
 import '../common/hazard_map_screen.dart';
 import '../user/edit_profile_screen.dart';
 import '../common/profile_tab_sliver.dart';
-import '../common/reported_incidents_screen.dart';
 import '../common/notifications_tab_sliver.dart';
 import '../../widgets/dashboard_info_card.dart';
 import 'package:http/http.dart' as http;
@@ -26,6 +26,7 @@ import 'dart:io';
 import 'evacuation_management_screen.dart';
 import 'pending_members_screen.dart';
 import 'evacuation_qr_scanner_screen.dart';
+import 'reported_incidents_management_screen.dart';
 
 class BarangayHeadDashboard extends StatefulWidget {
   const BarangayHeadDashboard({super.key});
@@ -121,6 +122,7 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
       }
       eventProvider.startConnectivityMonitoring();
       Provider.of<AttendanceProvider>(context, listen: false).loadAttendances();
+      Provider.of<NotificationProvider>(context, listen: false).addDummyData();
       _determinePreviewPosition();
       _fetchReports(); // Fetch incident reports for map preview
       _checkDisaster(); // Initial check
@@ -1002,7 +1004,9 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
       bottomNavigationBar: (_scrollOffset > 50 || _hasBeenCollapsed)
           ? BottomNavigationBar(
               currentIndex: _selectedIndex,
+              type: BottomNavigationBarType.fixed,
               selectedItemColor: primaryColor,
+              unselectedItemColor: Colors.grey,
               onTap: (index) => setState(() => _selectedIndex = index),
               items: const [
                 BottomNavigationBarItem(
@@ -1044,7 +1048,10 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
     return Consumer<EventProvider>(
       builder: (context, eventProvider, child) {
         final isActive = _activeDisaster != null;
-        final missingCount = _residents
+        final List<dynamic> verifiedResidents = _residents
+            .where((r) => (r['barangayMemberStatus'] == 'verified' || r['barangayMemberStatus'] == null))
+            .toList();
+        final int missingCount = verifiedResidents
             .where((r) => r['isSafe'] == false)
             .length;
 
@@ -1182,9 +1189,9 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                              ClipRRect(
                                borderRadius: BorderRadius.circular(10),
                                child: LinearProgressIndicator(
-                                 value: _residents.isEmpty
+                                 value: verifiedResidents.isEmpty
                                      ? 0
-                                     : (missingCount / _residents.length),
+                                     : (missingCount / verifiedResidents.length),
                                  backgroundColor: Colors.red.withOpacity(0.1),
                                  valueColor: const AlwaysStoppedAnimation<Color>(
                                    Colors.red,
@@ -1215,7 +1222,7 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
               DashboardInfoCard(
                 icon: Icons.people_outline,
                 title: 'Registered Residents',
-                value: '${_residents.length}',
+                value: '${verifiedResidents.length}',
                 subtext: 'In Brgy. ${Provider.of<AuthProvider>(context).currentUser?.barangay ?? "N/A"}',
                 iconColor: Colors.blue,
               ),
@@ -1237,9 +1244,9 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                 },
               ),
 
-              if (isActive && _residents.any((r) => r['isSafe'] == false)) ...[
+              if (isActive && verifiedResidents.any((r) => r['isSafe'] == false)) ...[
                 const SizedBox(height: 24),
-                _buildRescueRequestsList(),
+                _buildRescueRequestsList(verifiedResidents),
               ],
 
               const SizedBox(height: 100),
@@ -1276,7 +1283,7 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                 onTap: () => Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => const ReportedIncidentsScreen(),
+                    builder: (context) => const ReportedIncidentsManagementScreen(),
                   ),
                 ),
               ),
@@ -1345,8 +1352,8 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
     );
   }
 
-  Widget _buildRescueRequestsList() {
-    final rescueRequests = _residents
+  Widget _buildRescueRequestsList(List<dynamic> residents) {
+    final rescueRequests = residents
         .where((r) => r['isSafe'] == false)
         .toList();
 
@@ -1591,7 +1598,9 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                               .where(
                                 (r) =>
                                     r['latitude'] != null &&
-                                    r['longitude'] != null,
+                                    r['longitude'] != null &&
+                                    (r['barangayMemberStatus'] == 'verified' ||
+                                        r['barangayMemberStatus'] == null),
                               )
                               .map((r) {
                                 final bool isSafeNow = (r['isSafe'] == true);

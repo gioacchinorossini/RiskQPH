@@ -5,6 +5,7 @@ import 'providers/auth_provider.dart';
 import 'providers/event_provider.dart';
 import 'providers/attendance_provider.dart';
 import 'providers/survey_provider.dart';
+import 'providers/notification_provider.dart';
 import 'utils/theme.dart';
 import 'screens/common/startup_screen.dart';
 import 'screens/auth/login_screen.dart';
@@ -15,8 +16,11 @@ import 'screens/responder/responder_dashboard.dart';
 import 'screens/responder/resident_list_screen.dart';
 import 'screens/common/hazard_map_screen.dart';
 
-void main() {
+import 'services/notification_service.dart';
+
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await NotificationService.init();
   Intl.defaultLocale = 'en_US';
   runApp(const MyApp());
 }
@@ -33,6 +37,7 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => EventProvider()),
         ChangeNotifierProvider(create: (_) => AttendanceProvider()),
         ChangeNotifierProvider(create: (_) => SurveyProvider()),
+        ChangeNotifierProvider(create: (_) => NotificationProvider()),
       ],
       child: MaterialApp(
         title: 'Attendance App',

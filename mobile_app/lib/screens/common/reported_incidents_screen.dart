@@ -32,7 +32,12 @@ class _ReportedIncidentsScreenState extends State<ReportedIncidentsScreen> {
       );
 
       if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
+        final List<dynamic> data = jsonDecode(response.body);
+        data.sort((a, b) {
+          final dtA = DateTime.tryParse(a['createdAt'] ?? '') ?? DateTime(0);
+          final dtB = DateTime.tryParse(b['createdAt'] ?? '') ?? DateTime(0);
+          return dtB.compareTo(dtA);
+        });
         setState(() {
           _reports = data;
           _isLoading = false;
@@ -99,7 +104,11 @@ class _ReportedIncidentsScreenState extends State<ReportedIncidentsScreen> {
             });
           },
           backgroundColor: const Color(0xFFB71C1C),
-          elevation: 0,
+          elevation: 4,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(30),
+            side: const BorderSide(color: Colors.white, width: 2),
+          ),
           label: const Text(
             "REPORT INCIDENT",
             style: TextStyle(

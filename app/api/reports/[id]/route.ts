@@ -32,7 +32,7 @@ export async function PATCH(
     }
 
     const updated = await prisma.report.update({
-      where: { id },
+      where: { id: (await params).id },
       data: updateData,
     });
 
@@ -40,5 +40,21 @@ export async function PATCH(
   } catch (error) {
     console.error("Error updating report:", error);
     return NextResponse.json({ error: "Failed to update report" }, { status: 500 });
+  }
+}
+
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    await prisma.report.delete({
+      where: { id },
+    });
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("Error deleting report:", error);
+    return NextResponse.json({ error: "Failed to delete report" }, { status: 500 });
   }
 }

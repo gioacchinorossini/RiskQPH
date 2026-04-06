@@ -329,7 +329,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
           ),
         ),
       );
-      Navigator.pushReplacementNamed(context, '/user_dashboard');
+      Navigator.pushNamedAndRemoveUntil(context, '/user_dashboard', (route) => false);
     }
   }
 }

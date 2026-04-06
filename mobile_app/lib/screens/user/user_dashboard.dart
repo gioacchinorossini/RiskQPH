@@ -20,6 +20,8 @@ import '../../widgets/safety_overlay.dart';
 import '../../widgets/dashboard_info_card.dart';
 import 'package:http/http.dart' as http;
 import '../../config/api_config.dart';
+import '../../providers/notification_provider.dart';
+import '../../services/notification_service.dart';
 import 'dart:io';
 
 class UserDashboard extends StatefulWidget {
@@ -49,6 +51,7 @@ class _UserDashboardState extends State<UserDashboard> {
   bool _isLoadingFamily = false;
   Set<String> _familyUserIds = {};
   List<Map<String, dynamic>> _userReports = [];
+  static final Set<String> _notifiedIncidents = {};
   LatLng? _hqLocation;
   List<dynamic> _evacuationCenters = [];
 
@@ -106,6 +109,14 @@ class _UserDashboardState extends State<UserDashboard> {
       });
     });
     WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final notificationProvider = Provider.of<NotificationProvider>(
+        context,
+        listen: false,
+      );
+      notificationProvider.addDummyData();
+      notificationProvider.addListener(_onNotificationUpdate);
+      notificationProvider.connect();
+      _checkNotificationPermissions();
       _determinePreviewPosition();
       _fetchHqLocation();
       _fetchFamilyMembers();
@@ -115,6 +126,289 @@ class _UserDashboardState extends State<UserDashboard> {
       _checkDisaster();
       _startDisasterStream();
     });
+  }
+
+  Future<void> _checkNotificationPermissions() async {
+    final granted = await NotificationService.checkPermissions();
+    if (!granted && mounted) {
+      _showPermissionDialog();
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _sseClient?.close(force: true);
+    _residentsSseClient?.close(force: true);
+    _scrollThrottleTimer?.cancel();
+    // Use a try-catch to safely remove listener during disposal
+    try {
+      Provider.of<NotificationProvider>(
+        context,
+        listen: false,
+      ).removeListener(_onNotificationUpdate);
+    } catch (_) {}
+    super.dispose();
+  }
+
+  void _onNotificationUpdate() {
+    if (!mounted) return;
+    final provider = Provider.of<NotificationProvider>(context, listen: false);
+    if (provider.latestIncoming != null) {
+      final n = provider.latestIncoming!;
+
+      double distance = 0;
+      bool withinRange = true;
+
+      // Apply territory-wide geospatial filtering (500km threshold)
+      if (n.latitude != null &&
+          n.longitude != null &&
+          _previewLocation != null) {
+        distance = Geolocator.distanceBetween(
+          _previewLocation!.latitude,
+          _previewLocation!.longitude,
+          n.latitude!,
+          n.longitude!,
+        );
+        // User requested 500km (500,000 meters)
+        withinRange = distance < 500000;
+      }
+
+      if (withinRange) {
+        _showHazardAlertWindow(n, distance);
+        NotificationService.showNotification(
+          id: n.id.hashCode,
+          title: n.title,
+          body: n.desc,
+        );
+        // Refresh the local hazard list so the map and feeds update live
+        _fetchReports();
+      }
+
+      provider.clearLatest();
+    }
+  }
+
+  void _showHazardAlertWindow(AppNotification n, double distance) {
+    String distanceStr = '';
+    if (distance > 0) {
+      distanceStr = distance > 1000
+          ? '${(distance / 1000).toStringAsFixed(1)}km'
+          : '${distance.toInt()}m';
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: BorderSide(color: n.color.withOpacity(0.3), width: 1.5),
+        ),
+        titlePadding: EdgeInsets.zero,
+        contentPadding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+        title: Container(
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+          decoration: BoxDecoration(
+            color: n.color.withOpacity(0.12),
+            border: Border(
+              bottom: BorderSide(color: n.color.withOpacity(0.2), width: 1),
+            ),
+          ),
+          child: Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 4,
+            children: [
+              Icon(n.icon, color: n.color, size: 32),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'NEARBY HAZARD ALERT',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.5,
+                      fontSize: 14,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  Text(
+                    'PROXIMITY WARNING',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      color: n.color,
+                      fontSize: 10,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              n.title.toUpperCase(),
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                color: n.color,
+                fontSize: 13,
+                letterSpacing: 1.2,
+              ),
+            ),
+            if (n.desc.trim().isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                n.desc,
+                style: const TextStyle(
+                  color: Colors.black87,
+                  height: 1.5,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: n.color.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: n.color.withOpacity(0.15)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.location_on, size: 16, color: n.color),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      distance > 0
+                          ? 'Hazard $distanceStr away. Move with caution.'
+                          : 'Hazardous incident logged in your territory.',
+                      style: TextStyle(
+                        color: n.color.withOpacity(0.9),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: n.color,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+                setState(() {
+                  _selectedIndex = 1;
+                });
+              },
+              child: const Text(
+                'VIEW DETAILS',
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              child: const Text(
+                'DISMISS ALERT',
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showPermissionDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text(
+          'STAY ALERT & SECURE',
+          style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1),
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.notifications_active_outlined,
+              size: 64,
+              color: Color(0xFFB71C1C),
+            ),
+            SizedBox(height: 16),
+            Text(
+              'Your safety depends on real-time awareness. Enable notifications to receive immediate alerts when hazardous incidents are reported near your current location.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey, height: 1.5, fontSize: 13),
+            ),
+          ],
+        ),
+        actionsPadding: const EdgeInsets.only(bottom: 16, right: 16),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'LATER',
+              style: TextStyle(
+                color: Colors.grey[400],
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFB71C1C),
+              shape: const StadiumBorder(),
+              elevation: 0,
+            ),
+            onPressed: () async {
+              Navigator.pop(context);
+              await NotificationService.requestPermissions();
+            },
+            child: const Text(
+              'ENABLE NOW',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _fetchFamilyMembers() async {
@@ -277,20 +571,116 @@ class _UserDashboardState extends State<UserDashboard> {
         final List<dynamic> data = jsonDecode(response.body);
         setState(() {
           _userReports = data.where((r) => r['isResolved'] == false).map((r) {
+            final lat = double.parse(r['latitude'].toString());
+            final lng = double.parse(r['longitude'].toString());
             return {
+              'id': r['id'].toString(),
               'type': r['type'],
               'desc': r['description'],
-              'pos': LatLng(
-                double.parse(r['latitude'].toString()),
-                double.parse(r['longitude'].toString()),
-              ),
+              'pos': LatLng(lat, lng),
+              'latitude': lat,
+              'longitude': lng,
               'isResolved': r['isResolved'],
+              'createdAt': r['createdAt'],
             };
           }).toList();
         });
+        _checkIncidentProximity();
       }
-    } catch (e) {
-      debugPrint('Error fetching reports for preview: $e');
+    } catch (_) {}
+  }
+
+  void _checkIncidentProximity() {
+    if (_previewLocation == null || _userReports.isEmpty) return;
+
+    final notificationProvider = Provider.of<NotificationProvider>(
+      context,
+      listen: false,
+    );
+
+    for (var report in _userReports) {
+      final double distance = Geolocator.distanceBetween(
+        _previewLocation!.latitude,
+        _previewLocation!.longitude,
+        report['latitude'],
+        report['longitude'],
+      );
+
+      // Notify if within 500 meters and not already notified
+      if (distance < 500 &&
+          !_notifiedIncidents.contains(report['id'].toString())) {
+        final String type = report['type'] ?? 'Incident';
+        final Color incidentColor = _disasterColors[type] ?? Colors.red;
+
+        DateTime reportedTime = DateTime.now();
+        try {
+          if (report['createdAt'] != null) {
+            reportedTime = DateTime.parse(report['createdAt']);
+          }
+        } catch (_) {}
+
+        notificationProvider.addNotification(
+          AppNotification(
+            id: report['id'].toString(),
+            type: 'Nearby Warning',
+            category: AppNotificationType.Proximity,
+            title: 'Nearby $type Alert',
+            desc:
+                'An incident was reported approximately ${distance.toInt()}m from your current location. Move with extreme caution.',
+            time: reportedTime,
+            icon: _disasterIcons[type] ?? Icons.warning_amber_rounded,
+            color: incidentColor,
+          ),
+        );
+
+        _notifiedIncidents.add(report['id'].toString());
+
+        // Also trigger a system push notification so it shows even outside the app
+        NotificationService.showNotification(
+          id: report['id'].toString().hashCode,
+          title: 'Nearby $type Alert',
+          body: 'Hazard reported ${distance.toInt()}m away. Move with caution.',
+        );
+
+        // Only show the intrusive SnackBar if the incident was reported within the last 5 minutes
+        final bool isFresh =
+            DateTime.now().difference(reportedTime).inMinutes <= 5;
+
+        // Also show a SnackBar for localized real-time alert (only if fresh)
+        if (isFresh && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _disasterIcons[type] ?? Icons.warning_amber_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Nearby $type! (${distance.toInt()}m)',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: incidentColor,
+              behavior: SnackBarBehavior.floating,
+              shape: const StadiumBorder(),
+              margin: const EdgeInsets.fromLTRB(48, 0, 48, 100),
+              elevation: 4,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
+      }
     }
   }
 
@@ -399,15 +789,6 @@ class _UserDashboardState extends State<UserDashboard> {
     });
   }
 
-  @override
-  void dispose() {
-    _sseClient?.close(force: true);
-    _residentsSseClient?.close(force: true);
-    _scrollController.dispose();
-    _scrollThrottleTimer?.cancel();
-    super.dispose();
-  }
-
   Future<void> _checkDisaster() async {
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final user = auth.currentUser;
@@ -463,12 +844,16 @@ class _UserDashboardState extends State<UserDashboard> {
   @override
   Widget build(BuildContext context) {
     final user = Provider.of<AuthProvider>(context).currentUser;
-    final primaryColor =
-        (_activeDisaster != null &&
-            !_isSafeReported &&
-            user?.role == UserRole.resident)
-        ? Colors.red
-        : AppTheme.primaryColor;
+    final bool isVerified = user?.barangayMemberStatus == 'verified';
+    final bool isActive =
+        _activeDisaster != null && user?.role == UserRole.resident;
+
+    // Unverified theme takes priority: Yellow
+    final primaryColor = !isVerified
+        ? Colors.amber.shade700
+        : (isActive
+              ? (_isSafeReported ? Colors.green : Colors.red)
+              : AppTheme.primaryColor);
 
     return Scaffold(
       backgroundColor: Colors.white,
@@ -477,7 +862,8 @@ class _UserDashboardState extends State<UserDashboard> {
           _buildMainContent(user, primaryColor),
           if (_activeDisaster != null &&
               !_isSafeReported &&
-              user?.role == UserRole.resident) ...[
+              user?.role == UserRole.resident &&
+              isVerified) ...[
             if (!_isAlertMinimized)
               Positioned.fill(
                 child: Container(color: Colors.black.withOpacity(0.7)),
@@ -522,6 +908,7 @@ class _UserDashboardState extends State<UserDashboard> {
     final bool is300PLUS = screenWidth > 300;
     final bool is700PLUS = screenWidth > 700;
     final double sliverAppBarHeight = screenHeight * 1.0;
+    final bool isVerified = user?.barangayMemberStatus == 'verified';
 
     double maxQrSize;
     if (is700PLUS) {
@@ -692,7 +1079,9 @@ class _UserDashboardState extends State<UserDashboard> {
             },
             child: CustomScrollView(
               controller: _scrollController,
-              physics: const AlwaysScrollableScrollPhysics(),
+              physics: isVerified
+                  ? const AlwaysScrollableScrollPhysics()
+                  : const NeverScrollableScrollPhysics(),
               slivers: [
                 SliverAppBar(
                   expandedHeight: _hasBeenCollapsed
@@ -747,7 +1136,9 @@ class _UserDashboardState extends State<UserDashboard> {
                       ),
                       SizedBox(height: qrSize * 0.02),
                       Text(
-                        'Your personal QR code is ready for situational awareness. Simply present this code to rescue personnel.',
+                        !isVerified
+                            ? 'YOUR ACCOUNT IS UNVERIFIED. Please wait for the barangay head to verify your membership.'
+                            : 'Your personal QR code is ready for situational awareness. Simply present this code to rescue personnel.',
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.9),
                           fontSize: (qrSize * 0.06).clamp(12, 28),
@@ -787,7 +1178,11 @@ class _UserDashboardState extends State<UserDashboard> {
                         SizedBox(
                           width: qrSize,
                           child: Center(
-                            child: _buildOfflineQRCode(user, qrSize * 0.9),
+                            child: _buildResidentQRCode(
+                              user,
+                              qrSize * 0.9,
+                              primaryColor,
+                            ),
                           ),
                         ),
                         Expanded(
@@ -823,7 +1218,13 @@ class _UserDashboardState extends State<UserDashboard> {
                         ),
                       ],
                     )
-                  : Center(child: _buildOfflineQRCode(user, qrSize * 0.9)),
+                  : Center(
+                      child: _buildResidentQRCode(
+                        user,
+                        qrSize * 0.9,
+                        primaryColor,
+                      ),
+                    ),
             ),
           ),
           if (_scrollOffset <= 200 && !_hasBeenCollapsed) ...[
@@ -884,7 +1285,7 @@ class _UserDashboardState extends State<UserDashboard> {
               ),
             ),
           ],
-          if (_scrollOffset < 10 && !_hasBeenCollapsed) ...[
+          if (_scrollOffset < 10 && !_hasBeenCollapsed && isVerified) ...[
             Positioned(
               top: sliverAppBarHeight - (qrSize * 1.2),
               left: 0,
@@ -968,7 +1369,7 @@ class _UserDashboardState extends State<UserDashboard> {
                 BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.notifications_none),
-                  label: 'Alerts',
+                  label: 'Notifications',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.person),
@@ -981,8 +1382,17 @@ class _UserDashboardState extends State<UserDashboard> {
   }
 
   Widget _buildEventsSliver(Color primaryColor) {
+    final user = Provider.of<AuthProvider>(context, listen: false).currentUser;
+    final bool isVerified = user?.barangayMemberStatus == 'verified';
     final bool isActive = _activeDisaster != null;
-    final int missingCount = _residents
+    final List<dynamic> verifiedResidents = _residents
+        .where(
+          (r) =>
+              (r['barangayMemberStatus'] == 'verified' ||
+              r['barangayMemberStatus'] == null),
+        )
+        .toList();
+    final int missingCount = verifiedResidents
         .where((r) => r['isSafe'] == false)
         .length;
 
@@ -1025,23 +1435,28 @@ class _UserDashboardState extends State<UserDashboard> {
                   icon: Icons.edit_note,
                   label: 'Edit Profile',
                   color: Colors.blue,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const EditProfileScreen(),
-                    ),
-                  ),
+                  onTap: !isVerified
+                      ? () {}
+                      : () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const EditProfileScreen(),
+                          ),
+                        ),
                 ),
                 _buildQuickActionItem(
                   icon: Icons.family_restroom_outlined,
                   label: 'Add Family',
                   color: Colors.indigo,
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const FamilyManagementScreen(),
-                    ),
-                  ),
+                  onTap: !isVerified
+                      ? () {}
+                      : () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                const FamilyManagementScreen(),
+                          ),
+                        ),
                 ),
                 _buildQuickActionItem(
                   icon: Icons.person_outline,
@@ -1056,10 +1471,18 @@ class _UserDashboardState extends State<UserDashboard> {
           Container(
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: isActive ? Colors.red.shade50 : Colors.green.shade50,
+              color: isActive
+                  ? (_isSafeReported
+                        ? Colors.green.shade50
+                        : Colors.red.shade50)
+                  : Colors.green.shade50,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: isActive ? Colors.red.shade200 : Colors.green.shade200,
+                color: isActive
+                    ? (_isSafeReported
+                          ? Colors.green.shade200
+                          : Colors.red.shade200)
+                    : Colors.green.shade200,
               ),
             ),
             child: Column(
@@ -1068,9 +1491,13 @@ class _UserDashboardState extends State<UserDashboard> {
                   children: [
                     Icon(
                       isActive
-                          ? Icons.warning_amber_rounded
+                          ? (_isSafeReported
+                                ? Icons.check_circle
+                                : Icons.warning_amber_rounded)
                           : Icons.shield_outlined,
-                      color: isActive ? Colors.red : Colors.green,
+                      color: isActive
+                          ? (_isSafeReported ? Colors.green : Colors.red)
+                          : Colors.green,
                       size: 32,
                     ),
                     const SizedBox(width: 12),
@@ -1078,20 +1505,30 @@ class _UserDashboardState extends State<UserDashboard> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          isActive ? 'EMERGENCY ACTIVE' : 'DISASTER ALERT:OFF',
+                          isActive
+                              ? (_isSafeReported
+                                    ? 'STATUS: SAFE'
+                                    : 'EMERGENCY ACTIVE')
+                              : 'DISASTER ALERT: OFF',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: isActive ? Colors.red : Colors.green,
+                            color: isActive
+                                ? (_isSafeReported ? Colors.green : Colors.red)
+                                : Colors.green,
                           ),
                         ),
                         Text(
                           isActive
-                              ? '$missingCount residents missing.'
+                              ? (_isSafeReported
+                                    ? 'You have checked in as safe.'
+                                    : '$missingCount residents missing.')
                               : 'All residents safe.',
                           style: TextStyle(
                             fontSize: 12,
                             color: isActive
-                                ? Colors.red[700]
+                                ? (_isSafeReported
+                                      ? Colors.green[700]
+                                      : Colors.red[700])
                                 : Colors.green[700],
                           ),
                         ),
@@ -1112,7 +1549,8 @@ class _UserDashboardState extends State<UserDashboard> {
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.red.withOpacity(0.08),
+                      color: (_isSafeReported ? Colors.green : Colors.red)
+                          .withOpacity(0.08),
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Text(
@@ -1124,7 +1562,9 @@ class _UserDashboardState extends State<UserDashboard> {
                           ? _activeDisaster!['description']
                           : 'Disaster ongoing. Please stay safe and follow official instructions.',
                       style: TextStyle(
-                        color: Colors.red[900],
+                        color: (_isSafeReported
+                            ? Colors.green[900]
+                            : Colors.red[900]),
                         fontSize: 13,
                         fontWeight: FontWeight.w500,
                         height: 1.4,
@@ -1190,9 +1630,9 @@ class _UserDashboardState extends State<UserDashboard> {
                         ClipRRect(
                           borderRadius: BorderRadius.circular(10),
                           child: LinearProgressIndicator(
-                            value: _residents.isEmpty
+                            value: verifiedResidents.isEmpty
                                 ? 0
-                                : (missingCount / _residents.length),
+                                : (missingCount / verifiedResidents.length),
                             backgroundColor: Colors.red.withOpacity(0.1),
                             valueColor: const AlwaysStoppedAnimation<Color>(
                               Colors.red,
@@ -1204,7 +1644,7 @@ class _UserDashboardState extends State<UserDashboard> {
                         Align(
                           alignment: Alignment.centerRight,
                           child: Text(
-                            '$missingCount / ${_residents.length}',
+                            '$missingCount / ${verifiedResidents.length}',
                             style: const TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.w900,
@@ -1221,14 +1661,16 @@ class _UserDashboardState extends State<UserDashboard> {
           ],
           const SizedBox(height: 24),
           DashboardInfoCard(
+            isDisabled: !isVerified,
             icon: Icons.people_outline,
             title: 'Registered Residents',
-            value: '${_residents.length}',
+            value: '${verifiedResidents.length}',
             subtext:
                 'In Brgy. ${Provider.of<AuthProvider>(context).currentUser?.barangay ?? "N/A"}',
             iconColor: Colors.blue,
           ),
           DashboardInfoCard(
+            isDisabled: !isVerified,
             icon: Icons.emergency_outlined,
             title: 'Active Evacuation Centers',
             value: '${_evacuationCenters.length}',
@@ -1297,7 +1739,11 @@ class _UserDashboardState extends State<UserDashboard> {
                   ),
                 ..._residents
                     .where(
-                      (r) => r['latitude'] != null && r['longitude'] != null,
+                      (r) =>
+                          r['latitude'] != null &&
+                          r['longitude'] != null &&
+                          (r['barangayMemberStatus'] == 'verified' ||
+                              r['barangayMemberStatus'] == null),
                     )
                     .map((r) {
                       final bool isActive = _activeDisaster != null;
@@ -1369,8 +1815,42 @@ class _UserDashboardState extends State<UserDashboard> {
     );
   }
 
-  Widget _buildOfflineQRCode(User? user, double size) {
+  Widget _buildResidentQRCode(User? user, double size, Color color) {
     if (user == null) return Container();
+    final bool isVerified = user.barangayMemberStatus == 'verified';
+
+    if (!isVerified) {
+      return Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          color: Colors.amber.shade50,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.amber.shade200, width: 1),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.lock_person_rounded,
+              color: Colors.amber.shade700,
+              size: size * 0.4,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'PENDING',
+              style: TextStyle(
+                color: Colors.amber.shade900,
+                fontSize: (size * 0.08).clamp(10, 14),
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1.2,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     final qrPayload = jsonEncode({'studentId': user.id});
     final qrData = base64Encode(utf8.encode(qrPayload));
     return QrImageView(
@@ -1378,7 +1858,7 @@ class _UserDashboardState extends State<UserDashboard> {
       version: QrVersions.auto,
       size: size,
       backgroundColor: Colors.white,
-      foregroundColor: AppTheme.primaryColor,
+      foregroundColor: color,
     );
   }
 
@@ -1388,8 +1868,16 @@ class _UserDashboardState extends State<UserDashboard> {
     required Color color,
     required VoidCallback onTap,
   }) {
+    final bool isVerified =
+        Provider.of<AuthProvider>(
+          context,
+          listen: false,
+        ).currentUser?.barangayMemberStatus ==
+        'verified';
+    final Color displayColor = isVerified ? color : Colors.grey;
+
     return InkWell(
-      onTap: onTap,
+      onTap: isVerified ? onTap : null,
       borderRadius: BorderRadius.circular(12),
       child: Container(
         width: 65,
@@ -1399,10 +1887,10 @@ class _UserDashboardState extends State<UserDashboard> {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.1),
+                color: displayColor.withOpacity(0.1),
                 shape: BoxShape.circle,
               ),
-              child: Icon(icon, color: color, size: 22),
+              child: Icon(icon, color: displayColor, size: 22),
             ),
             const SizedBox(height: 4),
             Text(
@@ -1410,7 +1898,7 @@ class _UserDashboardState extends State<UserDashboard> {
               style: TextStyle(
                 fontSize: 10,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey[800],
+                color: isVerified ? Colors.grey[800] : Colors.grey[400],
               ),
               textAlign: TextAlign.center,
             ),

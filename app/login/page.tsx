@@ -66,9 +66,9 @@ export default function LoginPage() {
           </div>
           <div className="space-y-1">
             <h1 className="text-4xl font-black tracking-tight text-zinc-900 dark:text-zinc-50 uppercase leading-none">
-              SECURE <span className="text-red-600">PORTAL</span>
+              RISK<span className="text-red-600">QPH</span>
             </h1>
-            <p className="text-xs font-bold text-zinc-400 uppercase tracking-[0.2em]">RiskQPH Administrative Gateway</p>
+            <p className="text-xs font-bold text-zinc-400 uppercase tracking-[0.2em]">login to dashboard</p>
           </div>
         </header>
 
@@ -82,7 +82,7 @@ export default function LoginPage() {
                 <input
                   type="email"
                   required
-                  placeholder="Official Email Address"
+                  placeholder="Enter Email Address"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full h-14 pl-12 pr-4 rounded-2xl border border-zinc-200 bg-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-600/20 focus:border-red-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 transition-all shadow-sm placeholder:text-zinc-400 placeholder:font-bold placeholder:uppercase placeholder:tracking-wider placeholder:text-[10px]"
@@ -96,7 +96,7 @@ export default function LoginPage() {
                 <input
                   type="password"
                   required
-                  placeholder="Secure Password"
+                  placeholder="Enter Password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full h-14 pl-12 pr-4 rounded-2xl border border-zinc-200 bg-white text-sm font-medium focus:outline-none focus:ring-2 focus:ring-red-600/20 focus:border-red-600 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-50 transition-all shadow-sm placeholder:text-zinc-400 placeholder:font-bold placeholder:uppercase placeholder:tracking-wider placeholder:text-[10px]"
@@ -128,7 +128,7 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-8 pt-8 border-t border-zinc-200 dark:border-zinc-800 flex flex-col gap-4 text-center">
-            <button 
+            <button
               onClick={() => router.push('/admin/add-barangay-head')}
               className="text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-red-600 transition-colors"
             >
@@ -138,9 +138,9 @@ export default function LoginPage() {
         </div>
 
         <footer className="mt-12 text-center text-zinc-400">
-           <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-50">
-             © 2026 RISKQPH • COMMAND & CONTROL SYSTEM
-           </p>
+          <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-50">
+            © 2026 RISKQPH • COMMAND & CONTROL SYSTEM
+          </p>
         </footer>
       </div>
     </div>

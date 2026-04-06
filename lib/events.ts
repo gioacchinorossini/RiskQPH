@@ -6,7 +6,9 @@ const globalWithEvents = global as typeof globalThis & {
 };
 
 export const disasterEventEmitter = globalWithEvents.disasterEventEmitter || new EventEmitter();
+export const notificationEventEmitter = globalWithEvents.notificationEventEmitter || new EventEmitter();
 
 if (process.env.NODE_ENV !== 'production') {
   globalWithEvents.disasterEventEmitter = disasterEventEmitter;
+  globalWithEvents.notificationEventEmitter = notificationEventEmitter;
 }

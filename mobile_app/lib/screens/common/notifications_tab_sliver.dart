@@ -1,50 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:provider/provider.dart';
+import '../../providers/notification_provider.dart';
 
 class NotificationsTabSliver extends StatelessWidget {
   const NotificationsTabSliver({super.key});
 
   @override
   Widget build(BuildContext context) {
-    // Dummy notifications for UI demonstration
-    final List<Map<String, dynamic>> notifications = [
-      {
-        'type': 'Alert',
-        'title': 'Heavy Rain Warning',
-        'desc': 'Severe flooding expected in Brgy. 630. Evacuate if necessary.',
-        'time': DateTime.now().subtract(const Duration(minutes: 15)),
-        'isRead': false,
-        'icon': Icons.warning_amber_rounded,
-        'color': Colors.red,
-      },
-      {
-        'type': 'Update',
-        'title': 'Evacuation Center Full',
-        'desc': 'Multi-Purpose Hall has reached maximum capacity.',
-        'time': DateTime.now().subtract(const Duration(hours: 1)),
-        'isRead': true,
-        'icon': Icons.info_outline,
-        'color': Colors.orange,
-      },
-      {
-        'type': 'Rescue',
-        'title': 'Rescue Success',
-        'desc': '3 residents were successfully extracted from Zone 4.',
-        'time': DateTime.now().subtract(const Duration(hours: 3)),
-        'isRead': true,
-        'icon': Icons.check_circle_outline,
-        'color': Colors.green,
-      },
-      {
-        'type': 'Barangay',
-        'title': 'Relief Goods Distribution',
-        'desc': 'Distribution starts tomorrow, 8:00 AM at the Barangay Hall.',
-        'time': DateTime.now().subtract(const Duration(days: 1)),
-        'isRead': true,
-        'icon': Icons.inventory_2_outlined,
-        'color': Colors.blue,
-      },
-    ];
+    final notificationProvider = Provider.of<NotificationProvider>(context);
+    final List<AppNotification> notifications = notificationProvider.notifications;
 
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(16, 32, 16, 48),
@@ -60,10 +25,11 @@ class NotificationsTabSliver extends StatelessWidget {
                       color: Colors.black87,
                     ),
               ),
-              TextButton(
-                onPressed: () {},
-                child: const Text('Mark all as read'),
-              ),
+              if (notifications.isNotEmpty)
+                TextButton(
+                  onPressed: () => notificationProvider.markAllRead(),
+                  child: const Text('Mark all as read'),
+                ),
             ],
           ),
           const SizedBox(height: 16),
@@ -84,15 +50,15 @@ class NotificationsTabSliver extends StatelessWidget {
               ),
             )
           else
-            ...notifications.map((n) => _buildNotificationCard(context, n)),
+            ...notifications.map((n) => _buildNotificationCard(context, n, notificationProvider)),
         ]),
       ),
     );
   }
 
-  Widget _buildNotificationCard(BuildContext context, Map<String, dynamic> n) {
-    final bool isRead = n['isRead'] as bool;
-    final Color color = n['color'] as Color;
+  Widget _buildNotificationCard(BuildContext context, AppNotification n, NotificationProvider provider) {
+    final bool isRead = n.isRead;
+    final Color color = n.color;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
@@ -105,7 +71,7 @@ class NotificationsTabSliver extends StatelessWidget {
         ),
       ),
       child: InkWell(
-        onTap: () {},
+        onTap: () => provider.markRead(n.id),
         borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(16),
@@ -118,7 +84,7 @@ class NotificationsTabSliver extends StatelessWidget {
                   color: color.withOpacity(0.1),
                   shape: BoxShape.circle,
                 ),
-                child: Icon(n['icon'] as IconData, color: color, size: 24),
+                child: Icon(n.icon, color: color, size: 24),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -129,7 +95,7 @@ class NotificationsTabSliver extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          n['type'].toString().toUpperCase(),
+                          n.type.toUpperCase(),
                           style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.bold,
@@ -138,7 +104,7 @@ class NotificationsTabSliver extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          _formatTime(n['time'] as DateTime),
+                          _formatTime(n.time),
                           style: TextStyle(
                             fontSize: 10,
                             color: Colors.grey[500],
@@ -148,7 +114,7 @@ class NotificationsTabSliver extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      n['title'] as String,
+                      n.title,
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 15,
@@ -157,7 +123,7 @@ class NotificationsTabSliver extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      n['desc'] as String,
+                      n.desc,
                       style: TextStyle(
                         fontSize: 13,
                         color: Colors.grey[600],

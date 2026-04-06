@@ -179,7 +179,7 @@ class MemberStatusBubble extends StatelessWidget {
       if (isResponder) {
         markerLabel = 'RESPONDER';
       } else if (!isEmergencyActive) {
-        markerLabel = isOnline ? 'ONLINE' : 'OFFLINE';
+        markerLabel = 'CONNECTED';
       } else {
         if (isSafe) markerLabel = 'SAFE';
         else if (hasSOS) markerLabel = 'SOS';

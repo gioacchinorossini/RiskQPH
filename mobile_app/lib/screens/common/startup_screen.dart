@@ -43,15 +43,15 @@ class _StartupScreenState extends State<StartupScreen> {
       debugPrint('Startup: User is authenticated, navigating to dashboard...');
       final role = auth.currentUser!.role.toString();
       if (role.contains('barangay_head')) {
-        Navigator.pushReplacementNamed(context, '/barangay_head_dashboard');
+        Navigator.pushNamedAndRemoveUntil(context, '/barangay_head_dashboard', (route) => false);
       } else if (role.contains('responder')) {
-        Navigator.pushReplacementNamed(context, '/responder_dashboard');
+        Navigator.pushNamedAndRemoveUntil(context, '/responder_dashboard', (route) => false);
       } else {
-        Navigator.pushReplacementNamed(context, '/user_dashboard');
+        Navigator.pushNamedAndRemoveUntil(context, '/user_dashboard', (route) => false);
       }
     } else {
       debugPrint('Startup: User not authenticated, navigating to login...');
-      Navigator.pushReplacementNamed(context, '/login');
+      Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
     }
   }
 

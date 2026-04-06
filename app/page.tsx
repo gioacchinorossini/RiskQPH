@@ -6,13 +6,46 @@ import MapWrapper from "../components/MapWrapper";
 export default function Home() {
   const [showBarangays, setShowBarangays] = useState(true);
   const [user, setUser] = useState<any>(null);
+  const [reports, setReports] = useState<any[]>([]);
+  const [stats, setStats] = useState({ active: 0, resolved: 0 });
 
   useEffect(() => {
     const savedUser = localStorage.getItem('user');
     if (savedUser) {
       setUser(JSON.parse(savedUser));
     }
+
+    const fetchReports = async () => {
+      try {
+        const res = await fetch('/api/reports');
+        const data = await res.json();
+        if (Array.isArray(data)) {
+          setReports(data.slice(0, 5)); // Show latest 5
+          setStats({
+            active: data.filter(r => !r.isResolved).length,
+            resolved: data.filter(r => r.isResolved).length
+          });
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    };
+
+    fetchReports();
+    const interval = setInterval(fetchReports, 10000);
+    return () => clearInterval(interval);
   }, []);
+
+  const getTimeAgo = (dateStr: string) => {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+
+    if (diffInSeconds < 60) return 'just now';
+    if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
+    if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
+    return `${Math.floor(diffInSeconds / 86400)}d ago`;
+  };
 
   return (
     <div className="flex min-h-screen flex-col bg-white dark:bg-black font-sans antialiased selection:bg-zinc-900 selection:text-white">
@@ -27,15 +60,12 @@ export default function Home() {
             </h1>
           </div>
           <nav className="hidden items-center gap-8 md:flex">
-            <a href="#" className="text-sm font-medium text-zinc-900 dark:text-zinc-400 hover:text-red-500 dark:hover:text-zinc-100 transition-colors">Emergency</a>
-            <a href="#" className="text-sm font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">Dashboards</a>
-            <a href="/admin/add-barangay-head" className="text-sm font-medium text-red-600 dark:text-red-500 hover:text-red-700 dark:hover:text-red-400 transition-colors font-bold uppercase tracking-tighter">Admin Panels</a>
-            <a href="#" className="text-sm font-medium text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors">Resources</a>
+
           </nav>
           <div className="flex items-center gap-4">
             {user ? (
-              <a 
-                href={user.role === 'barangay_head' ? '/barangay-head' : '#'} 
+              <a
+                href={user.role === 'barangay_head' ? '/barangay-head' : '#'}
                 className="hidden h-9 items-center justify-center rounded-full border border-zinc-200 bg-zinc-900 text-white px-4 text-xs font-semibold hover:bg-zinc-800 transition-all md:flex"
               >
                 {user.role === 'barangay_head' ? 'COMMAND CENTER' : 'MY DASHBOARD'}
@@ -45,9 +75,6 @@ export default function Home() {
                 Sign In
               </a>
             )}
-            <button className="flex h-9 items-center justify-center rounded-full bg-red-600 px-4 text-xs font-bold text-white transition-all hover:bg-red-700">
-              Report Hazard
-            </button>
           </div>
         </div>
       </header>
@@ -59,47 +86,52 @@ export default function Home() {
             <section>
               <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-4">Quick Stats</h2>
               <div className="grid grid-cols-2 gap-4">
-                <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">Active Warning</p>
-                  <p className="text-2xl font-bold text-red-600">32</p>
+                <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 shadow-sm">
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">Active Reports</p>
+                  <p className="text-2xl font-bold text-red-600 tracking-tighter">{stats.active}</p>
                 </div>
-                <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-                  <p className="text-xs text-zinc-500 dark:text-zinc-400">Safe Areas</p>
-                  <p className="text-2xl font-bold text-emerald-600">854</p>
+                <div className="rounded-xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900 shadow-sm">
+                  <p className="text-xs text-zinc-500 dark:text-zinc-400">Resolved</p>
+                  <p className="text-2xl font-bold text-emerald-600 tracking-tighter">{stats.resolved}</p>
                 </div>
               </div>
             </section>
 
             <section>
-              <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-4">Current Hazards</h2>
+              <h2 className="text-xs font-bold uppercase tracking-wider text-zinc-400 mb-4">Live Activity</h2>
               <div className="space-y-3">
-                {[
-                  { name: "Luzon Flooding", status: "Critical", time: "2h ago", color: "bg-red-100 text-red-700" },
-                  { name: "Mindanao Seismic Activity", status: "Moderate", time: "5h ago", color: "bg-orange-100 text-orange-700" },
-                  { name: "Visayas Storm Watch", status: "Low Risk", time: "12h ago", color: "bg-blue-100 text-blue-700" },
-                ].map((hazard, i) => (
-                  <div key={i} className="flex items-center justify-between rounded-xl border border-zinc-100 bg-white p-4 transition-all hover:border-zinc-200 dark:border-zinc-800 dark:bg-zinc-900 shadow-sm">
-                    <div>
-                      <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{hazard.name}</h3>
-                      <p className="text-xs text-zinc-500">{hazard.time}</p>
-                    </div>
-                    <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${hazard.color}`}>
-                      {hazard.status}
-                    </span>
+                {reports.length === 0 ? (
+                  <div className="text-center py-8 bg-white dark:bg-zinc-900 rounded-2xl border border-dashed border-zinc-200 dark:border-zinc-800">
+                    <p className="text-xs text-zinc-500">No active incidents reported</p>
                   </div>
-                ))}
+                ) : (
+                  reports.map((report, i) => {
+                    const isResolved = report.isResolved;
+                    return (
+                      <div key={report.id} className="group flex items-start justify-between rounded-xl border border-zinc-100 bg-white p-4 transition-all hover:border-zinc-300 dark:border-zinc-800 dark:bg-zinc-900 shadow-sm">
+                        <div className="min-w-0 pr-2">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`w-1.5 h-1.5 rounded-full ${isResolved ? 'bg-emerald-500' : 'bg-red-500 animate-pulse'}`} />
+                            <h3 className="text-sm font-bold text-zinc-900 dark:text-zinc-100 truncate">{report.type}</h3>
+                          </div>
+                          <p className="text-[11px] text-zinc-500 dark:text-zinc-400 line-clamp-1">{report.description || 'No details provided'}</p>
+                          <p className="text-[10px] text-zinc-400 mt-2 font-medium">{getTimeAgo(report.createdAt)}</p>
+                        </div>
+                        <span className={`flex-shrink-0 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ${isResolved ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-900/20 dark:text-emerald-400' : 'bg-red-50 text-red-700 dark:bg-red-900/20 dark:text-red-400'}`}>
+                          {isResolved ? 'Resolved' : 'Active'}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
               </div>
+              {reports.length > 0 && (
+                <button className="w-full mt-4 text-[10px] font-bold text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors uppercase tracking-widest">
+                  View All Reports
+                </button>
+              )}
             </section>
-            
-            <section className="rounded-2xl bg-zinc-900 p-6 text-white dark:bg-zinc-100 dark:text-black">
-              <h3 className="text-lg font-bold mb-2">Join Voluntaris</h3>
-              <p className="text-xs text-zinc-400 dark:text-zinc-600 mb-4 leading-relaxed">
-                Be part of the community-led hazard monitoring network across the Philippines.
-              </p>
-              <button className="w-full rounded-xl bg-white py-3 text-xs font-bold text-black transition-opacity hover:opacity-90 dark:bg-black dark:text-white">
-                Learn More
-              </button>
-            </section>
+
           </div>
         </aside>
 
