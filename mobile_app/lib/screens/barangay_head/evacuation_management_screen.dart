@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import 'dart:convert';
 import '../../providers/auth_provider.dart';
 import '../../config/api_config.dart';
+import 'evacuation_qr_scanner_screen.dart';
 
 class EvacuationManagementScreen extends StatefulWidget {
   const EvacuationManagementScreen({super.key});
@@ -67,6 +68,20 @@ class _EvacuationManagementScreenState extends State<EvacuationManagementScreen>
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.qr_code_scanner),
+            tooltip: 'Scan resident QR',
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const EvacuationQrScannerScreen(),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
@@ -127,11 +142,6 @@ class EvacueeRegistryScreen extends StatefulWidget {
 class _EvacueeRegistryScreenState extends State<EvacueeRegistryScreen> {
   List<dynamic> _evacuees = [];
   bool _isLoading = true;
-  final _firstNameController = TextEditingController();
-  final _lastNameController = TextEditingController();
-  final _ageController = TextEditingController();
-  final _notesController = TextEditingController();
-  String _gender = 'Male';
 
   @override
   void initState() {
@@ -156,72 +166,6 @@ class _EvacueeRegistryScreenState extends State<EvacueeRegistryScreen> {
       debugPrint('Error fetching evacuees: $e');
       setState(() => _isLoading = false);
     }
-  }
-
-  Future<void> _registerEvacuee() async {
-    if (_firstNameController.text.isEmpty || _lastNameController.text.isEmpty) return;
-    
-    final user = context.read<AuthProvider>().currentUser;
-    try {
-      final response = await http.post(
-        Uri.parse('${ApiConfig.baseUrl}/api/evacuation-center/register'),
-        headers: {
-          'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'true',
-        },
-        body: jsonEncode({
-          'evacuationCenterId': widget.center['id'],
-          'firstName': _firstNameController.text,
-          'lastName': _lastNameController.text,
-          'age': _ageController.text,
-          'gender': _gender,
-          'medicalNotes': _notesController.text,
-          'addedById': user!.id,
-        }),
-      );
-
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        _firstNameController.clear();
-        _lastNameController.clear();
-        _ageController.clear();
-        _notesController.clear();
-        _fetchEvacuees();
-        Navigator.pop(context); // Close dialog
-      }
-    } catch (e) {
-      debugPrint('Error registering evacuee: $e');
-    }
-  }
-
-  void _showRegisterDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('REGISTER RESCUED PERSON'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: _firstNameController, decoration: const InputDecoration(labelText: 'First Name')),
-              TextField(controller: _lastNameController, decoration: const InputDecoration(labelText: 'Last Name')),
-              TextField(controller: _ageController, decoration: const InputDecoration(labelText: 'Age'), keyboardType: TextInputType.number),
-              const SizedBox(height: 10),
-              DropdownButtonFormField<String>(
-                value: _gender,
-                items: ['Male', 'Female', 'Other'].map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(),
-                onChanged: (val) => setState(() => _gender = val!),
-                decoration: const InputDecoration(labelText: 'Gender'),
-              ),
-              TextField(controller: _notesController, decoration: const InputDecoration(labelText: 'Medical Notes'), maxLines: 2),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          ElevatedButton(onPressed: _registerEvacuee, child: const Text('Register')),
-        ],
-      ),
-    );
   }
 
   @override
@@ -294,16 +238,27 @@ class _EvacueeRegistryScreenState extends State<EvacueeRegistryScreen> {
                 SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.all(16),
-                    child: ElevatedButton.icon(
-                      onPressed: _showRegisterDialog,
-                      icon: const Icon(Icons.person_add_alt),
-                      label: const Text('REGISTER RESCUED PERSON'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.blue,
-                        foregroundColor: Colors.white,
-                        minimumSize: const Size(double.infinity, 54),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Text(
+                          'Resident evacuees are registered only by scanning their personal QR in the evacuation scanner. Registration syncs across the app for all users.',
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade700, height: 1.35),
+                        ),
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          onPressed: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const EvacuationQrScannerScreen(),
+                              ),
+                            );
+                          },
+                          icon: const Icon(Icons.qr_code_scanner),
+                          label: const Text('OPEN QR SCANNER'),
+                        ),
+                      ],
                     ),
                   ),
                 ),

@@ -8,22 +8,24 @@ import '../../providers/auth_provider.dart';
 import '../../providers/event_provider.dart';
 import '../../providers/attendance_provider.dart';
 import '../../models/user.dart';
-import '../../models/event.dart';
-import '../common/hazard_map_screen.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import '../common/hazard_map_screen.dart';
 import '../user/edit_profile_screen.dart';
 import '../common/profile_tab_sliver.dart';
+import '../common/reported_incidents_screen.dart';
+import '../common/notifications_tab_sliver.dart';
+import '../../widgets/dashboard_info_card.dart';
 import 'package:http/http.dart' as http;
 import '../../config/api_config.dart';
 import '../../utils/theme.dart';
 import '../../widgets/view_on_map_button.dart';
-import '../common/reported_incidents_screen.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
 import 'evacuation_management_screen.dart';
 import 'pending_members_screen.dart';
+import 'evacuation_qr_scanner_screen.dart';
 
 class BarangayHeadDashboard extends StatefulWidget {
   const BarangayHeadDashboard({super.key});
@@ -76,6 +78,7 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
   HttpClient? _disasterSseClient;
   HttpClient? _residentsSseClient;
   Timer? _disasterCheckTimer;
+  List<dynamic> _evacuationCenters = [];
 
   // Barangay Selection State
   List<String> _allBarangays = [];
@@ -122,6 +125,8 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
       _fetchReports(); // Fetch incident reports for map preview
       _checkDisaster(); // Initial check
       _fetchHqLocation(); // Initial check
+      _fetchResidents();
+      _fetchEvacuationCenters();
       _startDisasterStream();
       _loadBarangays();
     });
@@ -395,12 +400,12 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
 
   Future<void> _fetchResidents() async {
     final user = Provider.of<AuthProvider>(context, listen: false).currentUser;
-    if (_activeDisaster == null || user?.barangay == null) return;
+    if (user?.barangay == null) return;
     try {
+      final String baseUrl = '${ApiConfig.baseUrl}/api/barangay/residents?barangay=${user!.barangay}';
+      final String url = _activeDisaster != null ? '$baseUrl&disasterId=${_activeDisaster!['id']}' : baseUrl;
       final response = await http.get(
-        Uri.parse(
-          '${ApiConfig.baseUrl}/api/barangay/residents?barangay=${user!.barangay}&disasterId=${_activeDisaster!['id']}',
-        ),
+        Uri.parse(url),
         headers: {'ngrok-skip-browser-warning': 'true'},
       );
       if (response.statusCode == 200) {
@@ -413,6 +418,29 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
       }
     } catch (e) {
       debugPrint('Error fetching residents: $e');
+    }
+  }
+
+  Future<void> _fetchEvacuationCenters() async {
+    final user = Provider.of<AuthProvider>(context, listen: false).currentUser;
+    if (user?.barangay == null) return;
+
+    try {
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/evacuation-center?barangay=${user!.barangay}'),
+        headers: {'ngrok-skip-browser-warning': 'true'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (mounted) {
+          setState(() {
+            _evacuationCenters = data['centers'] ?? [];
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching centers: $e');
     }
   }
 
@@ -697,7 +725,8 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                 ),
                 if (_selectedIndex == 0) _buildAdminMainSliver(primaryColor),
                 if (_selectedIndex == 1) _buildAttendanceHistorySliver(),
-                if (_selectedIndex == 2)
+                if (_selectedIndex == 2) const NotificationsTabSliver(),
+                if (_selectedIndex == 3)
                   ProfileTabSliver(
                     user: user,
                     onLogout: _handleLogout,
@@ -985,6 +1014,10 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                   label: 'History',
                 ),
                 BottomNavigationBarItem(
+                  icon: Icon(Icons.notifications_none),
+                  label: 'Alerts',
+                ),
+                BottomNavigationBarItem(
                   icon: Icon(Icons.person),
                   label: 'Profile',
                 ),
@@ -1010,7 +1043,6 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
   Widget _buildAdminMainSliver(Color primaryColor) {
     return Consumer<EventProvider>(
       builder: (context, eventProvider, child) {
-        final visibleEvents = eventProvider.getStudentVisibleEvents();
         final isActive = _activeDisaster != null;
         final missingCount = _residents
             .where((r) => r['isSafe'] == false)
@@ -1096,47 +1128,113 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                       borderRadius: BorderRadius.circular(12),
                       child: _buildHazardMapPreview(primaryColor),
                     ),
-                    if (isActive && _residents.isNotEmpty) ...[
-                      const SizedBox(height: 20),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'Safety Progress',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            '${((_residents.where((r) => r['isSafe'] == true).length / _residents.length) * 100).toStringAsFixed(1)}%',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green,
-                            ),
-                          ),
-                        ],
+                  ],
+                ),
+              ),
+              if (_residents.isNotEmpty) ...[
+                const SizedBox(height: 24),
+                Text(
+                  'Missing People',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
                       ),
-                      const SizedBox(height: 8),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: LinearProgressIndicator(
-                          value:
-                              _residents
-                                  .where((r) => r['isSafe'] == true)
-                                  .length /
-                              _residents.length,
-                          backgroundColor: Colors.red.withOpacity(0.1),
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                            Colors.green,
-                          ),
-                          minHeight: 10,
+                    ],
+                  ),
+                   child: Row(
+                    children: [
+                      Container(
+                        width: 56,
+                        height: 56,
+                        decoration: BoxDecoration(
+                          color: Colors.red.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: const Icon(Icons.person_search, color: Colors.red, size: 28),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                             const Text(
+                               'Monitor barangay residents missing or in need of extraction.',
+                               style: TextStyle(
+                                 fontSize: 12,
+                                 fontWeight: FontWeight.w500,
+                                 color: Colors.grey,
+                                 height: 1.2,
+                               ),
+                             ),
+                             const SizedBox(height: 12),
+                             ClipRRect(
+                               borderRadius: BorderRadius.circular(10),
+                               child: LinearProgressIndicator(
+                                 value: _residents.isEmpty
+                                     ? 0
+                                     : (missingCount / _residents.length),
+                                 backgroundColor: Colors.red.withOpacity(0.1),
+                                 valueColor: const AlwaysStoppedAnimation<Color>(
+                                   Colors.red,
+                                 ),
+                                 minHeight: 10,
+                               ),
+                             ),
+                             const SizedBox(height: 6),
+                             Align(
+                               alignment: Alignment.centerRight,
+                               child: Text(
+                                 '$missingCount / ${_residents.length}',
+                                 style: const TextStyle(
+                                   fontSize: 16,
+                                   fontWeight: FontWeight.w900,
+                                   color: Colors.red,
+                                 ),
+                               ),
+                             ),
+                          ],
                         ),
                       ),
                     ],
-                  ],
+                  ),
                 ),
+              ],
+              const SizedBox(height: 24),
+              DashboardInfoCard(
+                icon: Icons.people_outline,
+                title: 'Registered Residents',
+                value: '${_residents.length}',
+                subtext: 'In Brgy. ${Provider.of<AuthProvider>(context).currentUser?.barangay ?? "N/A"}',
+                iconColor: Colors.blue,
+              ),
+              DashboardInfoCard(
+                icon: Icons.emergency_outlined,
+                title: 'Active Evacuation Centers',
+                value: '${_evacuationCenters.length}',
+                subtext: _evacuationCenters.isEmpty
+                    ? 'No centers active'
+                    : 'Current sanctuary locations.',
+                iconColor: Colors.green,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const EvacuationManagementScreen(),
+                    ),
+                  ).then((_) => _fetchEvacuationCenters());
+                },
               ),
 
               if (isActive && _residents.any((r) => r['isSafe'] == false)) ...[
@@ -1144,20 +1242,7 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                 _buildRescueRequestsList(),
               ],
 
-              const SizedBox(height: 12),
-
-              const SizedBox(height: 24),
-              Text(
-                'Upcoming Events',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 12),
-              if (visibleEvents.isEmpty)
-                _buildEmptyState(Icons.event_busy, 'No upcoming events')
-              else
-                ...visibleEvents.map((event) => _buildEventCard(event)),
+              const SizedBox(height: 100),
             ]),
           ),
         );
@@ -1186,7 +1271,7 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
             children: [
               _buildQuickActionItem(
                 icon: Icons.report_gmailerrorred_outlined,
-                label: 'Reported Incidents',
+                label: 'Incidents',
                 color: Colors.red,
                 onTap: () => Navigator.push(
                   context,
@@ -1235,6 +1320,23 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                 label: 'Barangay',
                 color: Colors.green,
                 onTap: _loadingBarangays ? () {} : _showBarangayPicker,
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildQuickActionItem(
+                icon: Icons.qr_code_scanner,
+                label: 'Scan to evac',
+                color: const Color(0xFF8E0000),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const EvacuationQrScannerScreen(),
+                  ),
+                ),
               ),
             ],
           ),
@@ -1625,38 +1727,6 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
     );
   }
 
-  Widget _buildEventCard(Event event) {
-    final dateFormat = DateFormat('MMM dd, yyyy');
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        leading: const Icon(Icons.event_note, color: Colors.red),
-        title: Text(
-          event.title,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
-        subtitle: Text(dateFormat.format(event.startTime)),
-        trailing: const Icon(Icons.chevron_right),
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(IconData icon, String message) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.grey[50],
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Column(
-        children: [
-          Icon(icon, size: 40, color: Colors.grey[400]),
-          const SizedBox(height: 8),
-          Text(message, style: TextStyle(color: Colors.grey[600])),
-        ],
-      ),
-    );
-  }
 
   Widget _buildAttendanceHistorySliver() {
     return const SliverToBoxAdapter(
@@ -1668,7 +1738,6 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
       ),
     );
   }
-
 }
 
 class _BarangayPicker extends StatefulWidget {

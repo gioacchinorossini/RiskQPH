@@ -1,18 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../models/user.dart';
-import '../../providers/auth_provider.dart';
-import '../../utils/theme.dart';
+import '../models/user.dart';
+import '../providers/auth_provider.dart';
+import '../utils/theme.dart';
 
-/// Barangay membership verification status (replaces old "History" tab for residents).
-class RequestsScreen extends StatefulWidget {
-  const RequestsScreen({super.key});
+/// Barangay membership verification status (shown on resident profile).
+class BarangayVerificationSection extends StatefulWidget {
+  const BarangayVerificationSection({super.key});
 
   @override
-  State<RequestsScreen> createState() => _RequestsScreenState();
+  State<BarangayVerificationSection> createState() =>
+      _BarangayVerificationSectionState();
 }
 
-class _RequestsScreenState extends State<RequestsScreen> {
+class _BarangayVerificationSectionState
+    extends State<BarangayVerificationSection> {
   @override
   void initState() {
     super.initState();
@@ -32,26 +34,6 @@ class _RequestsScreenState extends State<RequestsScreen> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Track your barangay membership request.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.grey[700],
-                        ),
-                  ),
-                ),
-                TextButton.icon(
-                  onPressed: () async {
-                    await auth.refreshCurrentUser();
-                  },
-                  icon: const Icon(Icons.refresh, size: 20),
-                  label: const Text('Refresh'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
             _StatusCard(
               status: status,
               barangay: barangay,
@@ -61,18 +43,18 @@ class _RequestsScreenState extends State<RequestsScreen> {
               const SizedBox(height: 20),
               Text(
                 'What happens next',
-                style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
               Text(
                 'Your barangay captain will review your registration. '
                 'Tap Refresh after they approve or decline.',
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.grey[700],
-                      height: 1.4,
-                    ),
+                  color: Colors.grey[700],
+                  height: 1.4,
+                ),
               ),
             ],
           ],
@@ -87,11 +69,7 @@ class _StatusCard extends StatelessWidget {
   final String? barangay;
   final String? address;
 
-  const _StatusCard({
-    required this.status,
-    this.barangay,
-    this.address,
-  });
+  const _StatusCard({required this.status, this.barangay, this.address});
 
   @override
   Widget build(BuildContext context) {
@@ -144,9 +122,9 @@ class _StatusCard extends StatelessWidget {
                   child: Text(
                     title,
                     style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.bold,
-                          color: accent,
-                        ),
+                      fontWeight: FontWeight.bold,
+                      color: accent,
+                    ),
                   ),
                 ),
               ],
@@ -154,24 +132,21 @@ class _StatusCard extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               subtitle,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    height: 1.35,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(height: 1.35),
             ),
             if (address != null && address!.trim().isNotEmpty) ...[
               const SizedBox(height: 16),
               Text(
                 'Address on file',
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Colors.grey[700],
-                      fontWeight: FontWeight.w600,
-                    ),
+                  color: Colors.grey[700],
+                  fontWeight: FontWeight.w600,
+                ),
               ),
               const SizedBox(height: 4),
-              Text(
-                address!,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
+              Text(address!, style: Theme.of(context).textTheme.bodySmall),
             ],
           ],
         ),

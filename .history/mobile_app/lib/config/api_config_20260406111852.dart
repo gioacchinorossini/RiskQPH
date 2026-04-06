@@ -9,7 +9,14 @@ class ApiConfig {
       return _definedBaseUrl;
     }
 
-    // Unified ngrok URL for mobile and web
-    return 'http://192.168.254.102:3000  ';
+    // Different base URL for web vs mobile
+    if (kIsWeb) {
+      // Use your ngrok domain for web
+      return 'localhost:4000';
+    } else {
+      // Use local IP for mobile/emulator
+      return 'http://192.168.254.102:3000';
+    }
   }
 }
+

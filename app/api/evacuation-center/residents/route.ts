@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '../../../../lib/prisma';
+import { broadcastResidentUpdate } from '@/lib/resident-sync';
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
@@ -31,9 +32,18 @@ export async function DELETE(request: Request) {
   }
 
   try {
-    await prisma.evacuee.delete({
-      where: { id }
+    const row = await prisma.evacuee.findUnique({
+      where: { id },
+      select: { registeredUserId: true },
     });
+
+    await prisma.evacuee.delete({
+      where: { id },
+    });
+
+    if (row?.registeredUserId) {
+      await broadcastResidentUpdate(row.registeredUserId);
+    }
 
     return NextResponse.json({ message: 'Evacuee deleted successfully' });
   } catch (error) {

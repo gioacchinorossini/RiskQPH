@@ -5,16 +5,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:qr_flutter/qr_flutter.dart';
 import '../../providers/auth_provider.dart';
-import '../../providers/event_provider.dart';
-import '../../providers/attendance_provider.dart';
-import '../../models/survey.dart';
-import '../../providers/survey_provider.dart';
 import '../../models/user.dart';
-import '../../models/event.dart';
 import '../../utils/theme.dart';
-import 'qr_code_screen.dart';
-import 'requests_screen.dart';
-import 'take_survey_screen.dart';
 import 'family_management_screen.dart';
 import '../common/hazard_map_screen.dart';
 import 'package:flutter_map/flutter_map.dart';
@@ -23,7 +15,9 @@ import 'package:geolocator/geolocator.dart';
 import 'edit_profile_screen.dart';
 import '../common/reported_incidents_screen.dart';
 import '../common/profile_tab_sliver.dart';
+import '../common/notifications_tab_sliver.dart';
 import '../../widgets/safety_overlay.dart';
+import '../../widgets/dashboard_info_card.dart';
 import 'package:http/http.dart' as http;
 import '../../config/api_config.dart';
 import 'dart:io';
@@ -51,11 +45,12 @@ class _UserDashboardState extends State<UserDashboard> {
   HttpClient? _sseClient;
   HttpClient? _residentsSseClient;
   List<dynamic> _residents = [];
-  Set<String> _familyUserIds = {};
   bool _hasFetchedResidents = false;
   bool _isLoadingFamily = false;
+  Set<String> _familyUserIds = {};
   List<Map<String, dynamic>> _userReports = [];
   LatLng? _hqLocation;
+  List<dynamic> _evacuationCenters = [];
 
   final Map<String, IconData> _disasterIcons = {
     'Flooding': Icons.water,
@@ -111,21 +106,14 @@ class _UserDashboardState extends State<UserDashboard> {
       });
     });
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final eventProvider = Provider.of<EventProvider>(context, listen: false);
-      final authProvider = Provider.of<AuthProvider>(context, listen: false);
-      if (authProvider.isConnected) {
-        await eventProvider.loadEvents();
-      } else {
-        await eventProvider.loadEventsFromCache();
-      }
-      eventProvider.startConnectivityMonitoring();
-      Provider.of<AttendanceProvider>(context, listen: false).loadAttendances();
       _determinePreviewPosition();
-      _fetchHqLocation(); // Fetch HQ for map
-      _fetchFamilyMembers(); // Fetch family for map filtering
-      _fetchReports(); // Fetch incident reports for map preview
-      _checkDisaster(); // Initial check to get current state
-      _startDisasterStream(); // Start real-time stream
+      _fetchHqLocation();
+      _fetchFamilyMembers();
+      _fetchReports();
+      _fetchResidents();
+      _fetchEvacuationCenters();
+      _checkDisaster();
+      _startDisasterStream();
     });
   }
 
@@ -255,9 +243,36 @@ class _UserDashboardState extends State<UserDashboard> {
     });
   }
 
+  Future<void> _fetchEvacuationCenters() async {
+    final user = Provider.of<AuthProvider>(context, listen: false).currentUser;
+    if (user?.barangay == null) return;
+
+    try {
+      final response = await http.get(
+        Uri.parse(
+          '${ApiConfig.baseUrl}/api/evacuation-center?barangay=${user!.barangay}',
+        ),
+        headers: {'ngrok-skip-browser-warning': 'true'},
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (mounted) {
+          setState(() {
+            _evacuationCenters = data['centers'] ?? [];
+          });
+        }
+      }
+    } catch (e) {
+      debugPrint('Error fetching centers: $e');
+    }
+  }
+
   Future<void> _fetchReports() async {
     try {
-      final response = await http.get(Uri.parse('${ApiConfig.baseUrl}/api/reports'));
+      final response = await http.get(
+        Uri.parse('${ApiConfig.baseUrl}/api/reports'),
+      );
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
         setState(() {
@@ -281,12 +296,15 @@ class _UserDashboardState extends State<UserDashboard> {
 
   Future<void> _fetchResidents() async {
     final user = Provider.of<AuthProvider>(context, listen: false).currentUser;
-    if (_activeDisaster == null || user?.barangay == null) return;
+    if (user?.barangay == null) return;
     try {
+      final String baseUrl =
+          '${ApiConfig.baseUrl}/api/barangay/residents?barangay=${user!.barangay}';
+      final String url = _activeDisaster != null
+          ? '$baseUrl&disasterId=${_activeDisaster!['id']}'
+          : baseUrl;
       final response = await http.get(
-        Uri.parse(
-          '${ApiConfig.baseUrl}/api/barangay/residents?barangay=${user!.barangay}&disasterId=${_activeDisaster!['id']}',
-        ),
+        Uri.parse(url),
         headers: {'ngrok-skip-browser-warning': 'true'},
       );
       if (response.statusCode == 200) {
@@ -296,11 +314,15 @@ class _UserDashboardState extends State<UserDashboard> {
           setState(() {
             _residents = formatted;
             _hasFetchedResidents = true;
-            
-            // CENTRAL SYNC: Check if current user is already marked safe in the initial fetch
-            final currentUser = Provider.of<AuthProvider>(context, listen: false).currentUser;
+
+            final currentUser = Provider.of<AuthProvider>(
+              context,
+              listen: false,
+            ).currentUser;
             if (currentUser != null) {
-              final me = formatted.where((r) => r['id'].toString() == currentUser.id.toString()).firstOrNull;
+              final me = formatted
+                  .where((r) => r['id'].toString() == currentUser.id.toString())
+                  .firstOrNull;
               if (me != null && me['isSafe'] == true) {
                 _isSafeReported = true;
               }
@@ -350,8 +372,7 @@ class _UserDashboardState extends State<UserDashboard> {
                       } else {
                         _residents.add(residentData);
                       }
-                      
-                      // CENTRAL SYNC: If this update is for the current user, sync their alert status
+
                       if (residentData['id'].toString() == user.id.toString()) {
                         if (residentData['isSafe'] == true) {
                           _isSafeReported = true;
@@ -381,6 +402,7 @@ class _UserDashboardState extends State<UserDashboard> {
   @override
   void dispose() {
     _sseClient?.close(force: true);
+    _residentsSseClient?.close(force: true);
     _scrollController.dispose();
     _scrollThrottleTimer?.cancel();
     super.dispose();
@@ -462,7 +484,7 @@ class _UserDashboardState extends State<UserDashboard> {
               ),
             Positioned(
               top: _isAlertMinimized ? null : 0,
-              bottom: _isAlertMinimized ? 100 : 0,
+              bottom: _isAlertMinimized ? 80 : 0,
               left: 0,
               right: 0,
               child: Center(
@@ -488,7 +510,6 @@ class _UserDashboardState extends State<UserDashboard> {
           ],
         ],
       ),
-      floatingActionButton: null,
     );
   }
 
@@ -500,7 +521,7 @@ class _UserDashboardState extends State<UserDashboard> {
     final bool is400PLUS = screenWidth > 400;
     final bool is300PLUS = screenWidth > 300;
     final bool is700PLUS = screenWidth > 700;
-    final double sliverAppBarHeight = MediaQuery.of(context).size.height * 1.0;
+    final double sliverAppBarHeight = screenHeight * 1.0;
 
     double maxQrSize;
     if (is700PLUS) {
@@ -522,6 +543,7 @@ class _UserDashboardState extends State<UserDashboard> {
     } else {
       maxQrSize = (sliverAppBarHeight * 0.40).clamp(150, 250);
     }
+
     double qrSize;
     double finalCollapsedSize;
     if (is700PLUS) {
@@ -548,11 +570,10 @@ class _UserDashboardState extends State<UserDashboard> {
       }
     } else if (is300PLUS) {
       finalCollapsedSize = maxQrSize * 0.4;
-    } else if (is700PLUS) {
-      finalCollapsedSize = maxQrSize * 0.3;
     } else {
       finalCollapsedSize = maxQrSize * 0.4;
     }
+
     if (_hasBeenCollapsed) {
       qrSize = finalCollapsedSize;
     } else {
@@ -578,13 +599,12 @@ class _UserDashboardState extends State<UserDashboard> {
             (_scrollOffset * 0.3).clamp(0, maxQrSize - finalCollapsedSize);
       }
     }
+
     double startingTopPosition;
     if (is700PLUS) {
       if (screenHeight > 1200) {
         startingTopPosition = (screenHeight * 0.50).clamp(200, 400);
       } else if (screenHeight > 400) {
-        startingTopPosition = (screenHeight * 0.50).clamp(200, 200);
-      } else if (screenHeight > 800) {
         startingTopPosition = (screenHeight * 0.50).clamp(200, 200);
       } else {
         startingTopPosition = (screenHeight * 0.50).clamp(50, 50);
@@ -610,7 +630,8 @@ class _UserDashboardState extends State<UserDashboard> {
     } else {
       startingTopPosition = (screenHeight * 0.50).clamp(100, 150);
     }
-    final double collapsedHeight = MediaQuery.of(context).size.height * 0.15;
+
+    final double collapsedHeight = screenHeight * 0.15;
     final double maxUpwardMovement =
         startingTopPosition - (collapsedHeight * 0.1);
     double qrTopPosition;
@@ -621,6 +642,7 @@ class _UserDashboardState extends State<UserDashboard> {
           startingTopPosition -
           (_scrollOffset * 0.3).clamp(0, maxUpwardMovement);
     }
+
     final double maxScrollForLeftTransition = 300.0;
     final double centeredExpandedLeft = (screenWidth - qrSize) / 2;
     final double finalLeftPosition;
@@ -631,6 +653,7 @@ class _UserDashboardState extends State<UserDashboard> {
     } else {
       finalLeftPosition = 40.0;
     }
+
     double qrHorizontalPosition;
     if (_hasBeenCollapsed) {
       qrHorizontalPosition = finalLeftPosition;
@@ -641,6 +664,7 @@ class _UserDashboardState extends State<UserDashboard> {
     } else {
       qrHorizontalPosition = finalLeftPosition;
     }
+
     return Scaffold(
       appBar: AppBar(
         backgroundColor: primaryColor,
@@ -662,30 +686,9 @@ class _UserDashboardState extends State<UserDashboard> {
         children: [
           RefreshIndicator(
             onRefresh: () async {
-              final authProvider = Provider.of<AuthProvider>(
-                context,
-                listen: false,
-              );
-              final isConnected = await authProvider.testConnection();
-              final eventProvider = Provider.of<EventProvider>(
-                context,
-                listen: false,
-              );
-              final attendanceProvider = Provider.of<AttendanceProvider>(
-                context,
-                listen: false,
-              );
-              if (isConnected) {
-                await Future.wait([
-                  eventProvider.loadEvents(),
-                  attendanceProvider.loadAttendances(),
-                ]);
-              } else {
-                await Future.wait([
-                  eventProvider.loadEventsFromCache(),
-                  attendanceProvider.loadAttendances(),
-                ]);
-              }
+              _fetchReports();
+              _checkDisaster();
+              _fetchFamilyMembers();
             },
             child: CustomScrollView(
               controller: _scrollController,
@@ -693,13 +696,13 @@ class _UserDashboardState extends State<UserDashboard> {
               slivers: [
                 SliverAppBar(
                   expandedHeight: _hasBeenCollapsed
-                      ? MediaQuery.of(context).size.height * 0.15
-                      : MediaQuery.of(context).size.height * 1.0,
-                  collapsedHeight: MediaQuery.of(context).size.height * 0.15,
+                      ? screenHeight * 0.15
+                      : screenHeight * 1.0,
+                  collapsedHeight: screenHeight * 0.15,
                   pinned: true,
                   floating: false,
                   backgroundColor: primaryColor,
-                  shape: ContinuousRectangleBorder(
+                  shape: const ContinuousRectangleBorder(
                     borderRadius: BorderRadius.only(
                       bottomLeft: Radius.circular(100),
                       bottomRight: Radius.circular(100),
@@ -708,13 +711,10 @@ class _UserDashboardState extends State<UserDashboard> {
                   clipBehavior: Clip.antiAlias,
                 ),
                 SliverToBoxAdapter(
-                  child: Container(
-                    height: qrSize * 0,
-                    color: Colors.transparent,
-                  ),
+                  child: Container(height: 0, color: Colors.transparent),
                 ),
                 if (_selectedIndex == 0) _buildEventsSliver(primaryColor),
-                if (_selectedIndex == 1) _buildRequestsSliver(),
+                if (_selectedIndex == 1) const NotificationsTabSliver(),
                 if (_selectedIndex == 2)
                   ProfileTabSliver(
                     user: user,
@@ -747,7 +747,7 @@ class _UserDashboardState extends State<UserDashboard> {
                       ),
                       SizedBox(height: qrSize * 0.02),
                       Text(
-                        'Your personal QR code is ready for attendance marking. Simply present this code to event organizers.',
+                        'Your personal QR code is ready for situational awareness. Simply present this code to rescue personnel.',
                         style: TextStyle(
                           color: Colors.white.withOpacity(0.9),
                           fontSize: (qrSize * 0.06).clamp(12, 28),
@@ -855,117 +855,71 @@ class _UserDashboardState extends State<UserDashboard> {
                 ),
               ),
             ),
-            if (_scrollOffset <= 200 && !_hasBeenCollapsed) ...[
-              Positioned(
-                top:
-                    (qrTopPosition +
-                            qrSize +
-                            60 -
-                            (_scrollOffset * 0.3).clamp(0, 40))
-                        .clamp(
-                          collapsedHeight * 0.3,
-                          startingTopPosition + qrSize + 60,
-                        ),
-                left: 0,
-                right: 0,
-                child: AnimatedOpacity(
-                  duration: const Duration(milliseconds: 300),
-                  opacity: (1 - (_scrollOffset / 200)).clamp(0, 1),
-                  child: Center(
-                    child: Text(
-                      user?.barangay != null
-                          ? 'Brgy. ${user!.barangay}'
-                          : 'N/A',
-                      style: TextStyle(
-                        color: Colors.white.withOpacity(0.9),
-                        fontSize: is600PLUS ? 24 : 18,
-                        fontWeight: FontWeight.w500,
+            Positioned(
+              top:
+                  (qrTopPosition +
+                          qrSize +
+                          60 -
+                          (_scrollOffset * 0.3).clamp(0, 40))
+                      .clamp(
+                        collapsedHeight * 0.3,
+                        startingTopPosition + qrSize + 60,
                       ),
-                      textAlign: TextAlign.center,
+              left: 0,
+              right: 0,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 300),
+                opacity: (1 - (_scrollOffset / 200)).clamp(0, 1),
+                child: Center(
+                  child: Text(
+                    user?.barangay != null ? 'Brgy. ${user!.barangay}' : 'N/A',
+                    style: TextStyle(
+                      color: Colors.white.withOpacity(0.9),
+                      fontSize: is600PLUS ? 24 : 18,
+                      fontWeight: FontWeight.w500,
                     ),
+                    textAlign: TextAlign.center,
                   ),
                 ),
               ),
-            ],
+            ),
           ],
           if (_scrollOffset < 10 && !_hasBeenCollapsed) ...[
             Positioned(
-              top: sliverAppBarHeight - (qrSize * 1),
+              top: sliverAppBarHeight - (qrSize * 1.2),
               left: 0,
               right: 0,
               child: IgnorePointer(
-                child: Material(
-                  color: Colors.transparent,
-                  elevation: 0,
-                  child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 500),
-                    opacity: _scrollOffset < 10 ? 1.0 : 0.0,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        AnimatedContainer(
-                          duration: const Duration(milliseconds: 1500),
-                          transform: Matrix4.translationValues(
-                            0,
-                            _scrollOffset < 10
-                                ? (DateTime.now().millisecondsSinceEpoch %
-                                              3000 <
-                                          1500
-                                      ? -8
-                                      : 0)
-                                : 0,
-                            0,
-                          ),
-                          child: Container(
-                            padding: EdgeInsets.all(qrSize * 0.04),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              shape: BoxShape.circle,
-                            ),
-                            child: Icon(
-                              Icons.keyboard_arrow_up_rounded,
-                              color: Colors.white,
-                              size: (qrSize * 0.15).clamp(20, 40),
-                            ),
-                          ),
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 500),
+                  opacity: _scrollOffset < 10 ? 1.0 : 0.0,
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(
+                        Icons.keyboard_arrow_up_rounded,
+                        color: Colors.white,
+                        size: 40,
+                      ),
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 8,
                         ),
-                        SizedBox(height: qrSize * 0.05),
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: qrSize * 0.08,
-                            vertical: qrSize * 0.03,
-                          ),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                Colors.white.withOpacity(0.9),
-                                Colors.white.withOpacity(0.7),
-                              ],
-                            ),
-                            borderRadius: BorderRadius.circular(15),
-                          ),
-                          child: Text(
-                            'Swipe up to explore',
-                            style: TextStyle(
-                              color: AppTheme.primaryColor,
-                              fontSize: (qrSize * 0.07).clamp(10, 20),
-                              fontWeight: FontWeight.w600,
-                              letterSpacing: 0.5,
-                            ),
-                          ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.9),
+                          borderRadius: BorderRadius.circular(15),
                         ),
-                        SizedBox(height: qrSize * 0.02),
-                        Text(
-                          'Discover your events and requests',
+                        child: Text(
+                          'Swipe up to explore',
                           style: TextStyle(
-                            color: Colors.white.withOpacity(0.6),
-                            fontSize: (qrSize * 0.06).clamp(8, 16),
-                            fontWeight: FontWeight.w400,
-                            fontStyle: FontStyle.italic,
+                            color: primaryColor,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -977,38 +931,26 @@ class _UserDashboardState extends State<UserDashboard> {
               left: 0,
               right: 0,
               child: Center(
-                child: Material(
-                  color: Colors.transparent,
-                  child: InkWell(
-                    onTap: () {
-                      setState(() {
-                        _hasBeenCollapsed = false;
-                      });
-                      _scrollController.animateTo(
-                        0,
-                        duration: const Duration(milliseconds: 500),
-                        curve: Curves.easeInOut,
-                      );
-                    },
-                    borderRadius: BorderRadius.circular(20),
-                    child: Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.9),
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.2),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Icon(
-                        Icons.keyboard_arrow_down_rounded,
-                        color: primaryColor,
-                        size: 24,
-                      ),
+                child: InkWell(
+                  onTap: () {
+                    setState(() {
+                      _hasBeenCollapsed = false;
+                    });
+                    _scrollController.animateTo(
+                      0,
+                      duration: const Duration(milliseconds: 500),
+                      curve: Curves.easeInOut,
+                    );
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: const BoxDecoration(
+                      color: Colors.white,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: primaryColor,
                     ),
                   ),
                 ),
@@ -1021,16 +963,12 @@ class _UserDashboardState extends State<UserDashboard> {
           ? BottomNavigationBar(
               currentIndex: _selectedIndex,
               selectedItemColor: primaryColor,
-              onTap: (index) {
-                setState(() {
-                  _selectedIndex = index;
-                });
-              },
+              onTap: (index) => setState(() => _selectedIndex = index),
               items: const [
                 BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
                 BottomNavigationBarItem(
-                  icon: Icon(Icons.assignment_outlined),
-                  label: 'Request',
+                  icon: Icon(Icons.notifications_none),
+                  label: 'Alerts',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.person),
@@ -1039,6 +977,272 @@ class _UserDashboardState extends State<UserDashboard> {
               ],
             )
           : null,
+    );
+  }
+
+  Widget _buildEventsSliver(Color primaryColor) {
+    final bool isActive = _activeDisaster != null;
+    final int missingCount = _residents
+        .where((r) => r['isSafe'] == false)
+        .length;
+
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(16, 32, 16, 16),
+      sliver: SliverList(
+        delegate: SliverChildListDelegate([
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.03),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Wrap(
+              alignment: WrapAlignment.spaceEvenly,
+              spacing: 12,
+              runSpacing: 16,
+              children: [
+                _buildQuickActionItem(
+                  icon: Icons.report_gmailerrorred_outlined,
+                  label: 'Incidents',
+                  color: Colors.red,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ReportedIncidentsScreen(),
+                      ),
+                    ).then((_) => _fetchReports());
+                  },
+                ),
+                _buildQuickActionItem(
+                  icon: Icons.edit_note,
+                  label: 'Edit Profile',
+                  color: Colors.blue,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const EditProfileScreen(),
+                    ),
+                  ),
+                ),
+                _buildQuickActionItem(
+                  icon: Icons.family_restroom_outlined,
+                  label: 'Add Family',
+                  color: Colors.indigo,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => const FamilyManagementScreen(),
+                    ),
+                  ),
+                ),
+                _buildQuickActionItem(
+                  icon: Icons.person_outline,
+                  label: 'Profile',
+                  color: Colors.teal,
+                  onTap: () => setState(() => _selectedIndex = 2),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: isActive ? Colors.red.shade50 : Colors.green.shade50,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isActive ? Colors.red.shade200 : Colors.green.shade200,
+              ),
+            ),
+            child: Column(
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      isActive
+                          ? Icons.warning_amber_rounded
+                          : Icons.shield_outlined,
+                      color: isActive ? Colors.red : Colors.green,
+                      size: 32,
+                    ),
+                    const SizedBox(width: 12),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          isActive ? 'EMERGENCY ACTIVE' : 'DISASTER ALERT:OFF',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: isActive ? Colors.red : Colors.green,
+                          ),
+                        ),
+                        Text(
+                          isActive
+                              ? '$missingCount residents missing.'
+                              : 'All residents safe.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: isActive
+                                ? Colors.red[700]
+                                : Colors.green[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 20),
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(12),
+                  child: AspectRatio(
+                    aspectRatio: 1.5,
+                    child: _buildHazardMapPreview(primaryColor),
+                  ),
+                ),
+                if (isActive && _residents.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.08),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Text(
+                      (_activeDisaster!['description'] != null &&
+                              _activeDisaster!['description']
+                                  .toString()
+                                  .trim()
+                                  .isNotEmpty)
+                          ? _activeDisaster!['description']
+                          : 'Disaster ongoing. Please stay safe and follow official instructions.',
+                      style: TextStyle(
+                        color: Colors.red[900],
+                        fontSize: 13,
+                        fontWeight: FontWeight.w500,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          if (_residents.isNotEmpty) ...[
+            const SizedBox(height: 24),
+            Text(
+              'Missing People',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      color: Colors.red.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.person_search,
+                      color: Colors.red,
+                      size: 28,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Total residents currently missing or in need of assistance.',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: Colors.grey,
+                            height: 1.2,
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(10),
+                          child: LinearProgressIndicator(
+                            value: _residents.isEmpty
+                                ? 0
+                                : (missingCount / _residents.length),
+                            backgroundColor: Colors.red.withOpacity(0.1),
+                            valueColor: const AlwaysStoppedAnimation<Color>(
+                              Colors.red,
+                            ),
+                            minHeight: 10,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        Align(
+                          alignment: Alignment.centerRight,
+                          child: Text(
+                            '$missingCount / ${_residents.length}',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w900,
+                              color: Colors.red,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 24),
+          DashboardInfoCard(
+            icon: Icons.people_outline,
+            title: 'Registered Residents',
+            value: '${_residents.length}',
+            subtext:
+                'In Brgy. ${Provider.of<AuthProvider>(context).currentUser?.barangay ?? "N/A"}',
+            iconColor: Colors.blue,
+          ),
+          DashboardInfoCard(
+            icon: Icons.emergency_outlined,
+            title: 'Active Evacuation Centers',
+            value: '${_evacuationCenters.length}',
+            subtext: _evacuationCenters.isEmpty
+                ? 'No centers active'
+                : 'Current sanctuary locations.',
+            iconColor: Colors.green,
+            onTap: () {
+              // Maybe navigate to a dedicated screen or the map
+            },
+          ),
+          const SizedBox(height: 100),
+        ]),
+      ),
     );
   }
 
@@ -1080,35 +1284,6 @@ class _UserDashboardState extends State<UserDashboard> {
                       ),
                     ),
                   ),
-
-                // Responders and Family Members from _residents list
-                ..._residents.where((r) {
-                  final String rId = r['id'].toString();
-                  final String rRole = r['role']?.toString().toLowerCase() ?? '';
-                  return rRole.contains('responder') || _familyUserIds.contains(rId);
-                }).map((r) {
-                  final bool isResponder = r['role']?.toString().toLowerCase().contains('responder') ?? false;
-                  final color = isResponder ? Colors.orange : Colors.green;
-                  return Marker(
-                    point: LatLng(r['latitude'] as double, r['longitude'] as double),
-                    width: 35,
-                    height: 35,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        boxShadow: [BoxShadow(blurRadius: 4, color: Colors.black26)],
-                        border: Border.all(color: color, width: 2),
-                      ),
-                      child: Icon(
-                        isResponder ? Icons.emergency : Icons.family_restroom,
-                        color: color,
-                        size: 18,
-                      ),
-                    ),
-                  );
-                }),
-
                 if (_hqLocation != null)
                   Marker(
                     point: _hqLocation!,
@@ -1120,41 +1295,49 @@ class _UserDashboardState extends State<UserDashboard> {
                       size: 20,
                     ),
                   ),
+                ..._residents
+                    .where(
+                      (r) => r['latitude'] != null && r['longitude'] != null,
+                    )
+                    .map((r) {
+                      final bool isActive = _activeDisaster != null;
+                      final bool isSafeNow = (r['isSafe'] == true);
+                      final bool hasSOS = (r['hasResponded'] == true);
+                      final Color markerColor = !isActive
+                          ? AppTheme.primaryColor
+                          : (isSafeNow
+                                ? Colors.green
+                                : (hasSOS ? Colors.red : Colors.grey));
 
-                // Residents and Family (Added consistency with HazardMapScreen)
-                ...(() {
-                  final bool isActive = _activeDisaster != null;
-                  return _residents.where((r) => r['latitude'] != null && r['longitude'] != null).map((r) {
-                    final bool isSafeNow = (r['isSafe'] == true);
-                    final bool hasSOS = (r['hasResponded'] == true);
-                    final bool isFamily = r['id'] != null && _familyUserIds.contains(r['id'].toString());
-                    
-                    final Color markerColor = !isActive 
-                        ? (isFamily ? Colors.orange : AppTheme.primaryColor)
-                        : (isSafeNow ? Colors.green : (hasSOS ? Colors.red : (isFamily ? Colors.orange : Colors.grey)));
-
-                    return Marker(
-                      point: LatLng((r['latitude'] as num).toDouble(), (r['longitude'] as num).toDouble()),
-                      width: 15,
-                      height: 15,
-                      child: Container(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          shape: BoxShape.circle,
-                          border: Border.all(color: markerColor, width: 1),
-                          boxShadow: [BoxShadow(blurRadius: 2, color: markerColor.withOpacity(0.3))],
+                      return Marker(
+                        point: LatLng(
+                          (r['latitude'] as num).toDouble(),
+                          (r['longitude'] as num).toDouble(),
                         ),
-                        child: Icon(
-                          (isActive && isSafeNow) ? Icons.check_circle : Icons.person_pin_circle,
-                          color: markerColor,
-                          size: 8,
+                        width: 15,
+                        height: 15,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: markerColor, width: 1),
+                            boxShadow: [
+                              BoxShadow(
+                                blurRadius: 2,
+                                color: markerColor.withOpacity(0.3),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            (isActive && isSafeNow)
+                                ? Icons.check_circle
+                                : Icons.person_pin_circle,
+                            color: markerColor,
+                            size: 8,
+                          ),
                         ),
-                      ),
-                    );
-                  });
-                })(),
-
-                // Incident Reports
+                      );
+                    }),
                 ..._userReports.map((r) {
                   final color = _disasterColors[r['type']] ?? Colors.red;
                   return Marker(
@@ -1165,7 +1348,9 @@ class _UserDashboardState extends State<UserDashboard> {
                       decoration: BoxDecoration(
                         color: Colors.white,
                         shape: BoxShape.circle,
-                        boxShadow: [BoxShadow(blurRadius: 4, color: Colors.black26)],
+                        boxShadow: [
+                          BoxShadow(blurRadius: 4, color: Colors.black26),
+                        ],
                         border: Border.all(color: color, width: 2),
                       ),
                       child: Icon(
@@ -1195,633 +1380,6 @@ class _UserDashboardState extends State<UserDashboard> {
       backgroundColor: Colors.white,
       foregroundColor: AppTheme.primaryColor,
     );
-  }
-
-  Widget _buildEventsSliver(Color primaryColor) {
-    final bool isActive = _activeDisaster != null;
-    final int missingCount = _residents
-        .where((r) => r['isSafe'] == false)
-        .length;
-
-    return Consumer<EventProvider>(
-      builder: (context, eventProvider, child) {
-        if (eventProvider.isLoading) {
-          return const SliverToBoxAdapter(
-            child: Center(child: CircularProgressIndicator()),
-          );
-        }
-        final visibleEvents = eventProvider.getStudentVisibleEvents();
-        final pastEvents = eventProvider.getPastEvents();
-        return SliverPadding(
-          padding: const EdgeInsets.fromLTRB(16, 32, 16, 16),
-          sliver: SliverList(
-            delegate: SliverChildListDelegate([
-              Consumer<AuthProvider>(
-                builder: (context, auth, child) {
-                  return const SizedBox.shrink();
-                },
-              ),
-              const SizedBox(height: 0),
-              Container(
-                padding: const EdgeInsets.symmetric(vertical: 12),
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(16),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withOpacity(0.03),
-                      blurRadius: 10,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _buildQuickActionItem(
-                          icon: Icons.report_gmailerrorred_outlined,
-                          label: 'Reported Incidents',
-                          color: Colors.red,
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    const ReportedIncidentsScreen(),
-                              ),
-                            ).then((reported) {
-                                if (reported == true) {
-                                  _fetchReports();
-                                }
-                            });
-                          },
-                        ),
-                        _buildQuickActionItem(
-                          icon: Icons.emergency_outlined,
-                          label: 'Emergency',
-                          color: Colors.orange,
-                          onTap: () {},
-                        ),
-                        _buildQuickActionItem(
-                          icon: Icons.edit_note,
-                          label: 'Edit Profile',
-                          color: Colors.blue,
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) => const EditProfileScreen(),
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceAround,
-                      children: [
-                        _buildQuickActionItem(
-                          icon: Icons.qr_code_scanner,
-                          label: 'QR Scan',
-                          color: Colors.purple,
-                          onTap: () {},
-                        ),
-                        _buildQuickActionItem(
-                          icon: Icons.assignment_outlined,
-                          label: 'Request',
-                          color: Colors.teal,
-                          onTap: () {
-                            setState(() {
-                              _selectedIndex = 1;
-                            });
-                          },
-                        ),
-                        _buildQuickActionItem(
-                          icon: Icons.family_restroom_outlined,
-                          label: 'Family',
-                          color: Colors.indigo,
-                          onTap: () {
-                            Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                builder: (context) =>
-                                    const FamilyManagementScreen(),
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: isActive ? Colors.red.shade50 : Colors.green.shade50,
-                  borderRadius: BorderRadius.circular(16),
-                  border: Border.all(
-                    color: isActive
-                        ? Colors.red.shade200
-                        : Colors.green.shade200,
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      children: [
-                        Icon(
-                          isActive
-                              ? Icons.warning_amber_rounded
-                              : Icons.shield_outlined,
-                          color: isActive ? Colors.red : Colors.green,
-                          size: 32,
-                        ),
-                        const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              isActive
-                                  ? 'EMERGENCY ACTIVE'
-                                  : 'DISASTER ALERT:OFF',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: isActive ? Colors.red : Colors.green,
-                              ),
-                            ),
-                            Text(
-                              isActive
-                                  ? '$missingCount residents missing.'
-                                  : 'All residents safe.',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: isActive
-                                    ? Colors.red[700]
-                                    : Colors.green[700],
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: AspectRatio(
-                        aspectRatio: 1.5,
-                        child: _buildHazardMapPreview(primaryColor),
-                      ),
-                    ),
-                    if (isActive && _residents.isNotEmpty) ...[
-                      const SizedBox(height: 20),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          const Text(
-                            'Safety Progress',
-                            style: TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                          Text(
-                            '${((_residents.where((r) => r['isSafe'] == true).length / _residents.length) * 100).toStringAsFixed(1)}%',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.green,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(10),
-                        child: LinearProgressIndicator(
-                          value:
-                              _residents
-                                  .where((r) => r['isSafe'] == true)
-                                  .length /
-                              _residents.length,
-                          backgroundColor: Colors.red.withOpacity(0.1),
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                            Colors.green,
-                          ),
-                          minHeight: 10,
-                        ),
-                      ),
-                      const SizedBox(height: 16),
-                      Container(
-                        padding: const EdgeInsets.all(12),
-                        decoration: BoxDecoration(
-                          color: Colors.red.withOpacity(0.08),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: Text(
-                          (_activeDisaster!['description'] != null &&
-                                  _activeDisaster!['description']
-                                      .toString()
-                                      .trim()
-                                      .isNotEmpty)
-                              ? _activeDisaster!['description']
-                              : 'Disaster ongoing. Please stay safe and follow official instructions.',
-                          style: TextStyle(
-                            color: Colors.red[900],
-                            fontSize: 13,
-                            fontWeight: FontWeight.w500,
-                            height: 1.4,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              const SizedBox(height: 32),
-              const SizedBox(height: 24),
-              Text(
-                'Available Events',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              Text(
-                'Upcoming and ongoing events (sorted by latest created)',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.grey[600],
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (visibleEvents.isEmpty)
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    children: [
-                      Icon(Icons.event_busy, size: 48, color: Colors.grey[400]),
-                      const SizedBox(height: 8),
-                      Text(
-                        'No available events',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(color: Colors.grey[600]),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Pull down to refresh and check for new events',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey[500],
-                          fontStyle: FontStyle.italic,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                )
-              else
-                ...visibleEvents.map((event) => _buildEventCard(event, true)),
-              const SizedBox(height: 24),
-              Text(
-                'Past Events',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              Text(
-                'Sorted by latest created',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Colors.grey[600],
-                  fontStyle: FontStyle.italic,
-                ),
-              ),
-              const SizedBox(height: 12),
-              if (pastEvents.isEmpty)
-                Container(
-                  padding: const EdgeInsets.all(20),
-                  decoration: BoxDecoration(
-                    color: Colors.grey[100],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Column(
-                    children: [
-                      Icon(Icons.assignment_outlined, size: 48, color: Colors.grey[400]),
-                      const SizedBox(height: 8),
-                      Text(
-                        'No past events',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(color: Colors.grey[600]),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'Pull down to refresh and check for new events',
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                          color: Colors.grey[500],
-                          fontStyle: FontStyle.italic,
-                        ),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
-                  ),
-                )
-              else
-                ...pastEvents.map((event) => _buildEventCard(event, false)),
-            ]),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildRequestsSliver() {
-    return SliverPadding(
-      padding: const EdgeInsets.fromLTRB(16, 32, 16, 16),
-      sliver: const SliverToBoxAdapter(
-        child: RequestsScreen(),
-      ),
-    );
-  }
-
-  Widget _buildEventCard(Event event, bool isUpcoming) {
-    final dateFormat = DateFormat('MMM dd, yyyy');
-    final timeFormat = DateFormat('HH:mm');
-    return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Icon(
-                            Icons.event,
-                            size: 20,
-                            color: AppTheme.secondaryColor,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              event.title,
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(
-                                    fontWeight: FontWeight.w700,
-                                    fontSize:
-                                        (Theme.of(
-                                              context,
-                                            ).textTheme.titleMedium?.fontSize ??
-                                            16) +
-                                        2,
-                                    height: 1.15,
-                                    letterSpacing: 0.2,
-                                  ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      Padding(
-                        padding: const EdgeInsets.only(left: 28),
-                        child: Container(
-                          width: double.infinity,
-                          height: 3,
-                          decoration: BoxDecoration(
-                            color: AppTheme.secondaryColor,
-                            borderRadius: BorderRadius.circular(2),
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        event.description,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: Colors.grey[600],
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ],
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: _getEventStatusColor(event),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    _getEventStatusText(event),
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Icon(Icons.calendar_today, size: 16, color: Colors.grey[600]),
-                const SizedBox(width: 8),
-                Text(
-                  dateFormat.format(event.startTime),
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                const SizedBox(width: 16),
-                Icon(Icons.access_time, size: 16, color: Colors.grey[600]),
-                const SizedBox(width: 8),
-                Text(
-                  '${timeFormat.format(event.startTime)} - ${timeFormat.format(event.endTime)}',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(Icons.location_on, size: 16, color: Colors.grey[600]),
-                const SizedBox(width: 8),
-                Text(
-                  event.location,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(Icons.create, size: 16, color: Colors.grey[500]),
-                const SizedBox(width: 8),
-                Text(
-                  'Created: ${dateFormat.format(event.createdAt)}',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Colors.grey[500],
-                    fontStyle: FontStyle.italic,
-                  ),
-                ),
-              ],
-            ),
-            if (_isEventActive(event)) ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: ElevatedButton.icon(
-                      onPressed: () => _showQRCode(event),
-                      icon: const Icon(Icons.qr_code),
-                      label: const Text('Get QR Code'),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              _buildSurveyButton(event),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildSurveyButton(Event event) {
-    return Consumer2<AuthProvider, SurveyProvider>(
-      builder: (context, auth, surveyProvider, child) {
-        final userId = auth.currentUser?.id;
-        if (userId == null || userId.isEmpty) return const SizedBox.shrink();
-        return SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: () async {
-              await surveyProvider.loadSurveysForEvent(
-                event.id,
-                userId: userId,
-              );
-              final surveys = surveyProvider
-                  .surveysForEvent(event.id)
-                  .where((s) => s.isActive)
-                  .toList();
-              if (surveys.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('No survey available for this event.'),
-                  ),
-                );
-                return;
-              }
-              Survey? selected;
-              if (surveys.length == 1) {
-                selected = surveys.first;
-              } else {
-                selected = await showDialog<Survey>(
-                  context: context,
-                  builder: (ctx) {
-                    return AlertDialog(
-                      title: const Text('Choose a survey'),
-                      content: SizedBox(
-                        width: double.maxFinite,
-                        child: ListView(
-                          shrinkWrap: true,
-                          children: surveys
-                              .map(
-                                (s) => ListTile(
-                                  title: Text(s.title),
-                                  subtitle: s.hasSubmitted
-                                      ? const Text('Already submitted')
-                                      : null,
-                                  trailing: s.hasSubmitted
-                                      ? const Icon(
-                                          Icons.check,
-                                          color: AppTheme.successColor,
-                                        )
-                                      : null,
-                                  onTap: () => Navigator.of(ctx).pop(s),
-                                ),
-                              )
-                              .toList(),
-                        ),
-                      ),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.of(ctx).pop(),
-                          child: const Text('Cancel'),
-                        ),
-                      ],
-                    );
-                  },
-                );
-              }
-              if (selected == null) return;
-              final Survey chosen = selected;
-              if (chosen.hasSubmitted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('You already submitted this survey.'),
-                  ),
-                );
-                return;
-              }
-              final result = await Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => TakeSurveyScreen(
-                    surveyId: chosen.id,
-                    eventTitle: event.title,
-                  ),
-                ),
-              );
-              if (result == true && mounted) {
-                await surveyProvider.loadSurveysForEvent(event.id);
-              }
-            },
-            icon: const Icon(Icons.assignment),
-            label: const Text('Take Survey'),
-          ),
-        );
-      },
-    );
-  }
-
-  Color _getEventStatusColor(Event event) {
-    final now = DateTime.now();
-    if (event.startTime.isAfter(now)) {
-      return AppTheme.successColor;
-    } else if (event.startTime.isBefore(now) && event.endTime.isAfter(now)) {
-      return AppTheme.warningColor;
-    } else {
-      return Colors.grey;
-    }
-  }
-
-  String _getEventStatusText(Event event) {
-    final now = DateTime.now();
-    if (event.startTime.isAfter(now)) {
-      return 'Upcoming';
-    } else if (event.startTime.isBefore(now) && event.endTime.isAfter(now)) {
-      return 'Ongoing';
-    } else {
-      return 'Past';
-    }
   }
 
   Widget _buildQuickActionItem({
@@ -1862,20 +1420,6 @@ class _UserDashboardState extends State<UserDashboard> {
     );
   }
 
-  bool _isEventActive(Event event) {
-    final now = DateTime.now();
-    return event.isActive &&
-        (event.startTime.isAfter(now) ||
-            (event.startTime.isBefore(now) && event.endTime.isAfter(now)));
-  }
-
-  void _showQRCode(Event event) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => QRCodeScreen(event: event)),
-    );
-  }
-
   void _handleLogout() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -1896,9 +1440,7 @@ class _UserDashboardState extends State<UserDashboard> {
     );
     if (confirmed == true) {
       await Provider.of<AuthProvider>(context, listen: false).logout();
-      if (mounted) {
-        Navigator.pushReplacementNamed(context, '/login');
-      }
+      if (mounted) Navigator.pushReplacementNamed(context, '/login');
     }
   }
 }

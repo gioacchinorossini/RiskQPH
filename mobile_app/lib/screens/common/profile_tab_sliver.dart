@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../../models/user.dart';
 import '../../utils/theme.dart';
+import '../../widgets/barangay_verification_section.dart';
 import '../user/edit_profile_screen.dart';
+import 'settings_screen.dart';
 
 /// Shared Profile tab content for resident, responder, and barangay head dashboards.
 class ProfileTabSliver extends StatelessWidget {
@@ -32,18 +34,6 @@ class ProfileTabSliver extends StatelessWidget {
         return 'Administrator';
       case UserRole.officer:
         return 'Officer';
-    }
-  }
-
-  static String _membershipLine(String status) {
-    switch (status) {
-      case 'pending':
-        return 'Awaiting barangay captain verification';
-      case 'rejected':
-        return 'Not verified — contact your barangay hall';
-      case 'verified':
-      default:
-        return 'Verified member';
     }
   }
 
@@ -138,6 +128,17 @@ class ProfileTabSliver extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 20),
+          if (role == UserRole.resident) ...[
+            Text(
+              'Barangay verification',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.bold,
+                  ),
+            ),
+            const SizedBox(height: 12),
+            const BarangayVerificationSection(),
+            const SizedBox(height: 20),
+          ],
           Card(
             elevation: 0,
             shape: RoundedRectangleBorder(
@@ -163,14 +164,6 @@ class ProfileTabSliver extends StatelessWidget {
                     _infoRow(context, 'Address', user!.address!.trim()),
                   if (user?.studentId != null && user!.studentId!.trim().isNotEmpty)
                     _infoRow(context, 'ID', user!.studentId!.trim()),
-                  if (role == UserRole.resident &&
-                      user?.barangay != null &&
-                      user!.barangay!.trim().isNotEmpty)
-                    _infoRow(
-                      context,
-                      'Barangay membership',
-                      _membershipLine(user!.barangayMemberStatus),
-                    ),
                   _infoRow(
                     context,
                     'Member since',
@@ -189,18 +182,35 @@ class ProfileTabSliver extends StatelessWidget {
               borderRadius: BorderRadius.circular(16),
               side: BorderSide(color: Colors.grey.shade200),
             ),
-            child: ListTile(
-              leading: Icon(Icons.edit_outlined, color: actionColor),
-              title: const Text('Edit profile'),
-              trailing: const Icon(Icons.chevron_right),
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const EditProfileScreen(),
-                  ),
-                );
-              },
+            child: Column(
+              children: [
+                ListTile(
+                  leading: Icon(Icons.edit_outlined, color: actionColor),
+                  title: const Text('Edit profile'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const EditProfileScreen(),
+                      ),
+                    );
+                  },
+                ),
+                ListTile(
+                  leading: Icon(Icons.settings_outlined, color: actionColor),
+                  title: const Text('Settings'),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SettingsScreen(),
+                      ),
+                    );
+                  },
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 8),

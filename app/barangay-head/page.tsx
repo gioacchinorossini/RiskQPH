@@ -56,6 +56,8 @@ interface Resident {
   role: string;
   safetyUpdatedAt?: string | null;
   updatedAt?: string | null;
+  evacuationCenterId?: string | null;
+  evacuationCenterName?: string | null;
 }
 
 interface Disaster {
@@ -118,14 +120,6 @@ export default function BarangayHeadDashboard() {
   const [evacuees, setEvacuees] = useState<Evacuee[]>([]);
   const [selectedEcIcon, setSelectedEcIcon] = useState('Landmark');
   const [ecPosition, setEcPosition] = useState<{ lat: number, lng: number } | null>(null);
-
-  // Register Form State
-  const [regFirstName, setRegFirstName] = useState('');
-  const [regLastName, setRegLastName] = useState('');
-  const [regMiddleName, setRegMiddleName] = useState('');
-  const [regAge, setRegAge] = useState('');
-  const [regGender, setRegGender] = useState('Male');
-  const [regNotes, setRegNotes] = useState('');
 
   const router = useRouter();
 
@@ -1025,108 +1019,31 @@ export default function BarangayHeadDashboard() {
       {showRegisterEvacuee && selectedEC && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="w-full max-w-4xl bg-white dark:bg-zinc-950 rounded-[3rem] border border-zinc-200 dark:border-zinc-800 shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300 flex h-[80vh]">
-            {/* Left Side: Form */}
+            {/* Left Side: QR-only notice */}
             <div className="w-1/2 p-8 lg:p-10 border-r border-zinc-100 dark:border-zinc-900 flex flex-col">
               <header className="mb-8">
                 <div className="flex items-center gap-3 mb-2">
                   <Landmark className="text-emerald-600" size={18} />
                   <h3 className="text-lg font-black tracking-tight uppercase leading-none">{selectedEC.name}</h3>
                 </div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Register New Rescued Person</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Evacuee registry (QR only)</p>
               </header>
 
-              <div className="flex-1 space-y-4 overflow-y-auto pr-2">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-[8px] font-black uppercase tracking-widest text-zinc-400">First Name</label>
-                    <input
-                      value={regFirstName}
-                      onChange={(e) => setRegFirstName(e.target.value)}
-                      className="w-full h-10 px-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-[10px] font-bold outline-none uppercase"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[8px] font-black uppercase tracking-widest text-zinc-400">Last Name</label>
-                    <input
-                      value={regLastName}
-                      onChange={(e) => setRegLastName(e.target.value)}
-                      className="w-full h-10 px-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-[10px] font-bold outline-none uppercase"
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-1">
-                    <label className="text-[8px] font-black uppercase tracking-widest text-zinc-400">Age</label>
-                    <input
-                      type="number"
-                      value={regAge}
-                      onChange={(e) => setRegAge(e.target.value)}
-                      className="w-full h-10 px-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-[10px] font-bold outline-none uppercase"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <label className="text-[8px] font-black uppercase tracking-widest text-zinc-400">Gender</label>
-                    <select
-                      value={regGender}
-                      onChange={(e) => setRegGender(e.target.value)}
-                      className="w-full h-10 px-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-[10px] font-bold outline-none uppercase"
-                    >
-                      <option>Male</option>
-                      <option>Female</option>
-                      <option>Other</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div className="space-y-1">
-                  <label className="text-[8px] font-black uppercase tracking-widest text-zinc-400">Medical Notes / Requirements</label>
-                  <textarea
-                    value={regNotes}
-                    onChange={(e) => setRegNotes(e.target.value)}
-                    placeholder="E.G. DIABETIC, REQUIRES INSULIN..."
-                    className="w-full h-24 p-4 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900 text-[10px] font-bold outline-none uppercase resize-none"
-                  />
-                </div>
-
+              <div className="flex-1 space-y-4 overflow-y-auto pr-2 text-[10px] text-zinc-600 dark:text-zinc-400 leading-relaxed">
+                <p className="font-bold text-zinc-900 dark:text-zinc-100 uppercase tracking-wide text-[9px]">
+                  Manual registration is disabled. Add evacuees using the RiskQPH mobile app:
+                </p>
+                <ul className="list-disc pl-4 space-y-2">
+                  <li>Open <span className="font-black text-emerald-600">Evacuation centers</span> and tap the QR icon.</li>
+                  <li>Choose this center, then scan each resident&apos;s personal QR.</li>
+                  <li>Evacuation registration syncs across the app for all roles (map pin stays at the resident&apos;s own location).</li>
+                </ul>
                 <button
-                  onClick={async () => {
-                    if (!regFirstName || !regLastName) return;
-                    try {
-                      const res = await fetch('/api/evacuation-center/register', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                          evacuationCenterId: selectedEC.id,
-                          firstName: regFirstName,
-                          lastName: regLastName,
-                          age: regAge,
-                          gender: regGender,
-                          medicalNotes: regNotes,
-                          addedById: user.id
-                        })
-                      });
-                      if (res.ok) {
-                        setRegFirstName('');
-                        setRegLastName('');
-                        setRegAge('');
-                        setRegNotes('');
-                        fetchEvacuees(selectedEC.id);
-                        fetchEvacuationCenters(user.barangay);
-                      }
-                    } catch (err) {
-                      console.error(err);
-                    }
-                  }}
-                  className="w-full h-12 rounded-xl bg-emerald-600 text-white text-[10px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-600/20"
-                >
-                  Confirm Registration
-                </button>
-                <button
+                  type="button"
                   onClick={() => setShowRegisterEvacuee(false)}
-                  className="w-full h-10 text-[9px] font-black uppercase text-zinc-400 hover:text-zinc-600"
+                  className="w-full h-12 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-black text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition-all mt-4"
                 >
-                  Close Terminal
+                  Close
                 </button>
               </div>
             </div>

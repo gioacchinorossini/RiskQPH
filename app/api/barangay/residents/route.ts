@@ -34,14 +34,45 @@ export async function GET(req: NextRequest) {
       }
     });
 
-    // Format for easier consumption
-    const formatted = residents.map(r => {
-      const resp = r.safetyStatus && r.safetyStatus.length > 0 ? r.safetyStatus[0] : null;
+    const userIds = residents.map((r) => r.id);
+    const evacRows =
+      userIds.length === 0
+        ? []
+        : await prisma.evacuee.findMany({
+            where: { registeredUserId: { in: userIds } },
+            orderBy: { updatedAt: 'desc' },
+            include: {
+              evacuationCenter: { select: { id: true, name: true } },
+            },
+          });
+
+    const evacByUser = new Map<string, { id: string; name: string }>();
+    for (const e of evacRows) {
+      if (e.registeredUserId && !evacByUser.has(e.registeredUserId)) {
+        evacByUser.set(e.registeredUserId, {
+          id: e.evacuationCenter.id,
+          name: e.evacuationCenter.name,
+        });
+      }
+    }
+
+    // Format for easier consumption (omit Prisma relation arrays from JSON)
+    const formatted = residents.map((r) => {
+      const { safetyStatus, ...base } = r as typeof r & {
+        safetyStatus?: { isSafe: boolean; updatedAt: Date }[] | false;
+      };
+      const resp =
+        Array.isArray(safetyStatus) && safetyStatus.length > 0
+          ? safetyStatus[0]
+          : null;
+      const ev = evacByUser.get(r.id);
       return {
-        ...r,
+        ...base,
         hasResponded: resp !== null,
         isSafe: resp ? resp.isSafe : false,
         safetyUpdatedAt: resp ? resp.updatedAt : null,
+        evacuationCenterId: ev?.id ?? null,
+        evacuationCenterName: ev?.name ?? null,
       };
     });
 

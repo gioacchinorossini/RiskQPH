@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '../../../lib/prisma';
 import { z } from 'zod';
+import { disasterEventEmitter } from '@/lib/events';
 
 const ProfileUpdateSchema = z.object({
   id: z.string().min(1),
@@ -75,6 +76,24 @@ export async function POST(req: NextRequest) {
         longitude,
       }
     });
+
+    if (latitude !== undefined || longitude !== undefined) {
+      disasterEventEmitter.emit('residentUpdate', {
+        barangay: user.barangay,
+        resident: {
+          id: user.id,
+          firstName: user.firstName,
+          lastName: user.lastName,
+          role: user.role,
+          latitude: user.latitude,
+          longitude: user.longitude,
+          updatedAt: user.updatedAt.toISOString(),
+          // We don't know the safety status here without fetching it, 
+          // but SOS/Safe updates are handled in /api/safety.
+          // For location-only updates, we just send what we have.
+        }
+      });
+    }
 
     const responseUser = {
       id: user.id,

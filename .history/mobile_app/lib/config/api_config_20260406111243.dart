@@ -10,6 +10,6 @@ class ApiConfig {
     }
 
     // Unified ngrok URL for mobile and web
-    return 'http://192.168.254.102:3000  ';
+    return 'https://nonprohibitory-yu-unlenient.ngrok-free.dev';
   }
 }

@@ -99,11 +99,7 @@ class _SafetyOverlayState extends State<SafetyOverlay> {
             color: Colors.red,
             borderRadius: BorderRadius.circular(30),
             boxShadow: [
-              BoxShadow(
-                color: Colors.red.withOpacity(0.3),
-                blurRadius: 10,
-                spreadRadius: 2,
-              ),
+              BoxShadow(color: Colors.black.withOpacity(0.1), spreadRadius: 1),
             ],
           ),
           child: Row(

@@ -148,9 +148,12 @@ model Evacuee {
   medicalNotes      String?
   addedById         String
   addedBy           User             @relation("EvacueeAddedBy", fields: [addedById], references: [id])
+  /// When set, evacuee was registered from a resident app QR (user id); one row per center per user
+  registeredUserId  String?
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 
   @@index([evacuationCenterId])
   @@index([addedById])
+  @@index([registeredUserId])
 }
