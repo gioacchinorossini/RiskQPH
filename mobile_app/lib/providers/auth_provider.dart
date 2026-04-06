@@ -83,6 +83,7 @@ class AuthProvider extends ChangeNotifier {
     String? address,
     double? latitude,
     double? longitude,
+    bool requestBarangayVerification = false,
   }) async {
     setLoading(true);
     setError(null);
@@ -105,8 +106,9 @@ class AuthProvider extends ChangeNotifier {
           'gender': gender,
           'barangay': barangay,
           'address': address,
-          'latitude': latitude,
-          'longitude': longitude,
+          if (latitude != null) 'latitude': latitude,
+          if (longitude != null) 'longitude': longitude,
+          if (requestBarangayVerification) 'barangayVerification': true,
         }),
       );
 
@@ -260,6 +262,29 @@ class AuthProvider extends ChangeNotifier {
 
   Future<void> refreshConnection() async {
     await testConnection();
+  }
+
+  /// Reload profile from server (e.g. barangay verification status).
+  Future<void> refreshCurrentUser() async {
+    if (_currentUser == null) return;
+    try {
+      final uri = Uri.parse(
+        '${ApiConfig.baseUrl}/api/profile?id=${Uri.encodeQueryComponent(_currentUser!.id)}',
+      );
+      final response = await http.get(
+        uri,
+        headers: {'ngrok-skip-browser-warning': 'true'},
+      );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body) as Map<String, dynamic>;
+        final userJson = data['user'] as Map<String, dynamic>;
+        _currentUser = User.fromJson(userJson);
+        await _saveUserToStorage();
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('refreshCurrentUser: $e');
+    }
   }
 
   void clearConnectionCache() {

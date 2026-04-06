@@ -14,6 +14,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import '../user/edit_profile_screen.dart';
+import '../common/profile_tab_sliver.dart';
 import 'package:http/http.dart' as http;
 import '../../config/api_config.dart';
 import '../../utils/theme.dart';
@@ -22,6 +23,7 @@ import '../common/reported_incidents_screen.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
 import 'evacuation_management_screen.dart';
+import 'pending_members_screen.dart';
 
 class BarangayHeadDashboard extends StatefulWidget {
   const BarangayHeadDashboard({super.key});
@@ -696,7 +698,11 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                 if (_selectedIndex == 0) _buildAdminMainSliver(primaryColor),
                 if (_selectedIndex == 1) _buildAttendanceHistorySliver(),
                 if (_selectedIndex == 2)
-                  _buildProfileSliver(user, primaryColor),
+                  ProfileTabSliver(
+                    user: user,
+                    onLogout: _handleLogout,
+                    actionColor: primaryColor,
+                  ),
               ],
             ),
           ),
@@ -1190,10 +1196,15 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
                 ),
               ),
               _buildQuickActionItem(
-                icon: Icons.people_outline,
-                label: 'Residents',
+                icon: Icons.how_to_reg_outlined,
+                label: 'Verify members',
                 color: Colors.blue,
-                onTap: () {},
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const PendingMembersScreen(),
+                  ),
+                ),
               ),
               _buildQuickActionItem(
                 icon: Icons.home_work_outlined,
@@ -1658,46 +1669,6 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
     );
   }
 
-  Widget _buildProfileSliver(User? user, Color color) {
-    return SliverPadding(
-      padding: const EdgeInsets.all(16),
-      sliver: SliverList(
-        delegate: SliverChildListDelegate([
-          _buildProfileItem(Icons.badge, 'Full Name', user?.name ?? 'Admin'),
-          _buildProfileItem(
-            Icons.location_on,
-            'Barangay',
-            user?.barangay ?? 'N/A',
-          ),
-          _buildProfileItem(Icons.security, 'Access Level', 'Barangay Head'),
-          const SizedBox(height: 24),
-          ElevatedButton(
-            onPressed: _handleLogout,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: color,
-              foregroundColor: Colors.white,
-              minimumSize: const Size(double.infinity, 50),
-            ),
-            child: const Text('LOGOUT TERMINAL'),
-          ),
-        ]),
-      ),
-    );
-  }
-
-  Widget _buildProfileItem(IconData icon, String label, String value) {
-    return ListTile(
-      leading: Icon(icon, color: Colors.grey[600]),
-      title: Text(
-        label,
-        style: const TextStyle(fontSize: 12, color: Colors.grey),
-      ),
-      subtitle: Text(
-        value,
-        style: const TextStyle(fontWeight: FontWeight.bold),
-      ),
-    );
-  }
 }
 
 class _BarangayPicker extends StatefulWidget {

@@ -11,9 +11,13 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ message: 'Missing barangay' }, { status: 400 });
     }
 
-    // Get all residents in this barangay
+    // Verified members only (pending self-registrations are excluded until barangay head approves)
     const residents = await prisma.user.findMany({
-      where: { barangay, role: { in: ['resident', 'responder'] } },
+      where: {
+        barangay,
+        role: { in: ['resident', 'responder'] },
+        barangayMemberStatus: 'verified',
+      },
       select: {
         id: true,
         firstName: true,

@@ -7,6 +7,8 @@ class User {
   final String? middleName;
   final String email;
   final String? barangay;
+  /// verified | pending | rejected
+  final String barangayMemberStatus;
   final String? address;
   final String? studentId;
   final String? yearLevel;
@@ -27,6 +29,7 @@ class User {
     this.middleName,
     required this.email,
     this.barangay,
+    this.barangayMemberStatus = 'verified',
     this.address,
     this.studentId,
     this.yearLevel,
@@ -47,6 +50,7 @@ class User {
       middleName: json['middleName'],
       email: json['email'],
       barangay: json['barangay'],
+      barangayMemberStatus: json['barangayMemberStatus'] as String? ?? 'verified',
       address: json['address'],
       studentId: json['studentId'],
       yearLevel: json['yearLevel'],
@@ -73,6 +77,7 @@ class User {
       'middleName': middleName,
       'email': email,
       'barangay': barangay,
+      'barangayMemberStatus': barangayMemberStatus,
       'address': address,
       'studentId': studentId,
       'yearLevel': yearLevel,
@@ -93,6 +98,7 @@ class User {
     String? middleName,
     String? email,
     String? barangay,
+    String? barangayMemberStatus,
     String? address,
     String? studentId,
     String? yearLevel,
@@ -111,6 +117,7 @@ class User {
       middleName: middleName ?? this.middleName,
       email: email ?? this.email,
       barangay: barangay ?? this.barangay,
+      barangayMemberStatus: barangayMemberStatus ?? this.barangayMemberStatus,
       address: address ?? this.address,
       studentId: studentId ?? this.studentId,
       yearLevel: yearLevel ?? this.yearLevel,

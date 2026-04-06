@@ -17,6 +17,7 @@ import '../../config/api_config.dart';
 import '../../utils/theme.dart';
 import '../../widgets/view_on_map_button.dart';
 import '../user/edit_profile_screen.dart';
+import '../common/profile_tab_sliver.dart';
 import '../common/reported_incidents_screen.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/services.dart';
@@ -468,7 +469,12 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
                 ),
                 if (_selectedIndex == 0) _buildAdminMainSliver(primaryColor),
                 if (_selectedIndex == 1) _buildAttendanceHistorySliver(),
-                if (_selectedIndex == 2) _buildProfileSliver(user, primaryColor),
+                if (_selectedIndex == 2)
+                  ProfileTabSliver(
+                    user: user,
+                    onLogout: _handleLogout,
+                    actionColor: primaryColor,
+                  ),
               ],
             ),
           ),
@@ -1186,30 +1192,4 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
     )));
   }
 
-  Widget _buildProfileSliver(User? user, Color color) {
-    return SliverPadding(
-      padding: const EdgeInsets.all(16),
-      sliver: SliverList(
-        delegate: SliverChildListDelegate([
-           _buildProfileItem(Icons.badge, 'Full Name', user?.name ?? 'Responder'),
-           _buildProfileItem(Icons.location_on, 'Assigned Barangay', user?.barangay ?? 'N/A'),
-           _buildProfileItem(Icons.security, 'Access Level', 'Responder Unit'),
-           const SizedBox(height: 24),
-           ElevatedButton(
-            onPressed: _handleLogout,
-            style: ElevatedButton.styleFrom(backgroundColor: color, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 50)),
-            child: const Text('LOGOUT TERMINAL'),
-           ),
-        ]),
-      ),
-    );
-  }
-
-  Widget _buildProfileItem(IconData icon, String label, String value) {
-    return ListTile(
-      leading: Icon(icon, color: Colors.grey[600]),
-      title: Text(label, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-      subtitle: Text(value, style: const TextStyle(fontWeight: FontWeight.bold)),
-    );
-  }
 }

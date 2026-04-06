@@ -16,6 +16,8 @@ const RegisterSchema = z.object({
   latitude: z.number().optional().nullable(),
   longitude: z.number().optional().nullable(),
   role: z.string().optional().nullable(),
+  /** When true (mobile self-registration), barangay membership starts as pending until head approves */
+  barangayVerification: z.boolean().optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -25,7 +27,7 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json({ message: 'Invalid input', errors: parsed.error.issues }, { status: 400 });
     }
-    const { email, password, firstName, lastName, middleName, birthdate, gender, barangay, address, latitude, longitude, role } = parsed.data;
+    const { email, password, firstName, lastName, middleName, birthdate, gender, barangay, address, latitude, longitude, role, barangayVerification } = parsed.data;
 
     const existing = await prisma.user.findFirst({
       where: { email }
@@ -35,6 +37,10 @@ export async function POST(req: NextRequest) {
     }
 
     const passwordHash = await bcrypt.hash(password, 10);
+    const resolvedRole = role || 'resident';
+    const wantsVerification = barangayVerification === true && !!barangay && resolvedRole === 'resident';
+    const barangayMemberStatus = wantsVerification ? 'pending' : 'verified';
+
     const user = await prisma.user.create({
       data: {
         email,
@@ -48,7 +54,8 @@ export async function POST(req: NextRequest) {
         address: address || null,
         latitude: latitude || null,
         longitude: longitude || null,
-        role: role || 'resident'
+        role: resolvedRole,
+        barangayMemberStatus,
       }
     });
 
@@ -60,6 +67,7 @@ export async function POST(req: NextRequest) {
       middleName: user.middleName,
       barangay: user.barangay,
       address: user.address,
+      barangayMemberStatus: user.barangayMemberStatus,
       role: user.role,
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString()

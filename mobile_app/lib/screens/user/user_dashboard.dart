@@ -13,7 +13,7 @@ import '../../models/user.dart';
 import '../../models/event.dart';
 import '../../utils/theme.dart';
 import 'qr_code_screen.dart';
-import 'attendance_history_screen.dart';
+import 'requests_screen.dart';
 import 'take_survey_screen.dart';
 import 'family_management_screen.dart';
 import '../common/hazard_map_screen.dart';
@@ -22,6 +22,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'edit_profile_screen.dart';
 import '../common/reported_incidents_screen.dart';
+import '../common/profile_tab_sliver.dart';
 import '../../widgets/safety_overlay.dart';
 import 'package:http/http.dart' as http;
 import '../../config/api_config.dart';
@@ -713,8 +714,13 @@ class _UserDashboardState extends State<UserDashboard> {
                   ),
                 ),
                 if (_selectedIndex == 0) _buildEventsSliver(primaryColor),
-                if (_selectedIndex == 1) _buildAttendanceHistorySliver(),
-                if (_selectedIndex == 2) _buildProfileSliver(user),
+                if (_selectedIndex == 1) _buildRequestsSliver(),
+                if (_selectedIndex == 2)
+                  ProfileTabSliver(
+                    user: user,
+                    onLogout: _handleLogout,
+                    actionColor: primaryColor,
+                  ),
               ],
             ),
           ),
@@ -950,7 +956,7 @@ class _UserDashboardState extends State<UserDashboard> {
                         ),
                         SizedBox(height: qrSize * 0.02),
                         Text(
-                          'Discover your events and history',
+                          'Discover your events and requests',
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.6),
                             fontSize: (qrSize * 0.06).clamp(8, 16),
@@ -1023,8 +1029,8 @@ class _UserDashboardState extends State<UserDashboard> {
               items: const [
                 BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
                 BottomNavigationBarItem(
-                  icon: Icon(Icons.history),
-                  label: 'History',
+                  icon: Icon(Icons.assignment_outlined),
+                  label: 'Request',
                 ),
                 BottomNavigationBarItem(
                   icon: Icon(Icons.person),
@@ -1284,8 +1290,8 @@ class _UserDashboardState extends State<UserDashboard> {
                           onTap: () {},
                         ),
                         _buildQuickActionItem(
-                          icon: Icons.history_outlined,
-                          label: 'History',
+                          icon: Icons.assignment_outlined,
+                          label: 'Request',
                           color: Colors.teal,
                           onTap: () {
                             setState(() {
@@ -1507,7 +1513,7 @@ class _UserDashboardState extends State<UserDashboard> {
                   ),
                   child: Column(
                     children: [
-                      Icon(Icons.history, size: 48, color: Colors.grey[400]),
+                      Icon(Icons.assignment_outlined, size: 48, color: Colors.grey[400]),
                       const SizedBox(height: 8),
                       Text(
                         'No past events',
@@ -1535,103 +1541,11 @@ class _UserDashboardState extends State<UserDashboard> {
     );
   }
 
-  Widget _buildAttendanceHistorySliver() {
+  Widget _buildRequestsSliver() {
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(16, 32, 16, 16),
-      sliver: const AttendanceHistoryScreen(),
-    );
-  }
-
-  Widget _buildProfileSliver(User? user) {
-    return SliverPadding(
-      padding: const EdgeInsets.fromLTRB(16, 32, 16, 16),
-      sliver: SliverList(
-        delegate: SliverChildListDelegate([
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [AppTheme.primaryColor, AppTheme.secondaryColor],
-              ),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Column(
-              children: [
-                CircleAvatar(
-                  radius: 40,
-                  backgroundColor: Colors.white,
-                  child: Icon(
-                    Icons.person,
-                    size: 40,
-                    color: AppTheme.primaryColor,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  user?.name ?? 'Student',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                  ),
-                  textAlign: TextAlign.center,
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 2,
-                ),
-                Text(
-                  user?.email ?? 'student@school.com',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                    color: Colors.white.withOpacity(0.9),
-                  ),
-                  textAlign: TextAlign.center,
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 2,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 24),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Student Information',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _buildInfoRow('Student ID', user?.studentId ?? 'N/A'),
-                  _buildInfoRow('Role', 'Student'),
-                  _buildInfoRow(
-                    'Member Since',
-                    user?.createdAt != null
-                        ? DateFormat('MMM dd, yyyy').format(user!.createdAt)
-                        : 'N/A',
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.logout, color: Colors.red),
-              title: const Text(
-                'Sign Out',
-                style: TextStyle(
-                  color: Colors.red,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              onTap: _handleLogout,
-            ),
-          ),
-          const SizedBox(height: 48),
-        ]),
+      sliver: const SliverToBoxAdapter(
+        child: RequestsScreen(),
       ),
     );
   }
@@ -1953,35 +1867,6 @@ class _UserDashboardState extends State<UserDashboard> {
     return event.isActive &&
         (event.startTime.isAfter(now) ||
             (event.startTime.isBefore(now) && event.endTime.isAfter(now)));
-  }
-
-  Widget _buildInfoRow(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 100,
-            child: Text(
-              label,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                fontWeight: FontWeight.w500,
-                color: Colors.grey[600],
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text(
-              value,
-              style: Theme.of(context).textTheme.bodyMedium,
-              overflow: TextOverflow.ellipsis,
-              maxLines: 2,
-            ),
-          ),
-        ],
-      ),
-    );
   }
 
   void _showQRCode(Event event) {

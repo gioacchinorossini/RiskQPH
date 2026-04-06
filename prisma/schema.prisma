@@ -19,6 +19,8 @@ model User {
   address      String?
   latitude     Float?
   longitude    Float?
+  /// verified | pending | rejected — pending until barangay head confirms self-registered residents
+  barangayMemberStatus String @default("verified")
   email        String    @unique
   passwordHash String
   role         String    @default("resident") // default to resident

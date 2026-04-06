@@ -34,11 +34,14 @@ export async function GET(req: NextRequest) {
       firstName: user.firstName,
       lastName: user.lastName,
       middleName: user.middleName,
-      birthdate: user.birthdate ? user.birthdate.toISOString().split('T')[0] : null,
+      birthdate: user.birthdate ? user.birthdate.toISOString().slice(0, 10) : null,
       gender: user.gender,
       barangay: user.barangay,
       address: user.address,
+      barangayMemberStatus: user.barangayMemberStatus,
       role: user.role,
+      createdAt: user.createdAt.toISOString(),
+      updatedAt: user.updatedAt.toISOString(),
     };
 
     return NextResponse.json({ user: responseUser }, { status: 200 });
@@ -80,6 +83,7 @@ export async function POST(req: NextRequest) {
       lastName: user.lastName,
       middleName: user.middleName,
       barangay: user.barangay,
+      barangayMemberStatus: user.barangayMemberStatus,
       role: user.role,
       createdAt: user.createdAt.toISOString(),
       updatedAt: user.updatedAt.toISOString()

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../providers/auth_provider.dart';
-import '../../models/user.dart';
 import '../../utils/theme.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -66,178 +65,241 @@ class _LoginScreenState extends State<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
-        child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(24.0),
-            child: Form(
-              key: _formKey,
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Icon(
-                    Icons.qr_code_scanner,
-                    size: 80,
-                    color: AppTheme.primaryColor,
-                  ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Attendance App',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.bold,
-                      color: AppTheme.primaryColor,
+      body: CustomScrollView(
+        slivers: [
+          SliverAppBar(
+            expandedHeight: 160,
+            pinned: true,
+            flexibleSpace: FlexibleSpaceBar(
+              title: Text(
+                'RiskQPH',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black.withOpacity(0.25),
+                      blurRadius: 8,
                     ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Sign in to your account',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.bodyLarge?.copyWith(color: Colors.grey[600]),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 16),
-                  // QUICK LOGIN SELECTOR
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    decoration: BoxDecoration(
-                      color: Colors.amber.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.amber.shade300),
-                    ),
-                    child: DropdownButtonHideUnderline(
-                      child: DropdownButton<Map<String, String>>(
-                        hint: const Text('⚡ QUICK DEV LOGIN'),
-                        isExpanded: true,
-                        icon: const Icon(Icons.bolt, color: Colors.amber),
-                        items: _quickLogins.map((login) {
-                          return DropdownMenuItem(
-                            value: login,
-                            child: Text(login['label']!),
-                          );
-                        }).toList(),
-                        onChanged: (val) {
-                          if (val != null) {
-                            setState(() {
-                              _emailController.text = val['email']!;
-                              _passwordController.text = val['pass']!;
-                            });
-                            _handleLogin(); // Auto-login
-                          }
-                        },
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 32),
-                  TextFormField(
-                    controller: _emailController,
-                    decoration: const InputDecoration(
-                      labelText: 'Email / Username',
-                      prefixIcon: Icon(Icons.person),
-                      hintText: 'Enter your email or username',
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter something';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  TextFormField(
-                    controller: _passwordController,
-                    obscureText: _obscurePassword,
-                    decoration: InputDecoration(
-                      labelText: 'Password',
-                      prefixIcon: const Icon(Icons.lock),
-                      suffixIcon: IconButton(
-                        icon: Icon(
-                          _obscurePassword
-                              ? Icons.visibility
-                              : Icons.visibility_off,
-                        ),
-                        onPressed: () {
-                          setState(() {
-                            _obscurePassword = !_obscurePassword;
-                          });
-                        },
-                      ),
-                      hintText: 'Enter your password',
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) {
-                        return 'Please enter your password';
-                      }
-                      if (value.length < 6) {
-                        return 'Password must be at least 6 characters';
-                      }
-                      return null;
-                    },
-                  ),
-                  const SizedBox(height: 24),
-                  Consumer<AuthProvider>(
-                    builder: (context, authProvider, child) {
-                      return ElevatedButton(
-                        onPressed: authProvider.isLoading ? null : _handleLogin,
-                        child: authProvider.isLoading
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  valueColor: AlwaysStoppedAnimation<Color>(
-                                    Colors.white,
-                                  ),
-                                ),
-                              )
-                            : const Text('Sign In'),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  Consumer<AuthProvider>(
-                    builder: (context, authProvider, child) {
-                      if (authProvider.error != null) {
-                        return Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: AppTheme.errorColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: AppTheme.errorColor),
-                          ),
-                          child: Text(
-                            authProvider.error!,
-                            style: TextStyle(color: AppTheme.errorColor),
-                            textAlign: TextAlign.center,
-                          ),
-                        );
-                      }
-                      return const SizedBox.shrink();
-                    },
-                  ),
-                  const SizedBox(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        "Don't have an account? ",
-                        style: Theme.of(context).textTheme.bodyMedium,
-                      ),
-                      TextButton(
-                        onPressed: () {
-                          Navigator.pushNamed(context, '/register');
-                        },
-                        child: const Text('Sign Up'),
-                      ),
+                  ],
+                ),
+              ),
+              background: Container(
+                decoration: const BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      AppTheme.primaryColor,
+                      AppTheme.secondaryColor,
                     ],
                   ),
-                ],
+                ),
+                child: SafeArea(
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 48),
+                      child: Icon(
+                        Icons.shield_outlined,
+                        size: 56,
+                        color: Colors.white.withOpacity(0.9),
+                      ),
+                    ),
+                  ),
+                ),
               ),
             ),
           ),
-        ),
+          SliverPadding(
+            padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+            sliver: SliverToBoxAdapter(
+              child: Form(
+                key: _formKey,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Sign in',
+                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Use the account your barangay recognizes.',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: Colors.grey[700],
+                          ),
+                    ),
+                    const SizedBox(height: 24),
+                    Material(
+                      elevation: 1,
+                      borderRadius: BorderRadius.circular(16),
+                      color: Theme.of(context).colorScheme.surface,
+                      child: Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 12,
+                                vertical: 4,
+                              ),
+                              decoration: BoxDecoration(
+                                color: AppTheme.warningColor.withOpacity(0.12),
+                                borderRadius: BorderRadius.circular(12),
+                                border: Border.all(
+                                  color: AppTheme.warningColor.withOpacity(0.35),
+                                ),
+                              ),
+                              child: DropdownButtonHideUnderline(
+                                child: DropdownButton<Map<String, String>>(
+                                  hint: const Text('Quick dev login'),
+                                  isExpanded: true,
+                                  icon: Icon(
+                                    Icons.bolt,
+                                    color: AppTheme.warningColor,
+                                  ),
+                                  items: _quickLogins.map((login) {
+                                    return DropdownMenuItem(
+                                      value: login,
+                                      child: Text(
+                                        login['label']!,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    );
+                                  }).toList(),
+                                  onChanged: (val) {
+                                    if (val != null) {
+                                      setState(() {
+                                        _emailController.text = val['email']!;
+                                        _passwordController.text = val['pass']!;
+                                      });
+                                      _handleLogin();
+                                    }
+                                  },
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+                            TextFormField(
+                              controller: _emailController,
+                              keyboardType: TextInputType.emailAddress,
+                              autocorrect: false,
+                              decoration: const InputDecoration(
+                                labelText: 'Email',
+                                prefixIcon: Icon(Icons.email_outlined),
+                              ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Enter your email';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 16),
+                            TextFormField(
+                              controller: _passwordController,
+                              obscureText: _obscurePassword,
+                              decoration: InputDecoration(
+                                labelText: 'Password',
+                                prefixIcon: const Icon(Icons.lock_outline),
+                                suffixIcon: IconButton(
+                                  icon: Icon(
+                                    _obscurePassword
+                                        ? Icons.visibility
+                                        : Icons.visibility_off,
+                                  ),
+                                  onPressed: () {
+                                    setState(() {
+                                      _obscurePassword = !_obscurePassword;
+                                    });
+                                  },
+                                ),
+                              ),
+                              validator: (value) {
+                                if (value == null || value.isEmpty) {
+                                  return 'Enter your password';
+                                }
+                                if (value.length < 6) {
+                                  return 'At least 6 characters';
+                                }
+                                return null;
+                              },
+                            ),
+                            const SizedBox(height: 20),
+                            Consumer<AuthProvider>(
+                              builder: (context, authProvider, child) {
+                                return FilledButton(
+                                  onPressed: authProvider.isLoading
+                                      ? null
+                                      : _handleLogin,
+                                  child: authProvider.isLoading
+                                      ? const SizedBox(
+                                          height: 22,
+                                          width: 22,
+                                          child: CircularProgressIndicator(
+                                            strokeWidth: 2,
+                                            color: Colors.white,
+                                          ),
+                                        )
+                                      : const Text('Sign in'),
+                                );
+                              },
+                            ),
+                            const SizedBox(height: 12),
+                            Consumer<AuthProvider>(
+                              builder: (context, authProvider, child) {
+                                if (authProvider.error != null) {
+                                  return Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: AppTheme.errorColor.withOpacity(0.08),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(
+                                        color: AppTheme.errorColor.withOpacity(0.4),
+                                      ),
+                                    ),
+                                    child: Text(
+                                      authProvider.error!,
+                                      style: const TextStyle(
+                                        color: AppTheme.errorColor,
+                                      ),
+                                      textAlign: TextAlign.center,
+                                    ),
+                                  );
+                                }
+                                return const SizedBox.shrink();
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 20),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          'New resident? ',
+                          style: Theme.of(context).textTheme.bodyMedium,
+                        ),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pushNamed(context, '/register');
+                          },
+                          child: const Text('Create account'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

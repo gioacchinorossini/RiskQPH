@@ -34,6 +34,7 @@ export async function POST(req: NextRequest) {
       middleName: user.middleName,
       barangay: user.barangay,
       address: user.address,
+      barangayMemberStatus: user.barangayMemberStatus,
       gender: user.gender,
       birthdate: user.birthdate ? user.birthdate.toISOString().slice(0, 10) : null,
       role: user.role,
