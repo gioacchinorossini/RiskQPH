@@ -37,11 +37,20 @@ import {
   Church
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
+import ThemeToggle from '../../components/ThemeToggle';
 
 // Dynamically import map to avoid SSR issues
 const BarangayMap = dynamic(() => import('./BarangayMap'), {
   ssr: false,
   loading: () => <div className="h-full w-full bg-zinc-100 animate-pulse rounded-3xl" />
+});
+
+const AnalyticsDashboard = dynamic(() => import('./AnalyticsDashboard'), {
+  ssr: false,
+  loading: () => <div className="flex flex-col items-center justify-center py-20 gap-4 opacity-50">
+    <Loader2 className="animate-spin text-zinc-400" size={32} />
+    <p className="text-[10px] font-black uppercase tracking-[0.3em]">ANALYZING JURISDICTION DATA...</p>
+  </div>
 });
 
 interface Resident {
@@ -104,7 +113,7 @@ export default function BarangayHeadDashboard() {
   const [disasterType, setDisasterType] = useState('General Emergency');
   const [disasterDesc, setDisasterDesc] = useState('');
   const [focusResident, setFocusResident] = useState<Resident | null>(null);
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'history' | 'residents'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'analytics' | 'residents'>('dashboard');
   const [hqLocation, setHqLocation] = useState<{ lat: number, lng: number } | null>(null);
   const [isSettingLocation, setIsSettingLocation] = useState(false);
   const [showIncidentLog, setShowIncidentLog] = useState(false);
@@ -306,6 +315,7 @@ export default function BarangayHeadDashboard() {
     safe: residents.filter(r => r.isSafe).length,
     missing: residents.filter(r => r.hasResponded === false || r.isSafe === false).length,
     responded: residents.filter(r => r.hasResponded).length,
+    responders: residents.filter(r => r.role === 'responder').length,
   }), [residents]);
 
   if (loading) return (
@@ -344,7 +354,7 @@ export default function BarangayHeadDashboard() {
           {[
             { id: 'dashboard', label: 'Dashboard', icon: Activity },
             { id: 'residents', label: 'Residents', icon: Users },
-            { id: 'history', label: 'History', icon: BarChart3 },
+            { id: 'analytics', label: 'Analytics', icon: BarChart3 },
           ].map((item) => (
             <button
               key={item.id}
@@ -406,7 +416,13 @@ export default function BarangayHeadDashboard() {
               Sign Out
             </button>
           </div>
-          <button className="lg:hidden w-full flex items-center justify-center p-3 text-red-600">
+          <button
+            onClick={() => {
+              localStorage.removeItem('user');
+              router.push('/login');
+            }}
+            className="lg:hidden w-full flex items-center justify-center p-3 text-red-600 hover:bg-red-50 rounded-2xl transition-colors"
+          >
             <LogOut size={24} />
           </button>
         </div>
@@ -418,7 +434,7 @@ export default function BarangayHeadDashboard() {
         <header className="sticky top-0 z-40 w-full bg-zinc-50/80 dark:bg-black/80 backdrop-blur-md border-b border-zinc-200 dark:border-zinc-800 p-6 lg:px-12 flex flex-col md:flex-row justify-between items-center gap-6">
           <div className="flex flex-col">
             <h2 className="text-2xl font-black tracking-tight uppercase leading-none mb-1">
-              {activeTab === 'dashboard' ? 'Barangay Dashboard' : activeTab === 'residents' ? 'Resident List' : 'History'}
+              {activeTab === 'dashboard' ? 'Barangay Dashboard' : activeTab === 'residents' ? 'Resident List' : 'Jurisdiction Analytics'}
             </h2>
             <div className="flex items-center gap-2 text-zinc-400">
               <MapPin size={10} className="text-red-600" />
@@ -427,6 +443,7 @@ export default function BarangayHeadDashboard() {
           </div>
 
           <div className="flex items-center gap-3">
+            <ThemeToggle />
             <div className={`p-4 lg:px-6 lg:py-4 rounded-[2rem] border ${borderTheme} ${primaryTheme} transition-all duration-700 flex items-center gap-4 shadow-sm`}>
               <div className="flex flex-col">
                 <p className="text-[8px] font-black uppercase tracking-[0.2em] opacity-60">Barangay Status</p>
@@ -503,7 +520,11 @@ export default function BarangayHeadDashboard() {
                       </div>
                       <div className="bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 rounded-[2rem] flex flex-col justify-center">
                         <p className="text-[10px] font-black tracking-widest text-zinc-500 uppercase mb-2">Responders</p>
-                        <p className="text-4xl font-black tracking-tighter">{Math.floor(stats.total * 0.05)}</p>
+                        <p className="text-4xl font-black tracking-tighter">{stats.responders}</p>
+                      </div>
+                      <div className="bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 rounded-[2rem] flex flex-col justify-center">
+                        <p className="text-[10px] font-black tracking-widest text-zinc-500 uppercase mb-2">Evacuation Centers</p>
+                        <p className="text-4xl font-black tracking-tighter">{evacuationCenters.length}</p>
                       </div>
                     </div>
                   </div>
@@ -514,7 +535,7 @@ export default function BarangayHeadDashboard() {
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <MapIcon className="text-red-600" size={24} />
-                      <h3 className="text-sm font-black uppercase tracking-widest">JURISDICTIONAL RADAR</h3>
+                      <h3 className="text-sm font-black uppercase tracking-widest">Map</h3>
                     </div>
                     <div className="flex items-center gap-4">
                       {isSettingLocation || isSettingEC ? (
@@ -526,25 +547,21 @@ export default function BarangayHeadDashboard() {
                         </div>
                       ) : (
                         <div className="flex gap-2">
-                           <button
-                             onClick={() => setIsSettingLocation(!isSettingLocation)}
-                             className={`h-10 px-6 rounded-xl border font-black uppercase tracking-widest text-[9px] transition-all border-zinc-200 text-zinc-500 hover:border-zinc-900 hover:text-zinc-900`}
-                           >
-                             SET BARANGAY HQ
-                           </button>
-                           <button
-                             onClick={() => setIsSettingEC(true)}
-                             className="h-10 px-6 rounded-xl bg-emerald-600 text-white font-black uppercase tracking-widest text-[9px] hover:bg-emerald-700 transition-all flex items-center gap-2"
-                           >
-                             <Landmark size={12} />
-                             ESTABLISH SAFE ZONE
-                           </button>
+                          <button
+                            onClick={() => setIsSettingLocation(!isSettingLocation)}
+                            className={`h-10 px-6 rounded-xl border font-black uppercase tracking-widest text-[9px] transition-all border-zinc-200 text-zinc-500 hover:border-zinc-900 hover:text-zinc-900`}
+                          >
+                            SET BARANGAY HALL
+                          </button>
+                          <button
+                            onClick={() => setIsSettingEC(true)}
+                            className="h-10 px-6 rounded-xl bg-emerald-600 text-white font-black uppercase tracking-widest text-[9px] hover:bg-emerald-700 transition-all flex items-center gap-2"
+                          >
+                            <Landmark size={12} />
+                            SET EVACUATION CENTER
+                          </button>
                         </div>
                       )}
-                      <div className="flex items-center gap-2">
-                        <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span>
-                        <p className="text-[9px] font-black uppercase tracking-widest text-zinc-400">LIVE SATELLITE FEED</p>
-                      </div>
                     </div>
                   </div>
                   <div className={`h-[700px] shadow-2xl relative transition-all overflow-hidden rounded-[3rem] border border-zinc-200 dark:border-zinc-800 ${(isSettingLocation || isSettingEC) ? 'ring-8 ring-emerald-600/20' : ''}`}>
@@ -767,12 +784,8 @@ export default function BarangayHeadDashboard() {
             </div>
           )}
 
-          {activeTab === 'history' && (
-            <div className="py-20 flex flex-col items-center justify-center opacity-30 text-center space-y-4">
-              <BarChart3 size={64} strokeWidth={1} />
-              <p className="text-xs font-black uppercase tracking-[0.3em]">Historical Archive Encryption Active</p>
-              <p className="max-w-xs text-[10px] font-bold uppercase leading-relaxed text-zinc-400 italic">Historical data logs are currently being synchronized with the central server.</p>
-            </div>
+          {activeTab === 'analytics' && (
+            <AnalyticsDashboard barangay={user?.barangay} />
           )}
         </div>
       </main>
@@ -865,11 +878,11 @@ export default function BarangayHeadDashboard() {
                     <p className="text-[10px] font-black uppercase tracking-widest text-emerald-600">Manage jurisdictional safe zones</p>
                   </div>
                 </div>
-                <button 
+                <button
                   onClick={() => {
                     setShowECManager(false);
                     setEcPosition(null);
-                  }} 
+                  }}
                   className="p-2 hover:bg-zinc-100 dark:hover:bg-zinc-900 rounded-full transition-colors"
                 >
                   <XCircle size={24} className="text-zinc-400" />

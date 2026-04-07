@@ -51,7 +51,10 @@ class NotificationProvider with ChangeNotifier {
   }
 
   List<AppNotification> get notifications {
-    final list = [..._notifications];
+    final now = DateTime.now();
+    final list = _notifications.where((n) {
+      return now.difference(n.time).inDays < 1;
+    }).toList();
     list.sort((a, b) => b.time.compareTo(a.time));
     return list;
   }
@@ -118,13 +121,19 @@ class NotificationProvider with ChangeNotifier {
 
   AppNotification _parseWSNotification(Map<String, dynamic> data) {
     final String type = data['type'] ?? 'Alert';
+    DateTime parsedTime = DateTime.now();
+    if (data['createdAt'] != null) {
+      try {
+        parsedTime = DateTime.parse(data['createdAt'].toString());
+      } catch (_) {}
+    }
     return AppNotification(
       id: data['id']?.toString() ?? DateTime.now().millisecondsSinceEpoch.toString(),
       type: type,
       category: _mapCategory(data['category']),
       title: data['title'] ?? 'Emergency Update',
       desc: data['desc'] ?? 'A new situational report has been logged.',
-      time: DateTime.now(),
+      time: parsedTime,
       icon: _mapIcon(type),
       color: _mapColor(type),
       latitude: data['latitude'] != null ? double.tryParse(data['latitude'].toString()) : null,

@@ -242,7 +242,7 @@ class _SafetyOverlayState extends State<SafetyOverlay> {
               size: 20,
             ),
             onPressed: widget.onToggleMinimized,
-            tooltip: 'Minimize alert',
+            tooltip: 'Close',
           ),
         ),
       ],

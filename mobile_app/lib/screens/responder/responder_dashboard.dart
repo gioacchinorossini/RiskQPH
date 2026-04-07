@@ -21,8 +21,11 @@ import '../common/profile_tab_sliver.dart';
 import '../barangay_head/reported_incidents_management_screen.dart';
 import '../common/notifications_tab_sliver.dart';
 import '../../widgets/dashboard_info_card.dart';
+import '../user/family_management_screen.dart';
+import '../barangay_head/evacuation_qr_scanner_screen.dart';
 import 'package:http/http.dart' as http;
 import 'package:flutter/services.dart';
+import '../../services/notification_service.dart';
 import 'dart:io';
 
 class ResponderDashboard extends StatefulWidget {
@@ -42,6 +45,7 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
   LatLng? _previewLocation;
   LatLng? _hqLocation;
   List<Map<String, dynamic>> _userReports = [];
+  static final Set<String> _notifiedIncidents = {};
 
   final Map<String, IconData> _disasterIcons = {
     'Flooding': Icons.water,
@@ -113,7 +117,14 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
       }
       eventProvider.startConnectivityMonitoring();
       Provider.of<AttendanceProvider>(context, listen: false).loadAttendances();
-      Provider.of<NotificationProvider>(context, listen: false).addDummyData();
+      final notificationProvider = Provider.of<NotificationProvider>(
+        context,
+        listen: false,
+      );
+      notificationProvider.addDummyData();
+      notificationProvider.addListener(_onNotificationUpdate);
+      notificationProvider.connect();
+      _checkNotificationPermissions();
       _determinePreviewPosition();
       _fetchReports(); // Fetch incident reports for map preview
       _checkDisaster(); // Initial check
@@ -141,9 +152,13 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
                 double.parse(r['longitude'].toString()),
               ),
               'isResolved': r['isResolved'],
+              'latitude': double.parse(r['latitude'].toString()),
+              'longitude': double.parse(r['longitude'].toString()),
+              'createdAt': r['createdAt'],
             };
           }).toList();
         });
+        _checkIncidentProximity();
       }
     } catch (e) {
       debugPrint('Error fetching reports for preview: $e');
@@ -400,10 +415,389 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
     if (mounted) Navigator.pushReplacementNamed(context, '/login');
   }
 
+  Future<void> _checkNotificationPermissions() async {
+    final granted = await NotificationService.checkPermissions();
+    if (!granted && mounted) {
+      _showPermissionDialog();
+    }
+  }
+
+  void _onNotificationUpdate() {
+    if (!mounted) return;
+    final provider = Provider.of<NotificationProvider>(context, listen: false);
+    if (provider.latestIncoming != null) {
+      final n = provider.latestIncoming!;
+      double distance = 0;
+      bool withinRange = true;
+
+      // Apply territory-wide geospatial filtering (500km threshold) and age filter (under 1 day)
+      if (n.latitude != null &&
+          n.longitude != null &&
+          _previewLocation != null) {
+        distance = Geolocator.distanceBetween(
+          _previewLocation!.latitude,
+          _previewLocation!.longitude,
+          n.latitude!,
+          n.longitude!,
+        );
+        withinRange = distance < 500000;
+      }
+
+      // Past 1 day filter
+      final bool isTooOld = DateTime.now().difference(n.time).inDays >= 1;
+
+      if (withinRange && !isTooOld) {
+        _showHazardAlertWindow(n, distance);
+        NotificationService.showNotification(
+          id: n.id.hashCode,
+          title: n.title,
+          body: n.desc,
+        );
+        _fetchReports();
+      }
+      provider.clearLatest();
+    }
+  }
+
+  void _showHazardAlertWindow(AppNotification n, double distance) {
+    String distanceStr = '';
+    if (distance > 0) {
+      distanceStr = distance > 1000
+          ? '${(distance / 1000).toStringAsFixed(1)}km'
+          : '${distance.toInt()}m';
+    }
+
+    showDialog(
+      context: context,
+      barrierDismissible: true,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        surfaceTintColor: Colors.transparent,
+        clipBehavior: Clip.antiAlias,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(24),
+          side: BorderSide(color: n.color.withOpacity(0.3), width: 1.5),
+        ),
+        titlePadding: EdgeInsets.zero,
+        contentPadding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+        title: Container(
+          padding: const EdgeInsets.fromLTRB(20, 24, 20, 20),
+          decoration: BoxDecoration(
+            color: n.color.withOpacity(0.12),
+            border: Border(
+              bottom: BorderSide(color: n.color.withOpacity(0.2), width: 1),
+            ),
+          ),
+          child: Wrap(
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 12,
+            runSpacing: 4,
+            children: [
+              Icon(n.icon, color: n.color, size: 32),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'EMERGENCY ALERT',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.5,
+                      fontSize: 14,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  Text(
+                    'HAZARD WARNING',
+                    style: TextStyle(
+                      fontWeight: FontWeight.w900,
+                      color: n.color,
+                      fontSize: 10,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              n.title.toUpperCase(),
+              style: TextStyle(
+                fontWeight: FontWeight.w900,
+                color: n.color,
+                fontSize: 13,
+                letterSpacing: 1.2,
+              ),
+            ),
+            if (n.desc.trim().isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Text(
+                n.desc,
+                style: const TextStyle(
+                  color: Colors.black87,
+                  height: 1.5,
+                  fontSize: 14,
+                ),
+              ),
+            ],
+            const SizedBox(height: 20),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: n.color.withOpacity(0.08),
+                borderRadius: BorderRadius.circular(14),
+                border: Border.all(color: n.color.withOpacity(0.15)),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.location_on, size: 16, color: n.color),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      distance > 0
+                          ? 'Hazard $distanceStr away. Response needed.'
+                          : 'New hazardous incident logged in your territory.',
+                      style: TextStyle(
+                        color: n.color.withOpacity(0.9),
+                        fontWeight: FontWeight.w800,
+                        fontSize: 11,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: n.color,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              onPressed: () {
+                Navigator.pop(context);
+                setState(() {
+                  _selectedIndex = 0; // Center map or dashboard
+                });
+              },
+              child: const Text(
+                'VIEW DETAILS',
+                style: TextStyle(
+                  fontWeight: FontWeight.w900,
+                  fontSize: 13,
+                  letterSpacing: 0.5,
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              child: const Text(
+                'DISMISS ALERT',
+                style: TextStyle(
+                  color: Colors.grey,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showPermissionDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        title: const Text(
+          'STAY ALERT & READY',
+          style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 1),
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.notifications_active_outlined,
+              size: 64,
+              color: Color(0xFF006064),
+            ),
+            SizedBox(height: 16),
+            Text(
+              'As a responder, immediate awareness is critical. Enable notifications to receive instant hazard alerts and extraction requests in your area.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey, height: 1.5, fontSize: 13),
+            ),
+          ],
+        ),
+        actionsPadding: const EdgeInsets.only(bottom: 16, right: 16),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'LATER',
+              style: TextStyle(
+                color: Colors.grey[400],
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF006064),
+              shape: const StadiumBorder(),
+              elevation: 0,
+            ),
+            onPressed: () async {
+              Navigator.pop(context);
+              await NotificationService.requestPermissions();
+            },
+            child: const Text(
+              'ENABLE NOW',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _checkIncidentProximity() {
+    if (_previewLocation == null || _userReports.isEmpty) return;
+
+    final notificationProvider = Provider.of<NotificationProvider>(
+      context,
+      listen: false,
+    );
+
+    for (var report in _userReports) {
+      if (report['latitude'] == null || report['longitude'] == null) continue;
+
+      final double distance = Geolocator.distanceBetween(
+        _previewLocation!.latitude,
+        _previewLocation!.longitude,
+        report['latitude'],
+        report['longitude'],
+      );
+
+      // Notify if within 500km (geospatial threshold) and not too old (1 day) and not already notified
+      final bool isWithinRange = distance < 500000;
+
+      DateTime reportedTime = DateTime.now();
+      try {
+        if (report['createdAt'] != null) {
+          reportedTime = DateTime.parse(report['createdAt']);
+        }
+      } catch (_) {}
+
+      final bool isTooOld = DateTime.now().difference(reportedTime).inDays >= 1;
+
+      if (isWithinRange && !isTooOld &&
+          !_notifiedIncidents.contains(report['id']?.toString() ?? '')) {
+        final String type = report['type'] ?? 'Incident';
+        final Color incidentColor = _disasterColors[type] ?? Colors.red;
+
+        DateTime reportedTime = DateTime.now();
+        try {
+          if (report['createdAt'] != null) {
+            reportedTime = DateTime.parse(report['createdAt']);
+          }
+        } catch (_) {}
+
+        notificationProvider.addNotification(
+          AppNotification(
+            id: report['id']?.toString() ?? DateTime.now().toString(),
+            type: 'Nearby Warning',
+            category: AppNotificationType.Proximity,
+            title: 'Nearby $type Alert',
+            desc:
+                'An incident was reported approximately ${distance.toInt()}m from your current location. Move with extreme caution.',
+            time: reportedTime,
+            icon: _disasterIcons[type] ?? Icons.warning_amber_rounded,
+            color: incidentColor,
+          ),
+        );
+
+        if (report['id'] != null) {
+          _notifiedIncidents.add(report['id'].toString());
+        }
+
+        NotificationService.showNotification(
+          id: (report['id']?.toString() ?? '').hashCode,
+          title: 'Nearby $type Alert',
+          body: 'Hazard reported ${distance.toInt()}m away. Response needed.',
+        );
+
+        final bool isFresh =
+            DateTime.now().difference(reportedTime).inMinutes <= 5;
+
+        if (isFresh && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    _disasterIcons[type] ?? Icons.warning_amber_rounded,
+                    color: Colors.white,
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Nearby $type! (${distance.toInt()}m)',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              backgroundColor: incidentColor,
+              behavior: SnackBarBehavior.floating,
+              shape: const StadiumBorder(),
+              margin: const EdgeInsets.fromLTRB(48, 0, 48, 100),
+              elevation: 4,
+              duration: const Duration(seconds: 5),
+            ),
+          );
+        }
+      }
+    }
+  }
+
   @override
   void dispose() {
     _disasterSseClient?.close(force: true);
     _residentsSseClient?.close(force: true);
+    // Use a try-catch to safely remove listener during disposal
+    try {
+      Provider.of<NotificationProvider>(
+        context,
+        listen: false,
+      ).removeListener(_onNotificationUpdate);
+    } catch (_) {}
     _scrollController.dispose();
     _scrollThrottleTimer?.cancel();
     _previewMapController.dispose();
@@ -899,30 +1293,34 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
                           size: 32,
                         ),
                         const SizedBox(width: 12),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              isActive
-                                  ? 'EMERGENCY ACTIVE'
-                                  : 'SYSTEM STATUS: SAFE',
-                              style: TextStyle(
-                                fontWeight: FontWeight.bold,
-                                color: isActive ? Colors.red : Colors.green,
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                isActive
+                                    ? 'EMERGENCY ACTIVE'
+                                    : 'SYSTEM STATUS: SAFE',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: isActive ? Colors.red : Colors.green,
+                                ),
                               ),
-                            ),
-                            Text(
-                              isActive
-                                  ? '$missingCount residents missing.'
-                                  : 'All residents safe.',
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: isActive
-                                    ? Colors.red[700]
-                                    : Colors.green[700],
+                              Text(
+                                isActive
+                                    ? '$missingCount residents missing.'
+                                    : 'All residents safe.',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: isActive
+                                      ? Colors.red[700]
+                                      : Colors.green[700],
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                                maxLines: 2,
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ],
                     ),
@@ -934,16 +1332,10 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
                   ],
                 ),
               ),
-              if (_residents.isNotEmpty) ...[
-                const SizedBox(height: 24),
-                Text(
-                  'Missing People',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-                const SizedBox(height: 12),
+              const SizedBox(height: 24),
+              if (isActive && _residents.any((r) => r['isSafe'] == false)) ...[
                 Container(
+                  margin: const EdgeInsets.only(bottom: 16),
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
                     color: Colors.white,
@@ -976,16 +1368,24 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
-                              'Residents currently missing or requiring emergency extraction.',
+                            Text(
+                              'Missing People',
                               style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w500,
-                                color: Colors.grey,
-                                height: 1.2,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[700],
                               ),
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 4),
+                            Text(
+                              '$missingCount',
+                              style: const TextStyle(
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.red,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
                             ClipRRect(
                               borderRadius: BorderRadius.circular(10),
                               child: LinearProgressIndicator(
@@ -996,24 +1396,22 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
                                 valueColor: const AlwaysStoppedAnimation<Color>(
                                   Colors.red,
                                 ),
-                                minHeight: 10,
+                                minHeight: 8,
                               ),
                             ),
                             const SizedBox(height: 6),
-                            Align(
-                              alignment: Alignment.centerRight,
-                              child: Text(
-                                '$missingCount / ${_residents.length}',
-                                style: const TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w900,
-                                  color: Colors.red,
-                                ),
+                            Text(
+                              'Out of ${_residents.length} total residents',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey[500],
+                                fontWeight: FontWeight.w400,
                               ),
                             ),
                           ],
                         ),
                       ),
+                      Icon(Icons.chevron_right, color: Colors.grey[300]),
                     ],
                   ),
                 ),
@@ -1024,7 +1422,6 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
                 _buildRescueRequestsList(),
               ],
 
-              const SizedBox(height: 24),
               DashboardInfoCard(
                 icon: Icons.people_outline,
                 title: 'Registered Residents',
@@ -1054,8 +1451,11 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
   }
 
   Widget _buildQuickActionsGrid(Color primaryColor) {
+    final double screenWidth = MediaQuery.of(context).size.width;
+    final double itemWidth = (screenWidth - 32) / 4;
+
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: 16),
+      padding: const EdgeInsets.symmetric(vertical: 12),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
@@ -1067,50 +1467,65 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
           ),
         ],
       ),
-      child: Column(
+      child: Wrap(
+        alignment: WrapAlignment.start,
+        spacing: 0,
+        runSpacing: 16,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildQuickActionItem(
-                icon: Icons.report_gmailerrorred_outlined,
-                label: 'Incidents',
-                color: Colors.red,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const ReportedIncidentsManagementScreen(),
-                  ),
-                ),
+          _buildQuickActionItem(
+            width: itemWidth,
+            icon: Icons.report_gmailerrorred_outlined,
+            label: 'Incidents',
+            color: Colors.red,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const ReportedIncidentsManagementScreen(),
               ),
-              _buildQuickActionItem(
-                icon: Icons.qr_code_scanner,
-                label: 'Scan QR',
-                color: Colors.blue,
-                onTap: () {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('QR Scanner coming soon...')),
-                  );
-                },
+            ),
+          ),
+          _buildQuickActionItem(
+            width: itemWidth,
+            icon: Icons.family_restroom_outlined,
+            label: 'Add Family',
+            color: Colors.indigo,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const FamilyManagementScreen(),
               ),
-              _buildQuickActionItem(
-                icon: Icons.person_outline,
-                label: 'Profile',
-                color: Colors.teal,
-                onTap: () => setState(() => _selectedIndex = 3),
+            ),
+          ),
+          _buildQuickActionItem(
+            width: itemWidth,
+            icon: Icons.qr_code_scanner,
+            label: 'Scan QR',
+            color: Colors.blue,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const EvacuationQrScannerScreen(),
               ),
-              _buildQuickActionItem(
-                icon: Icons.edit_note,
-                label: 'Edit Profile',
-                color: Colors.orange,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => const EditProfileScreen(),
-                  ),
-                ),
+            ),
+          ),
+          _buildQuickActionItem(
+            width: itemWidth,
+            icon: Icons.person_outline,
+            label: 'Profile',
+            color: Colors.teal,
+            onTap: () => setState(() => _selectedIndex = 3),
+          ),
+          _buildQuickActionItem(
+            width: itemWidth,
+            icon: Icons.edit_note,
+            label: 'Edit Profile',
+            color: Colors.orange,
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const EditProfileScreen(),
               ),
-            ],
+            ),
           ),
         ],
       ),
@@ -1260,25 +1675,38 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
     required String label,
     required Color color,
     required VoidCallback onTap,
+    required double width,
   }) {
     return InkWell(
       onTap: onTap,
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: color.withOpacity(0.1),
-              shape: BoxShape.circle,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        width: width,
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 22),
             ),
-            child: Icon(icon, color: color, size: 24),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
-          ),
-        ],
+            const SizedBox(height: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey[800],
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
       ),
     );
   }

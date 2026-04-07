@@ -160,7 +160,7 @@ class _UserDashboardState extends State<UserDashboard> {
       double distance = 0;
       bool withinRange = true;
 
-      // Apply territory-wide geospatial filtering (500km threshold)
+      // Apply territory-wide geospatial filtering (500km threshold) and age filter (under 1 day)
       if (n.latitude != null &&
           n.longitude != null &&
           _previewLocation != null) {
@@ -174,7 +174,10 @@ class _UserDashboardState extends State<UserDashboard> {
         withinRange = distance < 500000;
       }
 
-      if (withinRange) {
+      // Past 1 day filter
+      final bool isTooOld = DateTime.now().difference(n.time).inDays >= 1;
+
+      if (withinRange && !isTooOld) {
         _showHazardAlertWindow(n, distance);
         NotificationService.showNotification(
           id: n.id.hashCode,
@@ -606,8 +609,19 @@ class _UserDashboardState extends State<UserDashboard> {
         report['longitude'],
       );
 
-      // Notify if within 500 meters and not already notified
-      if (distance < 500 &&
+      // Notify if within 500km (geospatial threshold) and not too old (1 day) and not already notified
+      final bool isWithinRange = distance < 500000;
+
+      DateTime reportedTime = DateTime.now();
+      try {
+        if (report['createdAt'] != null) {
+          reportedTime = DateTime.parse(report['createdAt']);
+        }
+      } catch (_) {}
+
+      final bool isTooOld = DateTime.now().difference(reportedTime).inDays >= 1;
+
+      if (isWithinRange && !isTooOld &&
           !_notifiedIncidents.contains(report['id'].toString())) {
         final String type = report['type'] ?? 'Incident';
         final Color incidentColor = _disasterColors[type] ?? Colors.red;
@@ -1396,6 +1410,9 @@ class _UserDashboardState extends State<UserDashboard> {
         .where((r) => r['isSafe'] == false)
         .length;
 
+    final double screenWidth = MediaQuery.of(context).size.width;
+    final double itemWidth = (screenWidth - 32) / 4;
+
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(16, 32, 16, 16),
       sliver: SliverList(
@@ -1414,11 +1431,12 @@ class _UserDashboardState extends State<UserDashboard> {
               ],
             ),
             child: Wrap(
-              alignment: WrapAlignment.spaceEvenly,
-              spacing: 12,
+              alignment: WrapAlignment.start,
+              spacing: 0,
               runSpacing: 16,
               children: [
                 _buildQuickActionItem(
+                  width: itemWidth,
                   icon: Icons.report_gmailerrorred_outlined,
                   label: 'Incidents',
                   color: Colors.red,
@@ -1432,6 +1450,7 @@ class _UserDashboardState extends State<UserDashboard> {
                   },
                 ),
                 _buildQuickActionItem(
+                  width: itemWidth,
                   icon: Icons.edit_note,
                   label: 'Edit Profile',
                   color: Colors.blue,
@@ -1445,6 +1464,7 @@ class _UserDashboardState extends State<UserDashboard> {
                         ),
                 ),
                 _buildQuickActionItem(
+                  width: itemWidth,
                   icon: Icons.family_restroom_outlined,
                   label: 'Add Family',
                   color: Colors.indigo,
@@ -1459,6 +1479,7 @@ class _UserDashboardState extends State<UserDashboard> {
                         ),
                 ),
                 _buildQuickActionItem(
+                  width: itemWidth,
                   icon: Icons.person_outline,
                   label: 'Profile',
                   color: Colors.teal,
@@ -1575,7 +1596,7 @@ class _UserDashboardState extends State<UserDashboard> {
               ],
             ),
           ),
-          if (_residents.isNotEmpty) ...[
+          if (isActive && _residents.isNotEmpty) ...[
             const SizedBox(height: 24),
             Text(
               'Missing People',
@@ -1867,6 +1888,7 @@ class _UserDashboardState extends State<UserDashboard> {
     required String label,
     required Color color,
     required VoidCallback onTap,
+    required double width,
   }) {
     final bool isVerified =
         Provider.of<AuthProvider>(
@@ -1875,12 +1897,12 @@ class _UserDashboardState extends State<UserDashboard> {
         ).currentUser?.barangayMemberStatus ==
         'verified';
     final Color displayColor = isVerified ? color : Colors.grey;
-
+ 
     return InkWell(
       onTap: isVerified ? onTap : null,
       borderRadius: BorderRadius.circular(12),
       child: Container(
-        width: 65,
+        width: width,
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Column(
           children: [
@@ -1901,6 +1923,8 @@ class _UserDashboardState extends State<UserDashboard> {
                 color: isVerified ? Colors.grey[800] : Colors.grey[400],
               ),
               textAlign: TextAlign.center,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ],
         ),

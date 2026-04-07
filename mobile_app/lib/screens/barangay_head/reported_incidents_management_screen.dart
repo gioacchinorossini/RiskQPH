@@ -8,10 +8,12 @@ class ReportedIncidentsManagementScreen extends StatefulWidget {
   const ReportedIncidentsManagementScreen({super.key});
 
   @override
-  State<ReportedIncidentsManagementScreen> createState() => _ReportedIncidentsManagementScreenState();
+  State<ReportedIncidentsManagementScreen> createState() =>
+      _ReportedIncidentsManagementScreenState();
 }
 
-class _ReportedIncidentsManagementScreenState extends State<ReportedIncidentsManagementScreen> {
+class _ReportedIncidentsManagementScreenState
+    extends State<ReportedIncidentsManagementScreen> {
   List<dynamic> _reports = [];
   bool _isLoading = true;
 
@@ -96,7 +98,9 @@ class _ReportedIncidentsManagementScreenState extends State<ReportedIncidentsMan
           Navigator.pop(context); // Close detail bottom sheet
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Incident ${action == "delete" ? "removed" : action + "d"}'),
+              content: Text(
+                'Incident ${action == "delete" ? "removed" : action + "d"}',
+              ),
               backgroundColor: action == 'delete' ? Colors.red : Colors.green,
             ),
           );
@@ -116,7 +120,12 @@ class _ReportedIncidentsManagementScreenState extends State<ReportedIncidentsMan
           _buildAppBar(),
           if (_isLoading)
             const SliverFillRemaining(
-              child: Center(child: CircularProgressIndicator(color: Color(0xFFB71C1C), strokeWidth: 3)),
+              child: Center(
+                child: CircularProgressIndicator(
+                  color: Color(0xFFB71C1C),
+                  strokeWidth: 3,
+                ),
+              ),
             )
           else if (_reports.isEmpty)
             SliverFillRemaining(child: _buildEmptyState())
@@ -150,11 +159,18 @@ class _ReportedIncidentsManagementScreenState extends State<ReportedIncidentsMan
       backgroundColor: const Color(0xFF8E0000),
       elevation: 0,
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 18),
+        icon: const Icon(
+          Icons.arrow_back_ios_new,
+          color: Colors.white,
+          size: 18,
+        ),
         onPressed: () => Navigator.pop(context),
       ),
       actions: [
-        IconButton(icon: const Icon(Icons.refresh_rounded, color: Colors.white), onPressed: _fetchReports),
+        IconButton(
+          icon: const Icon(Icons.refresh_rounded, color: Colors.white),
+          onPressed: _fetchReports,
+        ),
       ],
       flexibleSpace: FlexibleSpaceBar(
         background: Container(
@@ -170,7 +186,11 @@ class _ReportedIncidentsManagementScreenState extends State<ReportedIncidentsMan
               Positioned(
                 right: -20,
                 bottom: -20,
-                child: Icon(Icons.security, size: 200, color: Colors.white.withOpacity(0.08)),
+                child: Icon(
+                  Icons.security,
+                  size: 200,
+                  color: Colors.white.withOpacity(0.08),
+                ),
               ),
               Padding(
                 padding: const EdgeInsets.all(24.0),
@@ -178,15 +198,37 @@ class _ReportedIncidentsManagementScreenState extends State<ReportedIncidentsMan
                   mainAxisAlignment: MainAxisAlignment.end,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('INCIDENT COMMAND', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w900, letterSpacing: -0.5)),
+                    const Text(
+                      'INCIDENT REPORTS',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 24,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
                     const SizedBox(height: 4),
-                    Text('ADMINISTRATIVE JURISDICTION TERMINAL', style: TextStyle(color: Colors.white.withOpacity(0.8), fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1.2)),
+                    Text(
+                      'Reports made by residents',
+                      style: TextStyle(
+                        color: Colors.white.withOpacity(0.8),
+                        fontSize: 10,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: 1.2,
+                      ),
+                    ),
                     const SizedBox(height: 16),
                     Row(
                       children: [
-                        _buildStatsChip(Icons.radar_rounded, '${_reports.where((r) => r['isResolved'] == false).length} Active'),
+                        _buildStatsChip(
+                          Icons.radar_rounded,
+                          '${_reports.where((r) => r['isResolved'] == false).length} Active',
+                        ),
                         const SizedBox(width: 12),
-                        _buildStatsChip(Icons.check_circle_outline_rounded, '${_reports.where((r) => r['isResolved'] == true).length} Resolved'),
+                        _buildStatsChip(
+                          Icons.check_circle_outline_rounded,
+                          '${_reports.where((r) => r['isResolved'] == true).length} Resolved',
+                        ),
                       ],
                     ),
                   ],
@@ -202,13 +244,23 @@ class _ReportedIncidentsManagementScreenState extends State<ReportedIncidentsMan
   Widget _buildStatsChip(IconData icon, String label) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(color: Colors.black.withOpacity(0.15), borderRadius: BorderRadius.circular(12)),
+      decoration: BoxDecoration(
+        color: Colors.black.withOpacity(0.15),
+        borderRadius: BorderRadius.circular(12),
+      ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(icon, color: Colors.white, size: 14),
           const SizedBox(width: 6),
-          Text(label, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w600)),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );
@@ -226,14 +278,21 @@ class _ReportedIncidentsManagementScreenState extends State<ReportedIncidentsMan
       if (rep['createdAt'] != null) {
         final dt = DateTime.parse(rep['createdAt']);
         final diff = DateTime.now().difference(dt);
-        if (diff.inMinutes < 60) timeStr = '${diff.inMinutes}M';
-        else if (diff.inHours < 24) timeStr = '${diff.inHours}H';
-        else timeStr = '${diff.inDays}D';
+        if (diff.inMinutes < 60)
+          timeStr = '${diff.inMinutes}M';
+        else if (diff.inHours < 24)
+          timeStr = '${diff.inHours}H';
+        else
+          timeStr = '${diff.inDays}D';
       }
     } catch (_) {}
 
     return Container(
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(24), border: Border.all(color: Colors.black.withOpacity(0.05), width: 1)),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: Colors.black.withOpacity(0.05), width: 1),
+      ),
       child: Material(
         color: Colors.transparent,
         child: InkWell(
@@ -248,13 +307,37 @@ class _ReportedIncidentsManagementScreenState extends State<ReportedIncidentsMan
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: (isResolved ? Colors.green : (isFalse ? Colors.orange : color)).withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: (isResolved ? Colors.green : (isFalse ? Colors.orange : color)).withOpacity(0.3)),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 3,
                       ),
-                      child: Text(isResolved ? 'RESOLVED' : (isFalse ? 'FALSE' : 'ACTIVE'), style: TextStyle(color: (isResolved ? Colors.green : (isFalse ? Colors.orange : color)), fontSize: 8, fontWeight: FontWeight.w900)),
+                      decoration: BoxDecoration(
+                        color:
+                            (isResolved
+                                    ? Colors.green
+                                    : (isFalse ? Colors.orange : color))
+                                .withOpacity(0.12),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color:
+                              (isResolved
+                                      ? Colors.green
+                                      : (isFalse ? Colors.orange : color))
+                                  .withOpacity(0.3),
+                        ),
+                      ),
+                      child: Text(
+                        isResolved
+                            ? 'RESOLVED'
+                            : (isFalse ? 'FALSE' : 'ACTIVE'),
+                        style: TextStyle(
+                          color: (isResolved
+                              ? Colors.green
+                              : (isFalse ? Colors.orange : color)),
+                          fontSize: 8,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
                     ),
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -294,13 +377,48 @@ class _ReportedIncidentsManagementScreenState extends State<ReportedIncidentsMan
                 const SizedBox(height: 12),
                 Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: Colors.white, shape: BoxShape.circle, border: Border.all(color: isResolved ? Colors.green : color, width: 2)),
-                  child: Icon(icon, color: isResolved ? Colors.green : color, size: 24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: isResolved ? Colors.green : color,
+                      width: 2,
+                    ),
+                  ),
+                  child: Icon(
+                    icon,
+                    color: isResolved ? Colors.green : color,
+                    size: 24,
+                  ),
                 ),
                 const SizedBox(height: 12),
-                Text(type.toUpperCase(), style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 11, color: Color(0xFF263238)), maxLines: 1, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center),
+                Text(
+                  type.toUpperCase(),
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 11,
+                    color: Color(0xFF263238),
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                ),
                 const SizedBox(height: 8),
-                ViewOnMapButton(locationData: rep, label: "TRACK", isPrimary: true),
+                ViewOnMapButton(
+                  locationData: rep,
+                  label: "TRACK",
+                  isPrimary: true,
+                ),
+                const SizedBox(height: 10),
+                Text(
+                  "press for more".toUpperCase(),
+                  style: TextStyle(
+                    color: Colors.grey.shade400,
+                    fontSize: 8,
+                    fontWeight: FontWeight.w900,
+                    letterSpacing: 0.5,
+                  ),
+                ),
               ],
             ),
           ),
@@ -323,11 +441,21 @@ class _ReportedIncidentsManagementScreenState extends State<ReportedIncidentsMan
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
         height: MediaQuery.of(context).size.height * 0.85,
-        decoration: const BoxDecoration(color: Colors.white, borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        ),
         child: Column(
           children: [
             const SizedBox(height: 12),
-            Container(width: 32, height: 4, decoration: BoxDecoration(color: Colors.grey[300], borderRadius: BorderRadius.circular(2))),
+            Container(
+              width: 32,
+              height: 4,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
             Expanded(
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(24),
@@ -336,14 +464,42 @@ class _ReportedIncidentsManagementScreenState extends State<ReportedIncidentsMan
                   children: [
                     Row(
                       children: [
-                        Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(shape: BoxShape.circle, border: Border.all(color: isResolved ? Colors.green : color, width: 2)), child: Icon(icon, color: isResolved ? Colors.green : color, size: 24)),
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isResolved ? Colors.green : color,
+                              width: 2,
+                            ),
+                          ),
+                          child: Icon(
+                            icon,
+                            color: isResolved ? Colors.green : color,
+                            size: 24,
+                          ),
+                        ),
                         const SizedBox(width: 16),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text(type.toUpperCase(), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                              Text(isResolved ? 'RESOLVED' : 'ACTIVE INCIDENT', style: TextStyle(color: (isResolved ? Colors.green : color).withOpacity(0.6), fontSize: 12, fontWeight: FontWeight.w900)),
+                              Text(
+                                type.toUpperCase(),
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              Text(
+                                isResolved ? 'RESOLVED' : 'ACTIVE INCIDENT',
+                                style: TextStyle(
+                                  color: (isResolved ? Colors.green : color)
+                                      .withOpacity(0.6),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                              ),
                             ],
                           ),
                         ),
@@ -351,40 +507,114 @@ class _ReportedIncidentsManagementScreenState extends State<ReportedIncidentsMan
                     ),
                     const SizedBox(height: 24),
                     const Divider(),
-                    ListTile(leading: const Icon(Icons.person_outline), title: const Text('Reporter'), subtitle: Text(reporter.toUpperCase())),
+                    ListTile(
+                      leading: const Icon(Icons.person_outline),
+                      title: const Text('Reporter'),
+                      subtitle: Text(reporter.toUpperCase()),
+                    ),
                     const Divider(),
-                    const Text("INCIDENT DESCRIPTION", style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+                    const Text(
+                      "INCIDENT DESCRIPTION",
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
                     const SizedBox(height: 8),
-                    Text(report['description'] ?? 'No description provided.', style: TextStyle(color: Colors.grey[800], fontSize: 15, height: 1.5)),
+                    Text(
+                      report['description'] ?? 'No description provided.',
+                      style: TextStyle(
+                        color: Colors.grey[800],
+                        fontSize: 15,
+                        height: 1.5,
+                      ),
+                    ),
                     if (report['imageUrl'] != null) ...[
                       const SizedBox(height: 32),
-                      const Text("VISUAL EVIDENCE", style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+                      const Text(
+                        "VISUAL EVIDENCE",
+                        style: TextStyle(
+                          color: Colors.grey,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
                       const SizedBox(height: 12),
-                      ClipRRect(borderRadius: BorderRadius.circular(20), child: Image.network('${ApiConfig.baseUrl}${report['imageUrl']}', width: double.infinity, fit: BoxFit.cover)),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(20),
+                        child: Image.network(
+                          '${ApiConfig.baseUrl}${report['imageUrl']}',
+                          width: double.infinity,
+                          fit: BoxFit.cover,
+                        ),
+                      ),
                     ],
                     const SizedBox(height: 32),
                     const Divider(),
                     const SizedBox(height: 16),
-                    const Text("COMMAND ACTIONS", style: TextStyle(color: Colors.grey, fontSize: 10, fontWeight: FontWeight.bold, letterSpacing: 1.5)),
+                    const Text(
+                      "COMMAND ACTIONS",
+                      style: TextStyle(
+                        color: Colors.grey,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
                     const SizedBox(height: 16),
                     // Action Buttons (Uniform Style)
                     if (!isResolved)
-                      _buildManagementButton(label: "MARK AS RESOLVED", icon: Icons.check_circle_outline, color: Colors.green, onPressed: () => _handleReportAction(report['id'], 'resolve')),
+                      _buildManagementButton(
+                        label: "MARK AS RESOLVED",
+                        icon: Icons.check_circle_outline,
+                        color: Colors.green,
+                        onPressed: () =>
+                            _handleReportAction(report['id'], 'resolve'),
+                      ),
                     const SizedBox(height: 12),
                     if (!isFalse)
-                      _buildManagementButton(label: "REPORT AS FALSE INFORMATION", icon: Icons.flag_outlined, color: Colors.orange, onPressed: () => _handleReportAction(report['id'], 'flag')),
+                      _buildManagementButton(
+                        label: "REPORT AS FALSE INFORMATION",
+                        icon: Icons.flag_outlined,
+                        color: Colors.orange,
+                        onPressed: () =>
+                            _handleReportAction(report['id'], 'flag'),
+                      ),
                     const SizedBox(height: 12),
-                    _buildManagementButton(label: "REMOVE INCIDENT REPORT", icon: Icons.delete_forever_rounded, color: Colors.red, onPressed: () => _handleReportAction(report['id'], 'delete')),
+                    _buildManagementButton(
+                      label: "REMOVE INCIDENT REPORT",
+                      icon: Icons.delete_forever_rounded,
+                      color: Colors.red,
+                      onPressed: () =>
+                          _handleReportAction(report['id'], 'delete'),
+                    ),
                     const SizedBox(height: 24),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton.icon(
                         onPressed: () => Navigator.pop(context),
                         icon: const Icon(Icons.close_rounded, size: 18),
-                        label: const Text('CLOSE PANEL', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                        label: const Text(
+                          'CLOSE PANEL',
+                          style: TextStyle(
+                            fontWeight: FontWeight.w900,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.grey[100], foregroundColor: Colors.black87, elevation: 0, padding: const EdgeInsets.symmetric(vertical: 16),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: BorderSide(color: Colors.black.withOpacity(0.1))),
+                          backgroundColor: Colors.grey[100],
+                          foregroundColor: Colors.black87,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            side: BorderSide(
+                              color: Colors.black.withOpacity(0.1),
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -399,16 +629,33 @@ class _ReportedIncidentsManagementScreenState extends State<ReportedIncidentsMan
     );
   }
 
-  Widget _buildManagementButton({required String label, required IconData icon, required Color color, required VoidCallback onPressed}) {
+  Widget _buildManagementButton({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onPressed,
+  }) {
     return SizedBox(
       width: double.infinity,
       child: ElevatedButton.icon(
         onPressed: onPressed,
         icon: Icon(icon, size: 18),
-        label: Text(label, style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+        label: Text(
+          label,
+          style: const TextStyle(
+            fontWeight: FontWeight.w900,
+            letterSpacing: 0.5,
+          ),
+        ),
         style: ElevatedButton.styleFrom(
-          backgroundColor: color.withOpacity(0.08), foregroundColor: color, padding: const EdgeInsets.symmetric(vertical: 16), elevation: 0,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14), side: BorderSide(color: color.withOpacity(0.2))),
+          backgroundColor: color.withOpacity(0.08),
+          foregroundColor: color,
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+            side: BorderSide(color: color.withOpacity(0.2)),
+          ),
         ),
       ),
     );
@@ -419,11 +666,26 @@ class _ReportedIncidentsManagementScreenState extends State<ReportedIncidentsMan
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.assignment_turned_in_outlined, size: 80, color: Colors.grey.shade300),
+          Icon(
+            Icons.assignment_turned_in_outlined,
+            size: 80,
+            color: Colors.grey.shade300,
+          ),
           const SizedBox(height: 16),
-          Text("NO REPORTS YET", style: TextStyle(color: Colors.grey.shade400, fontSize: 14, fontWeight: FontWeight.w900, letterSpacing: 1)),
+          Text(
+            "NO REPORTS YET",
+            style: TextStyle(
+              color: Colors.grey.shade400,
+              fontSize: 14,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 1,
+            ),
+          ),
           const SizedBox(height: 8),
-          Text("System status: Secure and operational", style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+          Text(
+            "System status: Secure and operational",
+            style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+          ),
         ],
       ),
     );

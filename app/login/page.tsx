@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Shield, Lock, Mail, ChevronRight, AlertCircle, Loader2 } from 'lucide-react';
+import ThemeToggle from '../../components/ThemeToggle';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -57,6 +58,10 @@ export default function LoginPage() {
       <div className="absolute top-0 left-0 w-full h-full overflow-hidden -z-10 pointer-events-none">
         <div className="absolute top-[-10%] right-[-10%] w-[50%] h-[50%] bg-red-500/5 blur-[120px] rounded-full animate-pulse" />
         <div className="absolute bottom-[-10%] left-[-10%] w-[50%] h-[50%] bg-red-600/5 blur-[120px] rounded-full" />
+      </div>
+
+      <div className="absolute top-6 right-6 z-10">
+        <ThemeToggle />
       </div>
 
       <div className="w-full max-w-md relative">
@@ -120,26 +125,17 @@ export default function LoginPage() {
                 <Loader2 className="animate-spin" size={20} />
               ) : (
                 <>
-                  INITIALIZE SESSION
+                  login
                   <ChevronRight size={16} strokeWidth={3} className="group-hover:translate-x-1 transition-transform" />
                 </>
               )}
             </button>
           </form>
-
-          <div className="mt-8 pt-8 border-t border-zinc-200 dark:border-zinc-800 flex flex-col gap-4 text-center">
-            <button
-              onClick={() => router.push('/admin/add-barangay-head')}
-              className="text-[10px] font-black uppercase tracking-widest text-zinc-500 hover:text-red-600 transition-colors"
-            >
-              Request Administrative Access
-            </button>
-          </div>
         </div>
 
         <footer className="mt-12 text-center text-zinc-400">
           <p className="text-[10px] font-black uppercase tracking-[0.3em] opacity-50">
-            © 2026 RISKQPH • COMMAND & CONTROL SYSTEM
+            © 2026 RISKQPH
           </p>
         </footer>
       </div>

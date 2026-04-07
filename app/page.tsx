@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import MapWrapper from "../components/MapWrapper";
+import ThemeToggle from "../components/ThemeToggle";
 
 export default function Home() {
   const [showBarangays, setShowBarangays] = useState(true);
@@ -62,14 +63,26 @@ export default function Home() {
           <nav className="hidden items-center gap-8 md:flex">
 
           </nav>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
             {user ? (
-              <a
-                href={user.role === 'barangay_head' ? '/barangay-head' : '#'}
-                className="hidden h-9 items-center justify-center rounded-full border border-zinc-200 bg-zinc-900 text-white px-4 text-xs font-semibold hover:bg-zinc-800 transition-all md:flex"
-              >
-                {user.role === 'barangay_head' ? 'COMMAND CENTER' : 'MY DASHBOARD'}
-              </a>
+              <div className="flex items-center gap-3">
+                <a
+                  href={user.role === 'barangay_head' ? '/barangay-head' : '#'}
+                  className="hidden h-9 items-center justify-center rounded-full border border-zinc-200 bg-zinc-900 text-white px-4 text-xs font-semibold hover:bg-zinc-800 transition-all md:flex"
+                >
+                  {user.role === 'barangay_head' ? 'COMMAND CENTER' : 'MY DASHBOARD'}
+                </a>
+                <button
+                  onClick={() => {
+                    localStorage.removeItem('user');
+                    setUser(null);
+                  }}
+                  className="h-9 items-center justify-center rounded-full border border-zinc-200 bg-white px-4 text-xs font-semibold text-red-600 transition-all hover:bg-red-50 dark:border-zinc-800 dark:bg-zinc-900 md:flex"
+                >
+                  Sign Out
+                </button>
+              </div>
             ) : (
               <a href="/login" className="hidden h-9 items-center justify-center rounded-full border border-zinc-200 bg-white px-4 text-xs font-semibold text-zinc-900 transition-all hover:bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-100 md:flex">
                 Sign In

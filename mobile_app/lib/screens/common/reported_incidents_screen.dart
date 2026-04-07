@@ -9,7 +9,8 @@ class ReportedIncidentsScreen extends StatefulWidget {
   const ReportedIncidentsScreen({super.key});
 
   @override
-  State<ReportedIncidentsScreen> createState() => _ReportedIncidentsScreenState();
+  State<ReportedIncidentsScreen> createState() =>
+      _ReportedIncidentsScreenState();
 }
 
 class _ReportedIncidentsScreenState extends State<ReportedIncidentsScreen> {
@@ -66,9 +67,7 @@ class _ReportedIncidentsScreenState extends State<ReportedIncidentsScreen> {
               ),
             )
           else if (_reports.isEmpty)
-            SliverFillRemaining(
-              child: _buildEmptyState(),
-            )
+            SliverFillRemaining(child: _buildEmptyState())
           else
             SliverPadding(
               padding: const EdgeInsets.all(20),
@@ -132,7 +131,11 @@ class _ReportedIncidentsScreenState extends State<ReportedIncidentsScreen> {
       backgroundColor: const Color(0xFFB71C1C),
       elevation: 0,
       leading: IconButton(
-        icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white, size: 18),
+        icon: const Icon(
+          Icons.arrow_back_ios_new,
+          color: Colors.white,
+          size: 18,
+        ),
         onPressed: () => Navigator.pop(context),
       ),
       actions: [
@@ -168,7 +171,7 @@ class _ReportedIncidentsScreenState extends State<ReportedIncidentsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      'REPORTED INCIDENTS',
+                      'INCIDENTS REPORTS',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 24,
@@ -178,7 +181,7 @@ class _ReportedIncidentsScreenState extends State<ReportedIncidentsScreen> {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      'REAL-TIME CITIZEN INCIDENT LOGS',
+                      'Reports made by residents',
                       style: TextStyle(
                         color: Colors.white.withOpacity(0.8),
                         fontSize: 10,
@@ -284,8 +287,9 @@ class _ReportedIncidentsScreenState extends State<ReportedIncidentsScreen> {
                         vertical: 3,
                       ),
                       decoration: BoxDecoration(
-                        color: (isResolved ? Colors.green : color)
-                            .withOpacity(0.12),
+                        color: (isResolved ? Colors.green : color).withOpacity(
+                          0.12,
+                        ),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
                           color: (isResolved ? Colors.green : color)
@@ -352,7 +356,9 @@ class _ReportedIncidentsScreenState extends State<ReportedIncidentsScreen> {
                     boxShadow: [
                       BoxShadow(
                         blurRadius: 8,
-                        color: (isResolved ? Colors.green : color).withOpacity(0.2),
+                        color: (isResolved ? Colors.green : color).withOpacity(
+                          0.2,
+                        ),
                       ),
                     ],
                   ),
@@ -426,8 +432,8 @@ class _ReportedIncidentsScreenState extends State<ReportedIncidentsScreen> {
 
     final String coords =
         report['latitude'] != null && report['longitude'] != null
-            ? '${report['latitude'].toStringAsFixed(6)}, ${report['longitude'].toStringAsFixed(6)}'
-            : 'Not available';
+        ? '${report['latitude'].toStringAsFixed(6)}, ${report['longitude'].toStringAsFixed(6)}'
+        : 'Not available';
 
     showModalBottomSheet(
       context: context,
@@ -476,9 +482,11 @@ class _ReportedIncidentsScreenState extends State<ReportedIncidentsScreen> {
                                 ),
                               ],
                             ),
-                            child: Icon(icon,
-                                color: isResolved ? Colors.green : color,
-                                size: 24),
+                            child: Icon(
+                              icon,
+                              color: isResolved ? Colors.green : color,
+                              size: 24,
+                            ),
                           ),
                           const SizedBox(width: 16),
                           Expanded(
@@ -568,11 +576,14 @@ class _ReportedIncidentsScreenState extends State<ReportedIncidentsScreen> {
                                 fit: BoxFit.cover,
                                 errorBuilder: (context, error, stackTrace) =>
                                     Container(
-                                  height: 200,
-                                  color: Colors.grey[100],
-                                  child: const Icon(Icons.image_not_supported,
-                                      color: Colors.grey, size: 40),
-                                ),
+                                      height: 200,
+                                      color: Colors.grey[100],
+                                      child: const Icon(
+                                        Icons.image_not_supported,
+                                        color: Colors.grey,
+                                        size: 40,
+                                      ),
+                                    ),
                               ),
                             ),
                           ],
@@ -616,14 +627,16 @@ class _ReportedIncidentsScreenState extends State<ReportedIncidentsScreen> {
     'Other (custom entry)': Colors.blueGrey,
   };
 
-
-
   Widget _buildEmptyState() {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.assignment_turned_in_outlined, size: 80, color: Colors.grey.shade300),
+          Icon(
+            Icons.assignment_turned_in_outlined,
+            size: 80,
+            color: Colors.grey.shade300,
+          ),
           const SizedBox(height: 16),
           Text(
             "NO REPORTS YET",

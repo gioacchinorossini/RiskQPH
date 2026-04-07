@@ -187,13 +187,19 @@ class _HazardMapScreenState extends State<HazardMapScreen>
               style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
             ),
             const SizedBox(height: 8),
-            Text('TYPE: EVACUATION CENTER', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+            Text(
+              'TYPE: EVACUATION CENTER',
+              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+            ),
             const SizedBox(height: 16),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const Text('CURRENT OCCUPANCY:'),
-                Text('${ec['_count']?['evacuees'] ?? 0} / ${ec['capacity'] ?? "∞"}', style: const TextStyle(fontWeight: FontWeight.bold)),
+                Text(
+                  '${ec['_count']?['evacuees'] ?? 0} / ${ec['capacity'] ?? "∞"}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
               ],
             ),
             const SizedBox(height: 24),
@@ -203,7 +209,9 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                 backgroundColor: Colors.teal,
                 foregroundColor: Colors.white,
                 minimumSize: const Size(double.infinity, 50),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
               ),
               child: const Text('DISMISS'),
             ),
@@ -262,9 +270,11 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                             '';
                         final String rId = residentData['id'].toString();
                         if ((user.role != UserRole.resident ||
-                            rRole.contains('responder') ||
-                            _familyUserIds.contains(rId)) &&
-                            (residentData['barangayMemberStatus'] == 'verified' || residentData['barangayMemberStatus'] == null)) {
+                                rRole.contains('responder') ||
+                                _familyUserIds.contains(rId)) &&
+                            (residentData['barangayMemberStatus'] ==
+                                    'verified' ||
+                                residentData['barangayMemberStatus'] == null)) {
                           _filteredResidents.add(
                             Map<String, dynamic>.from(residentData),
                           );
@@ -374,7 +384,11 @@ class _HazardMapScreenState extends State<HazardMapScreen>
           } else {
             // Officials see everyone verified
             _filteredResidents = all
-                .where((r) => r['barangayMemberStatus'] == 'verified' || r['barangayMemberStatus'] == null)
+                .where(
+                  (r) =>
+                      r['barangayMemberStatus'] == 'verified' ||
+                      r['barangayMemberStatus'] == null,
+                )
                 .map((r) => Map<String, dynamic>.from(r))
                 .toList();
           }
@@ -427,7 +441,9 @@ class _HazardMapScreenState extends State<HazardMapScreen>
 
   String _getRelationshipForResident(String? userId) {
     if (userId == null) return 'Resident';
-    final fam = _familyMembersList.where((m) => m['userId']?.toString() == userId).firstOrNull;
+    final fam = _familyMembersList
+        .where((m) => m['userId']?.toString() == userId)
+        .firstOrNull;
     return fam?['relationship'] ?? 'Resident';
   }
 
@@ -438,7 +454,9 @@ class _HazardMapScreenState extends State<HazardMapScreen>
 
     try {
       final response = await http.get(
-        Uri.parse('${ApiConfig.baseUrl}/api/evacuation-center?barangay=${user.barangay}'),
+        Uri.parse(
+          '${ApiConfig.baseUrl}/api/evacuation-center?barangay=${user.barangay}',
+        ),
         headers: {'ngrok-skip-browser-warning': 'true'},
       );
 
@@ -661,6 +679,64 @@ class _HazardMapScreenState extends State<HazardMapScreen>
     }
   }
 
+  Future<void> _requestRescue() async {
+    final auth = Provider.of<AuthProvider>(context, listen: false);
+    final user = auth.currentUser;
+    if (user == null || _activeDisaster == null) return;
+
+    if (mounted) setState(() => _isLoading = true);
+
+    try {
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/safety'),
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
+        },
+        body: jsonEncode({
+          'userId': user.id,
+          'disasterId': _activeDisaster!['id'],
+          'isSafe': false,
+          'hasResponded': true,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('RESCUE REQUESTED! Responders notified.'),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+        // Locally update user in _filteredResidents if present
+        if (mounted) {
+          setState(() {
+            for (int i = 0; i < _filteredResidents.length; i++) {
+              if (_filteredResidents[i]['id'].toString() ==
+                  user.id.toString()) {
+                _filteredResidents[i]['isSafe'] = false;
+                _filteredResidents[i]['hasResponded'] = true;
+                break;
+              }
+            }
+          });
+        }
+      } else {
+        throw Exception('SOS failed.');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
+    }
+  }
+
   Future<void> _determinePosition() async {
     bool serviceEnabled;
     LocationPermission permission;
@@ -754,21 +830,15 @@ class _HazardMapScreenState extends State<HazardMapScreen>
 
   @override
   Widget build(BuildContext context) {
-    final Set<String> ecIdsLinkedToFamily = _evacuationCenterIdsLinkedToFamily();
+    final Set<String> ecIdsLinkedToFamily =
+        _evacuationCenterIdsLinkedToFamily();
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Live Hazard Map'),
+        title: const Text(''),
         backgroundColor: AppTheme.primaryColor,
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _refreshMapData,
-            tooltip: 'Refresh Data',
-          ),
-        ],
       ),
       body: Stack(
         children: [
@@ -823,17 +893,31 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                   ..._evacuationCenters.map((ec) {
                     IconData ecIcon = Icons.account_balance;
                     switch (ec['type']) {
-                      case 'Building': ecIcon = Icons.domain; break;
-                      case 'Home': ecIcon = Icons.home; break;
-                      case 'Medical': ecIcon = Icons.monitor_heart; break;
-                      case 'School': ecIcon = Icons.school; break;
-                      case 'Church': ecIcon = Icons.church; break;
-                      case 'Activity': ecIcon = Icons.query_stats; break;
-                      default: ecIcon = Icons.account_balance;
+                      case 'Building':
+                        ecIcon = Icons.domain;
+                        break;
+                      case 'Home':
+                        ecIcon = Icons.home;
+                        break;
+                      case 'Medical':
+                        ecIcon = Icons.monitor_heart;
+                        break;
+                      case 'School':
+                        ecIcon = Icons.school;
+                        break;
+                      case 'Church':
+                        ecIcon = Icons.church;
+                        break;
+                      case 'Activity':
+                        ecIcon = Icons.query_stats;
+                        break;
+                      default:
+                        ecIcon = Icons.account_balance;
                     }
 
-                    final bool ecLinked =
-                        ecIdsLinkedToFamily.contains(ec['id'].toString());
+                    final bool ecLinked = ecIdsLinkedToFamily.contains(
+                      ec['id'].toString(),
+                    );
 
                     return Marker(
                       point: LatLng(ec['latitude'], ec['longitude']),
@@ -841,7 +925,7 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                       height: 80,
                       child: GestureDetector(
                         onTap: () {
-                           _showEvacuationCenterInfo(ec);
+                          _showEvacuationCenterInfo(ec);
                         },
                         child: Column(
                           children: [
@@ -875,14 +959,21 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                             ),
                             const SizedBox(height: 4),
                             Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 6,
+                                vertical: 2,
+                              ),
                               decoration: BoxDecoration(
                                 color: Colors.black.withOpacity(0.8),
                                 borderRadius: BorderRadius.circular(8),
                               ),
                               child: Text(
                                 ec['name'].toString().toUpperCase(),
-                                style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 8,
+                                  fontWeight: FontWeight.bold,
+                                ),
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -1042,17 +1133,17 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                       child: Consumer<AuthProvider>(
                         builder: (context, auth, _) {
                           final user = auth.currentUser;
-                          final bool isSafe = _isMeSafeLocally || _filteredResidents.any(
-                            (r) =>
-                                r['id'].toString() == user?.id.toString() &&
-                                r['isSafe'] == true,
-                          );
+                          final bool isSafe =
+                              _isMeSafeLocally ||
+                              _filteredResidents.any(
+                                (r) =>
+                                    r['id'].toString() == user?.id.toString() &&
+                                    r['isSafe'] == true,
+                              );
                           final bool isEmergencyActive =
                               _activeDisaster != null;
                           final String name = (user?.firstName ?? 'You')
                               .toUpperCase();
-
-
 
                           return _bobbingResidentMarkerChild(
                             motionKey:
@@ -1091,25 +1182,35 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                       final Map<String, int> localCollisionMap = {};
                       return (widget.residentsToRescue ?? _filteredResidents)
                           .where((r) {
-                            if (r['latitude'] == null || r['longitude'] == null) return false;
-                            
-                            final String rRole = r['role']?.toString().toLowerCase() ?? '';
-                            final bool rIsResponder = rRole.contains('responder');
+                            if (r['latitude'] == null || r['longitude'] == null)
+                              return false;
+
+                            final String rRole =
+                                r['role']?.toString().toLowerCase() ?? '';
+                            final bool rIsResponder = rRole.contains(
+                              'responder',
+                            );
                             final bool rIsSafe = (r['isSafe'] == true);
-                            
+
                             // If current user is a responder
                             if (auth.currentUser?.role == UserRole.responder) {
                               // 1. Responders always see other responders.
                               if (rIsResponder) return true;
-                              
+
                               // 2. If disaster mode is OFF, responders SHOULD NOT see residents (except family).
-                              final bool isFamilyMember = r['id'] != null && _familyUserIds.contains(r['id'].toString());
-                              if (_activeDisaster == null && !isFamilyMember) return false;
-                              
+                              final bool isFamilyMember =
+                                  r['id'] != null &&
+                                  _familyUserIds.contains(r['id'].toString());
+                              if (_activeDisaster == null && !isFamilyMember)
+                                return false;
+
                               // 3. During disaster, responders ONLY see unsafe/"SOS" residents (unless family).
-                              if (_activeDisaster != null && rIsSafe && !isFamilyMember) return false;
+                              if (_activeDisaster != null &&
+                                  rIsSafe &&
+                                  !isFamilyMember)
+                                return false;
                             }
-                            
+
                             return true;
                           })
                           .where(
@@ -1153,20 +1254,26 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                                 r['id'] != null &&
                                 _familyUserIds.contains(r['id'].toString());
 
-                            final String relationship = _getRelationshipForResident(r['id']?.toString());
+                            final String relationship =
+                                _getRelationshipForResident(
+                                  r['id']?.toString(),
+                                );
 
-                            final String rRole = r['role']?.toString().toLowerCase() ?? '';
-                            final bool rIsResponder = rRole.contains('responder');
-
-                            final Color markerColor = MemberStatusIcon.getStatusColor(
-                                isSafe: isSafeNow,
-                                hasSOS: hasSOS,
-                                isEmergencyActive: isEmergencyActive,
-                                isOnline: true,
-                                isResponder: rIsResponder,
-                                fallbackColor: AppTheme.primaryColor,
+                            final String rRole =
+                                r['role']?.toString().toLowerCase() ?? '';
+                            final bool rIsResponder = rRole.contains(
+                              'responder',
                             );
 
+                            final Color markerColor =
+                                MemberStatusIcon.getStatusColor(
+                                  isSafe: isSafeNow,
+                                  hasSOS: hasSOS,
+                                  isEmergencyActive: isEmergencyActive,
+                                  isOnline: true,
+                                  isResponder: rIsResponder,
+                                  fallbackColor: AppTheme.primaryColor,
+                                );
 
                             final double jitter = collisionIdx * 0.000018;
                             final LatLng finalPos = LatLng(
@@ -1174,8 +1281,8 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                               lng + jitter,
                             );
 
-                            final String? ecRegId =
-                                r['evacuationCenterId']?.toString();
+                            final String? ecRegId = r['evacuationCenterId']
+                                ?.toString();
                             final bool famEvacLinked =
                                 isFamily &&
                                 ecRegId != null &&
@@ -1193,20 +1300,13 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                                 child: GestureDetector(
                                   onTap: () {
                                     if (isFamily) {
-                                      _showFamilyMemberBottomSheet(
-                                        {
-                                          'firstName': r['firstName'],
-                                          'lastName': r['lastName'],
-                                          'relationship': relationship,
-                                        },
-                                        Map<String, dynamic>.from(r),
-                                      );
+                                      _showFamilyMemberBottomSheet({
+                                        'firstName': r['firstName'],
+                                        'lastName': r['lastName'],
+                                        'relationship': relationship,
+                                      }, Map<String, dynamic>.from(r));
                                     } else if (isSafeNow) {
-                                      _showResidentSafeDetail(
-                                        r,
-                                        name,
-                                        timeStr,
-                                      );
+                                      _showResidentSafeDetail(r, name, timeStr);
                                     } else {
                                       _showResidentRescueDetail(
                                         r,
@@ -1223,12 +1323,18 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                                         isEmergencyActive: isEmergencyActive,
                                         isOnline: true,
                                         isResponder: rIsResponder,
-                                        label: isEmergencyActive ? (rIsResponder ? 'RESPONDER' : null) : 'ONLINE',
+                                        label: isEmergencyActive
+                                            ? (rIsResponder
+                                                  ? 'RESPONDER'
+                                                  : null)
+                                            : 'ONLINE',
                                         fallbackColor: markerColor,
                                       ),
                                       const SizedBox(height: 4),
                                       MemberMarker(
-                                        relationship: rIsResponder ? 'responder' : (isFamily ? relationship : null),
+                                        relationship: rIsResponder
+                                            ? 'responder'
+                                            : (isFamily ? relationship : null),
                                         isSafe: isSafeNow,
                                         hasSOS: hasSOS,
                                         isEmergencyActive: isEmergencyActive,
@@ -1245,7 +1351,8 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                                           color: Colors.black87,
                                           fontSize: 9,
                                           fontWeight: FontWeight.w900,
-                                          backgroundColor: Colors.white.withOpacity(0.6),
+                                          backgroundColor: Colors.white
+                                              .withOpacity(0.6),
                                         ),
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
@@ -1284,32 +1391,35 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                     // Collapsed View (Pulsing Button-like)
                     return Center(
                       child: GestureDetector(
-                        onTap: () => setState(() => _isEmergencyPanelOpen = true),
+                        onTap: () =>
+                            setState(() => _isEmergencyPanelOpen = true),
                         child: AnimatedContainer(
                           duration: const Duration(milliseconds: 300),
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 12,
+                          ),
                           decoration: BoxDecoration(
-                            color: isMeSafe ? Colors.green.withOpacity(0.9) : Colors.red,
+                            color: isMeSafe
+                                ? Colors.green.withOpacity(0.9)
+                                : Colors.red,
                             borderRadius: BorderRadius.circular(30),
-                            boxShadow: [
-                              BoxShadow(
-                                color: (isMeSafe ? Colors.green : Colors.red).withOpacity(0.4),
-                                blurRadius: 10,
-                                spreadRadius: 4,
-                              ),
-                            ],
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(
-                                isMeSafe ? Icons.verified_user : Icons.warning_amber_rounded,
+                                isMeSafe
+                                    ? Icons.verified_user
+                                    : Icons.warning_amber_rounded,
                                 color: Colors.white,
                                 size: 20,
                               ),
                               const SizedBox(width: 10),
                               Text(
-                                isMeSafe ? 'YOU ARE SAFE' : 'TAP TO UPDATE SAFETY',
+                                isMeSafe
+                                    ? 'YOU ARE SAFE'
+                                    : 'TAP TO UPDATE SAFETY',
                                 style: const TextStyle(
                                   color: Colors.white,
                                   fontWeight: FontWeight.bold,
@@ -1342,7 +1452,8 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                       border: Border.all(
                         color: isMeSafe
                             ? Colors.grey[300]!
-                            : (isMeSafe ? Colors.green : Colors.red).withOpacity(0.3),
+                            : (isMeSafe ? Colors.green : Colors.red)
+                                  .withOpacity(0.3),
                         width: 1.5,
                       ),
                     ),
@@ -1352,10 +1463,13 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Row(
+                            Expanded(
+                              child: Row(
                               children: [
                                 Icon(
-                                  isMeSafe ? Icons.check_circle_rounded : Icons.warning_rounded,
+                                  isMeSafe
+                                      ? Icons.check_circle_rounded
+                                      : Icons.warning_rounded,
                                   color: isMeSafe ? Colors.green : Colors.red,
                                   size: 24,
                                 ),
@@ -1364,9 +1478,12 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      _activeDisaster!['type']?.toUpperCase() ?? 'EMERGENCY',
+                                      _activeDisaster!['type']?.toUpperCase() ??
+                                          'EMERGENCY',
                                       style: TextStyle(
-                                        color: isMeSafe ? Colors.green[800] : Colors.red[800],
+                                        color: isMeSafe
+                                            ? Colors.green[800]
+                                            : Colors.red[800],
                                         fontWeight: FontWeight.w900,
                                         fontSize: 14,
                                         letterSpacing: 1.1,
@@ -1385,9 +1502,15 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                                 ),
                               ],
                             ),
-                            IconButton(
-                              icon: const Icon(Icons.close, size: 20, color: Colors.grey),
-                              onPressed: () => setState(() => _isEmergencyPanelOpen = false),
+                          ),
+                          IconButton(
+                              icon: const Icon(
+                                Icons.close,
+                                size: 20,
+                                color: Colors.grey,
+                              ),
+                              onPressed: () =>
+                                  setState(() => _isEmergencyPanelOpen = false),
                               padding: EdgeInsets.zero,
                               constraints: const BoxConstraints(),
                             ),
@@ -1395,7 +1518,8 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          _activeDisaster!['description'] ?? 'Please confirm your safety status to assist responders.',
+                          _activeDisaster!['description'] ??
+                              'Please confirm your safety status to assist responders.',
                           textAlign: TextAlign.center,
                           style: TextStyle(
                             color: Colors.grey[800],
@@ -1404,33 +1528,87 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                           ),
                         ),
                         const SizedBox(height: 20),
-                        SizedBox(
-                          height: 48,
-                          width: double.infinity,
-                          child: ElevatedButton.icon(
-                            onPressed: isMeSafe ? null : () async {
-                              await _markAsSafe();
-                              setState(() => _isEmergencyPanelOpen = false); 
-                            },
-                            icon: Icon(
-                              isMeSafe ? Icons.verified_user_rounded : Icons.check_circle_outline,
-                              size: 20,
-                            ),
-                            label: Text(
-                              isMeSafe ? 'STATUS: SAFE' : 'MARK MYSELF AS SAFE',
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
-                                letterSpacing: 0.5,
+                        Row(
+                          children: [
+                            Expanded(
+                              child: SizedBox(
+                                height: 48,
+                                child: ElevatedButton.icon(
+                                  onPressed: isMeSafe
+                                      ? null
+                                      : () async {
+                                          await _markAsSafe();
+                                          setState(
+                                            () => _isEmergencyPanelOpen = false,
+                                          );
+                                        },
+                                  icon: Icon(
+                                    isMeSafe
+                                        ? Icons.verified_user_rounded
+                                        : Icons.check_circle_outline,
+                                    size: 18,
+                                  ),
+                                  label: Text(
+                                    isMeSafe ? 'SAFE' : 'MARK SAFE',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: isMeSafe
+                                        ? Colors.green.withOpacity(0.1)
+                                        : Colors.green,
+                                    foregroundColor: isMeSafe
+                                        ? Colors.green
+                                        : Colors.white,
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
-                            style: ElevatedButton.styleFrom(
-                              backgroundColor: isMeSafe ? Colors.green.withOpacity(0.1) : Colors.green,
-                              foregroundColor: isMeSafe ? Colors.green : Colors.white,
-                              elevation: isMeSafe ? 0 : 4,
-                              shape: const StadiumBorder(), 
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: SizedBox(
+                                height: 48,
+                                child: ElevatedButton.icon(
+                                  onPressed: isMeSafe
+                                      ? null
+                                      : () async {
+                                          await _requestRescue();
+                                          setState(
+                                            () => _isEmergencyPanelOpen = false,
+                                          );
+                                        },
+                                  icon: const Icon(Icons.sos, size: 18),
+                                  label: const Text(
+                                    'RESCUE',
+                                    style: TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11,
+                                      letterSpacing: 0.5,
+                                    ),
+                                  ),
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: isMeSafe
+                                        ? Colors.red.withOpacity(0.1)
+                                        : Colors.red,
+                                    foregroundColor: isMeSafe
+                                        ? Colors.red
+                                        : Colors.white,
+                                    elevation: 0,
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
-                          ),
+                          ],
                         ),
                       ],
                     ),
@@ -1438,95 +1616,115 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                 },
               ),
             ),
-          
-          // OFFICIAL OVERLAY: Safe vs Pending Count
 
           // Unified Action Menu (Top Left - Horizontal)
           Positioned(
             top: 16,
             left: 16,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.black.withOpacity(0.4),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Colors.white10, width: 0.5),
-              ),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                FloatingActionButton.small(
+                  heroTag: 'menu_toggle',
+                  onPressed: () => setState(() {
+                    _isActionGroupExpanded = !_isActionGroupExpanded;
+                    if (!_isActionGroupExpanded) {
+                      _isFamilyPanelOpen = false;
+                      _isReportsPanelOpen = false;
+                      _isLayersPanelOpen = false;
+                    }
+                  }),
+                  backgroundColor: _isActionGroupExpanded
+                      ? AppTheme.primaryColor
+                      : Colors.white,
+                  elevation: 4,
+                  shape: CircleBorder(
+                    side: BorderSide(
+                      color: _isActionGroupExpanded
+                          ? Colors.white
+                          : AppTheme.primaryColor.withOpacity(0.3),
+                      width: 2,
+                    ),
+                  ),
+                  child: Icon(
+                    _isActionGroupExpanded
+                        ? Icons.close
+                        : Icons.arrow_forward_ios,
+                    color: _isActionGroupExpanded
+                        ? Colors.white
+                        : AppTheme.primaryColor,
+                    size: 18,
+                  ),
+                ),
+                if (_isActionGroupExpanded) ...[
+                  const SizedBox(width: 8),
+                  // 1. Settings
                   FloatingActionButton.small(
-                    heroTag: 'menu_toggle',
+                    heroTag: 'menu_settings',
                     onPressed: () => setState(() {
-                      _isActionGroupExpanded = !_isActionGroupExpanded;
-                      if (!_isActionGroupExpanded) {
+                      _isLayersPanelOpen = !_isLayersPanelOpen;
+                      if (_isLayersPanelOpen) {
                         _isFamilyPanelOpen = false;
                         _isReportsPanelOpen = false;
+                      }
+                    }),
+                    backgroundColor: _isLayersPanelOpen
+                        ? Colors.grey[800]
+                        : Colors.white,
+                    elevation: 4,
+                    shape: CircleBorder(
+                      side: BorderSide(
+                        color: _isLayersPanelOpen
+                            ? Colors.white
+                            : AppTheme.primaryColor.withOpacity(0.3),
+                        width: 2,
+                      ),
+                    ),
+                    child: Icon(
+                      Icons.settings,
+                      color: _isLayersPanelOpen
+                          ? Colors.white
+                          : AppTheme.primaryColor,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // 2. History
+                  FloatingActionButton.small(
+                    heroTag: 'menu_history',
+                    onPressed: () => setState(() {
+                      _isReportsPanelOpen = !_isReportsPanelOpen;
+                      if (_isReportsPanelOpen) {
+                        _isFamilyPanelOpen = false;
                         _isLayersPanelOpen = false;
                       }
                     }),
-                    backgroundColor: _isActionGroupExpanded
-                        ? AppTheme.primaryColor
+                    backgroundColor: _isReportsPanelOpen
+                        ? Colors.red
                         : Colors.white,
-                    elevation: 0,
-                    child: Icon(
-                      _isActionGroupExpanded
-                          ? Icons.close
-                          : Icons.arrow_forward_ios,
-                      color: _isActionGroupExpanded
-                          ? Colors.white
-                          : AppTheme.primaryColor,
-                      size: 18,
-                    ),
-                  ),
-                  if (_isActionGroupExpanded) ...[
-                    const SizedBox(width: 8),
-                    // 1. Settings
-                    FloatingActionButton.small(
-                      heroTag: 'menu_settings',
-                      onPressed: () => setState(() {
-                        _isLayersPanelOpen = !_isLayersPanelOpen;
-                        if (_isLayersPanelOpen) {
-                          _isFamilyPanelOpen = false;
-                          _isReportsPanelOpen = false;
-                        }
-                      }),
-                      backgroundColor: _isLayersPanelOpen
-                          ? Colors.grey[800]
-                          : Colors.white,
-                      elevation: 0,
-                      child: Icon(
-                        Icons.settings,
-                        color: _isLayersPanelOpen
-                            ? Colors.white
-                            : AppTheme.primaryColor,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    // 2. History
-                    FloatingActionButton.small(
-                      heroTag: 'menu_history',
-                      onPressed: () => setState(() {
-                        _isReportsPanelOpen = !_isReportsPanelOpen;
-                        if (_isReportsPanelOpen) {
-                          _isFamilyPanelOpen = false;
-                          _isLayersPanelOpen = false;
-                        }
-                      }),
-                      backgroundColor: _isReportsPanelOpen
-                          ? Colors.red
-                          : Colors.white,
-                      elevation: 0,
-                      child: Icon(
-                        Icons.history,
+                    elevation: 4,
+                    shape: CircleBorder(
+                      side: BorderSide(
                         color: _isReportsPanelOpen
                             ? Colors.white
-                            : AppTheme.primaryColor,
+                            : AppTheme.primaryColor.withOpacity(0.3),
+                        width: 2,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                    // 3. Family
+                    child: Icon(
+                      Icons.history,
+                      color: _isReportsPanelOpen
+                          ? Colors.white
+                          : AppTheme.primaryColor,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  // 3. Family
+                  if (Provider.of<AuthProvider>(
+                        context,
+                        listen: false,
+                      ).currentUser?.role !=
+                      UserRole.barangay_head) ...[
                     FloatingActionButton.small(
                       heroTag: 'menu_family',
                       onPressed: () => setState(() {
@@ -1539,7 +1737,15 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                       backgroundColor: _isFamilyPanelOpen
                           ? Colors.green
                           : Colors.white,
-                      elevation: 0,
+                      elevation: 4,
+                      shape: CircleBorder(
+                        side: BorderSide(
+                          color: _isFamilyPanelOpen
+                              ? Colors.white
+                              : AppTheme.primaryColor.withOpacity(0.3),
+                          width: 2,
+                        ),
+                      ),
                       child: Icon(
                         Icons.family_restroom,
                         color: _isFamilyPanelOpen
@@ -1548,21 +1754,31 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                       ),
                     ),
                     const SizedBox(width: 8),
-                    // 4. Share Location
+                  ],
+                  // 4. Share Location
+                  if (Provider.of<AuthProvider>(
+                        context,
+                        listen: false,
+                      ).currentUser?.role !=
+                      UserRole.barangay_head)
                     FloatingActionButton.small(
                       heroTag: 'menu_share',
                       onPressed: _updateLocationToFamily,
                       backgroundColor: Colors.white,
-                      elevation: 0,
+                      elevation: 4,
+                      shape: CircleBorder(
+                        side: BorderSide(
+                          color: AppTheme.primaryColor.withOpacity(0.3),
+                          width: 2,
+                        ),
+                      ),
                       child: Icon(
                         Icons.share_location,
                         color: AppTheme.primaryColor,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                  ],
                 ],
-              ),
+              ],
             ),
           ),
 
@@ -1666,9 +1882,7 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                                     : (m['relationship'] ?? 'Member'),
                                 style: TextStyle(
                                   fontSize: 10,
-                                  color: atEvac
-                                      ? Colors.teal.shade800
-                                      : null,
+                                  color: atEvac ? Colors.teal.shade800 : null,
                                 ),
                                 maxLines: 3,
                                 overflow: TextOverflow.ellipsis,
@@ -1948,74 +2162,137 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                 ),
               ),
             ),
-          
-          // UNIFIED TACTICAL HUD (Bottom Right)
+
+          // 1. Official Metrics (Bottom Left - Only for Commanders during disaster)
+          if (_activeDisaster != null)
+            Positioned(
+              bottom: 16,
+              left: 16,
+              child: Consumer<AuthProvider>(
+                builder: (context, auth, _) {
+                  final role = auth.currentUser?.role;
+                  if (role != UserRole.barangay_head &&
+                      role != UserRole.responder) {
+                    return const SizedBox.shrink();
+                  }
+
+                  final int totalSafe = _filteredResidents
+                      .where((r) => r['isSafe'] == true)
+                      .length;
+                  final int totalSOS = _filteredResidents
+                      .where(
+                        (r) => r['isSafe'] != true && r['hasResponded'] == true,
+                      )
+                      .length;
+                  final int totalPending = _filteredResidents
+                      .where(
+                        (r) => r['isSafe'] != true && r['hasResponded'] != true,
+                      )
+                      .length;
+
+                  return Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 8,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.95),
+                      borderRadius: BorderRadius.circular(16),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.15),
+                          blurRadius: 15,
+                          offset: const Offset(0, 5),
+                        ),
+                      ],
+                      border: Border.all(color: Colors.black.withOpacity(0.05)),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 6,
+                              height: 6,
+                              decoration: const BoxDecoration(
+                                color: Colors.grey,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            const Text(
+                              'SITUATION OVERVIEW',
+                              style: TextStyle(
+                                fontSize: 7,
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 1.0,
+                                color: Colors.grey,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            _buildStatItem('SAFE', totalSafe, Colors.green),
+                            const SizedBox(width: 12),
+                            _buildStatItem(
+                              'PENDING',
+                              totalPending,
+                              Colors.orange,
+                            ),
+                            const SizedBox(width: 12),
+                            _buildStatItem('SOS', totalSOS, Colors.red),
+                          ],
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+
+          // 2. TACTICAL HUD BUTTONS (Bottom Right)
           Positioned(
             bottom: 16,
             right: 16,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
+            child: Column(
               mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
               children: [
-                // 1. Official Metrics (Only for Commanders during disaster)
-                if (_activeDisaster != null)
-                  Consumer<AuthProvider>(
-                    builder: (context, auth, _) {
-                      final role = auth.currentUser?.role;
-                      if (role != UserRole.barangay_head && role != UserRole.responder) {
-                        return const SizedBox.shrink();
-                      }
-
-                      final int totalSafe = _filteredResidents.where((r) => r['isSafe'] == true).length;
-                      final int totalSOS = _filteredResidents.where((r) => r['isSafe'] != true && r['hasResponded'] == true).length;
-                      final int totalPending = _filteredResidents.where((r) => r['isSafe'] != true && r['hasResponded'] != true).length;
-
-                      return Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withOpacity(0.95),
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.15),
-                              blurRadius: 15,
-                              offset: const Offset(0, 5),
-                            ),
-                          ],
-                          border: Border.all(color: Colors.black.withOpacity(0.05)),
-                        ),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(width: 6, height: 6, decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle)),
-                                const SizedBox(width: 6),
-                                const Text('SITUATION OVERVIEW', style: TextStyle(fontSize: 7, fontWeight: FontWeight.w900, letterSpacing: 1.0, color: Colors.grey)),
-                              ],
-                            ),
-                            const SizedBox(height: 6),
-                            Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                _buildStatItem('SAFE', totalSafe, Colors.green),
-                                const SizedBox(width: 12),
-                                _buildStatItem('PENDING', totalPending, Colors.orange),
-                                const SizedBox(width: 12),
-                                _buildStatItem('SOS', totalSOS, Colors.red),
-                              ],
-                            ),
-                          ],
-                        ),
-                      );
-                    },
+                // 2.1 Refresh Button
+                FloatingActionButton.small(
+                  heroTag: 'map_refresh_unified',
+                  onPressed: () {
+                    _fetchReports();
+                    _checkDisasterStatus();
+                    _fetchFamilyAndResidents();
+                    _fetchEvacuationCenters();
+                    _fetchHqLocation();
+                  },
+                  backgroundColor: Colors.white,
+                  elevation: 4,
+                  shape: CircleBorder(
+                    side: BorderSide(
+                      color: AppTheme.primaryColor.withOpacity(0.3),
+                      width: 2,
+                    ),
                   ),
-                Column(
+                  child: Icon(
+                    Icons.refresh_rounded,
+                    color: AppTheme.primaryColor,
+                    size: 18,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    // 2. Report Mode Button (Separated from top menu)
+                    // 2.2 Report Mode Button
                     FloatingActionButton.small(
                       heroTag: 'map_report_unified',
                       onPressed: () {
@@ -2023,34 +2300,54 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                         if (_isReportMode) {
                           ScaffoldMessenger.of(context).showSnackBar(
                             const SnackBar(
-                              content: Text('Report Mode Active: Tap map to report incident'),
+                              content: Text(
+                                'Report Mode Active: Tap map to report incident',
+                              ),
                               duration: Duration(seconds: 2),
                             ),
                           );
                         }
                       },
-                      backgroundColor: _isReportMode ? Colors.red : Colors.white,
+                      backgroundColor: _isReportMode
+                          ? Colors.red
+                          : Colors.white,
                       elevation: 4,
                       shape: CircleBorder(
                         side: BorderSide(
-                          color: _isReportMode ? Colors.white : AppTheme.primaryColor.withOpacity(0.3),
+                          color: _isReportMode
+                              ? Colors.white
+                              : AppTheme.primaryColor.withOpacity(0.3),
                           width: 2,
                         ),
                       ),
                       child: Icon(
-                        _isReportMode ? Icons.edit_location : Icons.edit_location_outlined,
-                        color: _isReportMode ? Colors.white : AppTheme.primaryColor,
+                        _isReportMode
+                            ? Icons.edit_location
+                            : Icons.edit_location_outlined,
+                        color: _isReportMode
+                            ? Colors.white
+                            : AppTheme.primaryColor,
                         size: 18,
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    // 3. My Location (GPS) Button
+                    const SizedBox(width: 12),
+                    // 2.3 My Location (GPS) Button
                     FloatingActionButton.small(
                       heroTag: 'map_gps_unified',
                       onPressed: _determinePosition,
                       backgroundColor: Colors.white,
                       elevation: 4,
-                      child: Icon(Icons.my_location, color: AppTheme.primaryColor, size: 18),
+                      shape: CircleBorder(
+                        side: BorderSide(
+                          color: AppTheme.primaryColor.withOpacity(0.3),
+                          width: 2,
+                        ),
+                      ),
+                      child: Icon(
+                        Icons.my_location,
+                        color: AppTheme.primaryColor,
+                        size: 18,
+                      ),
                     ),
                   ],
                 ),
@@ -2067,14 +2364,10 @@ class _HazardMapScreenState extends State<HazardMapScreen>
     final auth = Provider.of<AuthProvider>(context, listen: false);
     final String? uid = auth.currentUser?.id.toString();
     return (widget.residentsToRescue ?? _filteredResidents)
-        .where(
-          (r) => r['latitude'] != null && r['longitude'] != null,
-        )
+        .where((r) => r['latitude'] != null && r['longitude'] != null)
         .where(
           (r) =>
-              uid == null ||
-              r['id'].toString() != uid ||
-              _userLocation == null,
+              uid == null || r['id'].toString() != uid || _userLocation == null,
         )
         .map((r) => Map<String, dynamic>.from(r))
         .toList();
@@ -2102,8 +2395,7 @@ class _HazardMapScreenState extends State<HazardMapScreen>
   Set<String> _evacuationCenterIdsLinkedToFamily() {
     final ids = <String>{};
     for (final r in _residentsDrawnOnMap()) {
-      if (r['id'] == null ||
-          !_familyUserIds.contains(r['id'].toString())) {
+      if (r['id'] == null || !_familyUserIds.contains(r['id'].toString())) {
         continue;
       }
       final ecId = r['evacuationCenterId']?.toString();
@@ -2116,8 +2408,7 @@ class _HazardMapScreenState extends State<HazardMapScreen>
   List<Polyline> _familyEvacuationPolylines() {
     final out = <Polyline>[];
     for (final r in _residentsDrawnOnMap()) {
-      if (r['id'] == null ||
-          !_familyUserIds.contains(r['id'].toString())) {
+      if (r['id'] == null || !_familyUserIds.contains(r['id'].toString())) {
         continue;
       }
       final ecId = r['evacuationCenterId']?.toString();
@@ -2154,9 +2445,7 @@ class _HazardMapScreenState extends State<HazardMapScreen>
   String _formatResidentFullUpdatedAt(Map<String, dynamic> resident) {
     try {
       if (resident['updatedAt'] != null) {
-        final dt = DateTime.parse(
-          resident['updatedAt'].toString(),
-        ).toLocal();
+        final dt = DateTime.parse(resident['updatedAt'].toString()).toLocal();
         return DateFormat('MMM d, y • HH:mm').format(dt);
       }
     } catch (_) {}
@@ -2593,51 +2882,80 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                     const SizedBox(height: 24),
                     const Divider(),
                     const SizedBox(height: 20),
-                    
+
                     // SITUATIONAL ACTIONS COLUMN
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
                         // 1. Resolve Action (Visible ONLY to owner or official (Head/Responder))
-                        if (hazard['isResolved'] != true && (isOwnReport || authProvider.currentUser?.role != UserRole.resident)) ...[
+                        if (hazard['isResolved'] != true &&
+                            (isOwnReport ||
+                                authProvider.currentUser?.role !=
+                                    UserRole.resident)) ...[
                           ElevatedButton.icon(
-                            onPressed: () => _handleReportAction(hazard['id'], 'resolve'),
+                            onPressed: () =>
+                                _handleReportAction(hazard['id'], 'resolve'),
                             icon: const Icon(Icons.verified, size: 18),
-                            label: const Text('MARK AS RESOLVED', 
-                              style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                            label: const Text(
+                              'MARK AS RESOLVED',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w900,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
                             style: ElevatedButton.styleFrom(
                               backgroundColor: Colors.green,
                               foregroundColor: Colors.white,
                               padding: const EdgeInsets.symmetric(vertical: 16),
                               elevation: 0,
-                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                              ),
                             ),
                           ),
                           const SizedBox(height: 12),
                         ],
 
-                         // 2. Agree/Upvote Action (Themed uniform button)
+                        // 2. Agree/Upvote Action (Themed uniform button)
                         IgnorePointer(
                           ignoring: isOwnReport,
                           child: SizedBox(
                             width: double.infinity,
                             child: ElevatedButton.icon(
-                              onPressed: () => _handleReportAction(hazard['id'], 'upvote'),
-                              icon: Icon(Icons.thumb_up_alt_rounded, 
-                                size: 18, 
-                                color: isOwnReport ? Colors.grey : Colors.green),
+                              onPressed: () =>
+                                  _handleReportAction(hazard['id'], 'upvote'),
+                              icon: Icon(
+                                Icons.thumb_up_alt_rounded,
+                                size: 18,
+                                color: isOwnReport ? Colors.grey : Colors.green,
+                              ),
                               label: Text(
                                 'AGREE TO THIS REPORT (${hazard['upvotes']})',
-                                style: const TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5),
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.5,
+                                ),
                               ),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: isOwnReport ? Colors.grey[100] : Colors.green.withOpacity(0.08),
-                                foregroundColor: isOwnReport ? Colors.grey : Colors.green,
-                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                backgroundColor: isOwnReport
+                                    ? Colors.grey[100]
+                                    : Colors.green.withOpacity(0.08),
+                                foregroundColor: isOwnReport
+                                    ? Colors.grey
+                                    : Colors.green,
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
                                 elevation: 0,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(14),
-                                  side: BorderSide(color: (isOwnReport ? Colors.grey : Colors.green).withOpacity(0.2)),
+                                  side: BorderSide(
+                                    color:
+                                        (isOwnReport
+                                                ? Colors.grey
+                                                : Colors.green)
+                                            .withOpacity(0.2),
+                                  ),
                                 ),
                               ),
                             ),
@@ -2645,23 +2963,37 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                         ),
 
                         // 4. Report False Info (Uniform style)
-                        if (!isOwnReport && authProvider.currentUser?.role == UserRole.resident) ...[
+                        if (!isOwnReport &&
+                            authProvider.currentUser?.role ==
+                                UserRole.resident) ...[
                           const SizedBox(height: 12),
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton.icon(
-                              onPressed: () => _handleReportAction(hazard['id'], 'flag'),
+                              onPressed: () =>
+                                  _handleReportAction(hazard['id'], 'flag'),
                               icon: const Icon(Icons.flag_rounded, size: 18),
-                              label: const Text('REPORT AS FALSE INFORMATION', 
-                                style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                              label: const Text(
+                                'REPORT AS FALSE INFORMATION',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
                               style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.orange.withOpacity(0.08),
+                                backgroundColor: Colors.orange.withOpacity(
+                                  0.08,
+                                ),
                                 foregroundColor: Colors.orange[800],
-                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
                                 elevation: 0,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(14),
-                                  side: BorderSide(color: Colors.orange.withOpacity(0.2)),
+                                  side: BorderSide(
+                                    color: Colors.orange.withOpacity(0.2),
+                                  ),
                                 ),
                               ),
                             ),
@@ -2669,23 +3001,38 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                         ],
 
                         // 3. Delete Action (Restricted to owner or official)
-                        if (isOwnReport || authProvider.currentUser?.role != UserRole.resident) ...[
+                        if (isOwnReport ||
+                            authProvider.currentUser?.role !=
+                                UserRole.resident) ...[
                           const SizedBox(height: 12),
                           SizedBox(
                             width: double.infinity,
                             child: ElevatedButton.icon(
-                              onPressed: () => _handleReportAction(hazard['id'], 'delete'),
-                              icon: const Icon(Icons.delete_forever_rounded, size: 18),
-                              label: const Text('REMOVE INCIDENT REPORT', 
-                                style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                              onPressed: () =>
+                                  _handleReportAction(hazard['id'], 'delete'),
+                              icon: const Icon(
+                                Icons.delete_forever_rounded,
+                                size: 18,
+                              ),
+                              label: const Text(
+                                'REMOVE INCIDENT REPORT',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
                               style: ElevatedButton.styleFrom(
                                 backgroundColor: Colors.red.withOpacity(0.08),
                                 foregroundColor: Colors.red[800],
-                                padding: const EdgeInsets.symmetric(vertical: 16),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 16,
+                                ),
                                 elevation: 0,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(14),
-                                  side: BorderSide(color: Colors.red.withOpacity(0.2)),
+                                  side: BorderSide(
+                                    color: Colors.red.withOpacity(0.2),
+                                  ),
                                 ),
                               ),
                             ),
@@ -2700,7 +3047,13 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                     child: ElevatedButton.icon(
                       onPressed: () => Navigator.pop(context),
                       icon: const Icon(Icons.close_rounded, size: 18),
-                      label: const Text('CLOSE PANEL', style: TextStyle(fontWeight: FontWeight.w900, letterSpacing: 0.5)),
+                      label: const Text(
+                        'CLOSE PANEL',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.grey[100],
                         foregroundColor: Colors.black87,
@@ -2708,7 +3061,9 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                         padding: const EdgeInsets.symmetric(vertical: 16),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(14),
-                          side: BorderSide(color: Colors.black.withOpacity(0.1)),
+                          side: BorderSide(
+                            color: Colors.black.withOpacity(0.1),
+                          ),
                         ),
                       ),
                     ),
@@ -2768,7 +3123,7 @@ class _HazardMapScreenState extends State<HazardMapScreen>
   Future<void> _handleReportAction(String id, String action) async {
     try {
       late http.Response response;
-      
+
       if (action == 'delete') {
         response = await http.delete(
           Uri.parse('$_baseUrl/api/reports/$id'),
@@ -2794,7 +3149,9 @@ class _HazardMapScreenState extends State<HazardMapScreen>
           _fetchReports(); // Refresh data
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Report ${action == "delete" ? "removed" : action + "d"} successfully'),
+              content: Text(
+                'Report ${action == "delete" ? "removed" : action + "d"} successfully',
+              ),
               backgroundColor: action == 'delete' ? Colors.red : Colors.green,
             ),
           );
@@ -2826,170 +3183,172 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                 right: 24,
                 top: 24,
               ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'Report Incident',
-                        style: TextStyle(
-                          fontSize: 22,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.close),
-                        onPressed: () => Navigator.pop(context),
-                      ),
-                    ],
-                  ),
-                  Text(
-                    'Coordinates: ${point.latitude.toStringAsFixed(4)}, ${point.longitude.toStringAsFixed(4)}',
-                    style: TextStyle(color: Colors.grey[600], fontSize: 13),
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'Incident Type',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    height: 200,
-                    child: GridView.builder(
-                      shrinkWrap: true,
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 4,
-                            crossAxisSpacing: 10,
-                            mainAxisSpacing: 10,
-                            childAspectRatio: 0.8,
-                          ),
-                      itemCount: _disasterIcons.length,
-                      itemBuilder: (context, index) {
-                        final type = _disasterIcons.keys.elementAt(index);
-                        final icon = _disasterIcons[type]!;
-                        final color = _disasterColors[type]!;
-                        final isSelected = selectedType == type;
-
-                        return GestureDetector(
-                          onTap: () => setModalState(() => selectedType = type),
-                          child: Column(
-                            children: [
-                              CircleAvatar(
-                                radius: 22,
-                                backgroundColor: isSelected
-                                    ? color
-                                    : Colors.grey[200],
-                                child: Icon(
-                                  icon,
-                                  color: isSelected
-                                      ? Colors.white
-                                      : Colors.grey[600],
-                                  size: 20,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                type,
-                                textAlign: TextAlign.center,
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 8,
-                                  fontWeight: isSelected
-                                      ? FontWeight.bold
-                                      : FontWeight.normal,
-                                ),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Description',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                  const SizedBox(height: 8),
-                  TextField(
-                    controller: descController,
-                    maxLines: 2,
-                    decoration: InputDecoration(
-                      hintText: 'Describe the situation...',
-                      filled: true,
-                      fillColor: Colors.grey[100],
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Evidence (Phote)',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
-                  ),
-                  const SizedBox(height: 8),
-                  if (pickedImage != null)
-                    Stack(
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Container(
-                          height: 150,
-                          width: double.infinity,
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            image: DecorationImage(
-                              image: FileImage(File(pickedImage!.path)),
-                              fit: BoxFit.cover,
-                            ),
+                        const Text(
+                          'Report Incident',
+                          style: TextStyle(
+                            fontSize: 22,
+                            fontWeight: FontWeight.bold,
                           ),
                         ),
-                        Positioned(
-                          right: 8,
-                          top: 8,
-                          child: GestureDetector(
-                            onTap: () =>
-                                setModalState(() => pickedImage = null),
-                            child: CircleAvatar(
-                              backgroundColor: Colors.black54,
-                              radius: 12,
-                              child: Icon(
-                                Icons.close,
-                                size: 16,
-                                color: Colors.white,
-                              ),
-                            ),
-                          ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(context),
                         ),
                       ],
-                    )
-                  else
-                    InkWell(
-                      onTap: () async {
-                        final image = await _picker.pickImage(
-                          source: ImageSource.gallery,
-                        );
-                        if (image != null) {
-                          setModalState(() => pickedImage = image);
-                        }
-                      },
-                      child: Container(
-                        height: 100,
-                        width: double.infinity,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[100],
+                    ),
+                    Text(
+                      'Coordinates: ${point.latitude.toStringAsFixed(4)}, ${point.longitude.toStringAsFixed(4)}',
+                      style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                    ),
+                    const SizedBox(height: 20),
+                    const Text(
+                      'Incident Type',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                      height: 200,
+                      child: GridView.builder(
+                        shrinkWrap: true,
+                        physics: const NeverScrollableScrollPhysics(),
+                        gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 4,
+                              crossAxisSpacing: 10,
+                              mainAxisSpacing: 10,
+                              childAspectRatio: 0.8,
+                            ),
+                        itemCount: _disasterIcons.length,
+                        itemBuilder: (context, index) {
+                          final type = _disasterIcons.keys.elementAt(index);
+                          final icon = _disasterIcons[type]!;
+                          final color = _disasterColors[type]!;
+                          final isSelected = selectedType == type;
+
+                          return GestureDetector(
+                            onTap: () => setModalState(() => selectedType = type),
+                            child: Column(
+                              children: [
+                                CircleAvatar(
+                                  radius: 22,
+                                  backgroundColor: isSelected
+                                      ? color
+                                      : Colors.grey[200],
+                                  child: Icon(
+                                    icon,
+                                    color: isSelected
+                                        ? Colors.white
+                                        : Colors.grey[600],
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  type,
+                                  textAlign: TextAlign.center,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 8,
+                                    fontWeight: isSelected
+                                        ? FontWeight.bold
+                                        : FontWeight.normal,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Description',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    const SizedBox(height: 8),
+                    TextField(
+                      controller: descController,
+                      maxLines: 2,
+                      decoration: InputDecoration(
+                        hintText: 'Describe the situation...',
+                        filled: true,
+                        fillColor: Colors.grey[100],
+                        border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: Colors.grey[300]!,
-                            style: BorderStyle.solid,
-                          ),
+                          borderSide: BorderSide.none,
                         ),
-                        child: Column(
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Evidence (Phote)',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                    const SizedBox(height: 8),
+                    if (pickedImage != null)
+                      Stack(
+                        children: [
+                          Container(
+                            height: 150,
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(12),
+                              image: DecorationImage(
+                                image: FileImage(File(pickedImage!.path)),
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                          Positioned(
+                            right: 8,
+                            top: 8,
+                            child: GestureDetector(
+                              onTap: () =>
+                                  setModalState(() => pickedImage = null),
+                              child: CircleAvatar(
+                                backgroundColor: Colors.black54,
+                                radius: 12,
+                                child: Icon(
+                                  Icons.close,
+                                  size: 16,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      )
+                    else
+                      InkWell(
+                        onTap: () async {
+                          final image = await _picker.pickImage(
+                            source: ImageSource.gallery,
+                          );
+                          if (image != null) {
+                            setModalState(() => pickedImage = image);
+                          }
+                        },
+                        child: Container(
+                          height: 100,
+                          width: double.infinity,
+                          decoration: BoxDecoration(
+                            color: Colors.grey[100],
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: Colors.grey[300]!,
+                              style: BorderStyle.solid,
+                            ),
+                          ),
+                          child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
                             Icon(
@@ -3008,42 +3367,43 @@ class _HazardMapScreenState extends State<HazardMapScreen>
                         ),
                       ),
                     ),
-                  const SizedBox(height: 24),
-                  SizedBox(
-                    width: double.infinity,
-                    child: ElevatedButton(
-                      onPressed: () {
-                        if (selectedType == null) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('Please select a disaster type'),
-                            ),
+                    const SizedBox(height: 24),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          if (selectedType == null) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Please select a disaster type'),
+                              ),
+                            );
+                            return;
+                          }
+                          _submitReport(
+                            point,
+                            selectedType!,
+                            descController.text,
+                            pickedImage,
                           );
-                          return;
-                        }
-                        _submitReport(
-                          point,
-                          selectedType!,
-                          descController.text,
-                          pickedImage,
-                        );
-                      },
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.red[600],
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.red[600],
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        child: const Text(
+                          'Submit Emergency Report',
+                          style: TextStyle(fontWeight: FontWeight.bold),
                         ),
                       ),
-                      child: const Text(
-                        'Submit Emergency Report',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
                     ),
-                  ),
-                  const SizedBox(height: 32),
-                ],
+                    const SizedBox(height: 32),
+                  ],
+                ),
               ),
             );
           },
