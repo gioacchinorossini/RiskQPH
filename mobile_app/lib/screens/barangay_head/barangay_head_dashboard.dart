@@ -82,6 +82,8 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
   HttpClient? _residentsSseClient;
   Timer? _disasterCheckTimer;
   List<dynamic> _evacuationCenters = [];
+  List<dynamic> _recentScans = [];
+  bool _loadingScans = false;
 
   // Barangay Selection State
   List<String> _allBarangays = [];
@@ -138,6 +140,7 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
       _fetchHqLocation(); // Initial check
       _fetchResidents();
       _fetchEvacuationCenters();
+      _fetchScans();
       _startDisasterStream();
       _loadBarangays();
     });
@@ -464,6 +467,65 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
     }
   }
 
+  Future<void> _fetchScans() async {
+    final user = Provider.of<AuthProvider>(context, listen: false).currentUser;
+    if (user?.barangay == null) return;
+
+    try {
+      setState(() => _loadingScans = true);
+      // 1. Get centers for this barangay
+      final centersRes = await http.get(
+        Uri.parse(
+          '${ApiConfig.baseUrl}/api/evacuation-center?barangay=${Uri.encodeQueryComponent(user!.barangay!)}',
+        ),
+        headers: {'ngrok-skip-browser-warning': 'true'},
+      );
+
+      if (centersRes.statusCode != 200) {
+        setState(() => _loadingScans = false);
+        return;
+      }
+      final centersData = jsonDecode(centersRes.body);
+      final List<dynamic> centers = centersData['centers'] ?? [];
+
+      List<dynamic> allScans = [];
+      // 2. Fetch evacuees for each center
+      for (var center in centers) {
+        final regRes = await http.get(
+          Uri.parse(
+            '${ApiConfig.baseUrl}/api/evacuation-center/residents?evacuationCenterId=${center['id']}',
+          ),
+          headers: {'ngrok-skip-browser-warning': 'true'},
+        );
+        if (regRes.statusCode == 200) {
+          final regData = jsonDecode(regRes.body);
+          final List<dynamic> scans = regData['evacuees'] ?? [];
+          for (var s in scans) {
+            s['centerName'] = center['name']; // Add center info for UI
+          }
+          allScans.addAll(scans);
+        }
+      }
+
+      // 3. Sort by createdAt desc
+      allScans.sort((a, b) {
+        final ad = DateTime.parse(a['createdAt'] ?? DateTime.now().toString());
+        final bd = DateTime.parse(b['createdAt'] ?? DateTime.now().toString());
+        return bd.compareTo(ad);
+      });
+
+      if (mounted) {
+        setState(() {
+          _recentScans = allScans;
+          _loadingScans = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching scans: $e');
+      if (mounted) setState(() => _loadingScans = false);
+    }
+  }
+
   Future<void> _toggleDisasterMode() async {
     final user = Provider.of<AuthProvider>(context, listen: false).currentUser;
     if (user == null) return;
@@ -628,7 +690,11 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
       final bool isTooOld = DateTime.now().difference(n.time).inDays >= 1;
 
       if (withinRange && !isTooOld) {
-        _showHazardAlertWindow(n, distance);
+        // Explicitly only show the intrusive popup window if it's within 5km radius
+        if (distance < 5000) {
+          _showHazardAlertWindow(n, distance);
+        }
+
         NotificationService.showNotification(
           id: n.id.hashCode,
           title: n.title,
@@ -2140,11 +2206,125 @@ class _BarangayHeadDashboardState extends State<BarangayHeadDashboard> {
   }
 
   Widget _buildAttendanceHistorySliver() {
-    return const SliverToBoxAdapter(
-      child: Center(
-        child: Padding(
-          padding: EdgeInsets.all(40.0),
-          child: Text('Administrative logs ready for jurisdictional review.'),
+    if (_loadingScans && _recentScans.isEmpty) {
+      return const SliverToBoxAdapter(
+        child: Center(
+          child: Padding(
+            padding: EdgeInsets.all(80.0),
+            child: CircularProgressIndicator(),
+          ),
+        ),
+      );
+    }
+
+    if (_recentScans.isEmpty) {
+      return SliverToBoxAdapter(
+        child: RefreshIndicator(
+          onRefresh: _fetchScans,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(80.0),
+                child: Column(
+                  children: [
+                    Icon(Icons.qr_code_scanner,
+                        size: 64, color: Colors.grey.shade300),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'No recent scans found.',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: _fetchScans,
+                      child: const Text('Refresh'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SliverPadding(
+      padding: const EdgeInsets.all(16),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final scan = _recentScans[index];
+            final String name =
+                '${scan['firstName'] ?? ""} ${scan['lastName'] ?? ""}'.trim();
+            final DateTime date =
+                DateTime.parse(scan['createdAt'] ?? DateTime.now().toString());
+            final String timeStr = DateFormat('MMM dd, hh:mm a').format(date);
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey.shade100),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.02),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF8E0000).withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.person_pin_circle_outlined,
+                      color: Color(0xFF8E0000),
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        Text(
+                          'Evacuated to: ${scan['centerName'] ?? "Unknown center"}',
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    timeStr,
+                    style: TextStyle(
+                      color: Colors.grey.shade400,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+          childCount: _recentScans.length,
         ),
       ),
     );

@@ -79,6 +79,8 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
   HttpClient? _disasterSseClient;
   HttpClient? _residentsSseClient;
   List<dynamic> _evacuationCenters = [];
+  List<dynamic> _recentScans = [];
+  bool _loadingScans = false;
 
   @override
   void initState() {
@@ -131,6 +133,7 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
       _fetchHqLocation(); // Initial check
       _fetchResidents(); // Initial check
       _fetchEvacuationCenters();
+      _fetchScans();
       _startDisasterStream();
     });
   }
@@ -394,6 +397,62 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
     }
   }
 
+  Future<void> _fetchScans() async {
+    final user = Provider.of<AuthProvider>(context, listen: false).currentUser;
+    if (user?.barangay == null) return;
+
+    try {
+      setState(() => _loadingScans = true);
+      final centersRes = await http.get(
+        Uri.parse(
+          '${ApiConfig.baseUrl}/api/evacuation-center?barangay=${Uri.encodeQueryComponent(user!.barangay!)}',
+        ),
+        headers: {'ngrok-skip-browser-warning': 'true'},
+      );
+
+      if (centersRes.statusCode != 200) {
+        setState(() => _loadingScans = false);
+        return;
+      }
+      final centersData = jsonDecode(centersRes.body);
+      final List<dynamic> centers = centersData['centers'] ?? [];
+
+      List<dynamic> allScans = [];
+      for (var center in centers) {
+        final regRes = await http.get(
+          Uri.parse(
+            '${ApiConfig.baseUrl}/api/evacuation-center/residents?evacuationCenterId=${center['id']}',
+          ),
+          headers: {'ngrok-skip-browser-warning': 'true'},
+        );
+        if (regRes.statusCode == 200) {
+          final regData = jsonDecode(regRes.body);
+          final List<dynamic> scans = regData['evacuees'] ?? [];
+          for (var s in scans) {
+            s['centerName'] = center['name'];
+          }
+          allScans.addAll(scans);
+        }
+      }
+
+      allScans.sort((a, b) {
+        final ad = DateTime.parse(a['createdAt'] ?? DateTime.now().toString());
+        final bd = DateTime.parse(b['createdAt'] ?? DateTime.now().toString());
+        return bd.compareTo(ad);
+      });
+
+      if (mounted) {
+        setState(() {
+          _recentScans = allScans;
+          _loadingScans = false;
+        });
+      }
+    } catch (e) {
+      debugPrint('Error fetching scans: $e');
+      if (mounted) setState(() => _loadingScans = false);
+    }
+  }
+
   Future<void> _determinePreviewPosition() async {
     try {
       final permission = await Geolocator.checkPermission();
@@ -447,7 +506,11 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
       final bool isTooOld = DateTime.now().difference(n.time).inDays >= 1;
 
       if (withinRange && !isTooOld) {
-        _showHazardAlertWindow(n, distance);
+        // Explicitly only show the intrusive popup window if it's within 5km radius
+        if (distance < 5000) {
+          _showHazardAlertWindow(n, distance);
+        }
+
         NotificationService.showNotification(
           id: n.id.hashCode,
           title: n.title,
@@ -711,7 +774,8 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
 
       final bool isTooOld = DateTime.now().difference(reportedTime).inDays >= 1;
 
-      if (isWithinRange && !isTooOld &&
+      if (isWithinRange &&
+          !isTooOld &&
           !_notifiedIncidents.contains(report['id']?.toString() ?? '')) {
         final String type = report['type'] ?? 'Incident';
         final Color incidentColor = _disasterColors[type] ?? Colors.red;
@@ -1510,13 +1574,6 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
           ),
           _buildQuickActionItem(
             width: itemWidth,
-            icon: Icons.person_outline,
-            label: 'Profile',
-            color: Colors.teal,
-            onTap: () => setState(() => _selectedIndex = 3),
-          ),
-          _buildQuickActionItem(
-            width: itemWidth,
             icon: Icons.edit_note,
             label: 'Edit Profile',
             color: Colors.orange,
@@ -1957,11 +2014,126 @@ class _ResponderDashboardState extends State<ResponderDashboard> {
   }
 
   Widget _buildAttendanceHistorySliver() {
-    return const SliverToBoxAdapter(
-      child: Center(
-        child: Padding(
-          padding: EdgeInsets.all(40.0),
-          child: Text('Unit response logs and incident reports ready.'),
+    if (_loadingScans && _recentScans.isEmpty) {
+      return const SliverToBoxAdapter(
+        child: Center(
+          child: Padding(
+            padding: EdgeInsets.all(80.0),
+            child: CircularProgressIndicator(),
+          ),
+        ),
+      );
+    }
+
+    if (_recentScans.isEmpty) {
+      return SliverToBoxAdapter(
+        child: RefreshIndicator(
+          onRefresh: _fetchScans,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.all(80.0),
+                child: Column(
+                  children: [
+                    Icon(Icons.qr_code_scanner,
+                        size: 64, color: Colors.grey.shade300),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'No recent unit scans found.',
+                      style: TextStyle(color: Colors.grey),
+                    ),
+                    const SizedBox(height: 8),
+                    TextButton(
+                      onPressed: _fetchScans,
+                      child: const Text('Refresh Logs'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SliverPadding(
+      padding: const EdgeInsets.all(16),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final scan = _recentScans[index];
+            final String name =
+                '${scan['firstName'] ?? ""} ${scan['lastName'] ?? ""}'.trim();
+            final DateTime date =
+                DateTime.parse(scan['createdAt'] ?? DateTime.now().toString());
+            final String timeStr = DateFormat('MMM dd, hh:mm a').format(date);
+            const tealColor = Color(0xFF006064);
+
+            return Container(
+              margin: const EdgeInsets.only(bottom: 12),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey.shade100),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.02),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: tealColor.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.person_pin_circle_outlined,
+                      color: tealColor,
+                      size: 24,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          name,
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 16,
+                          ),
+                        ),
+                        Text(
+                          'Registered at: ${scan['centerName'] ?? "Evacuation Center"}',
+                          style: TextStyle(
+                            color: Colors.grey.shade600,
+                            fontSize: 12,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    timeStr,
+                    style: TextStyle(
+                      color: Colors.grey.shade400,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+          childCount: _recentScans.length,
         ),
       ),
     );

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
@@ -25,7 +26,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   List<String> _barangays = [];
   String? _selectedBarangay;
   bool _loadingBarangays = true;
-  String? _barangayLoadError;
   bool _obscurePassword = true;
 
   @override
@@ -37,7 +37,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Future<void> _loadBarangays() async {
     setState(() {
       _loadingBarangays = true;
-      _barangayLoadError = null;
     });
     try {
       final uri = Uri.parse('${ApiConfig.baseUrl}/api/barangay/list');
@@ -54,13 +53,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
         });
       } else {
         setState(() {
-          _barangayLoadError = 'Could not load barangays';
           _loadingBarangays = false;
         });
       }
     } catch (e) {
       setState(() {
-        _barangayLoadError = 'Could not load barangays';
         _loadingBarangays = false;
       });
     }
@@ -79,232 +76,396 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-
     return Scaffold(
-      backgroundColor: scheme.surface,
-      appBar: AppBar(
-        title: const Text('Create account'),
-        elevation: 0,
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Join your barangay',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.primaryColor,
+      backgroundColor: Colors.white,
+      body: Stack(
+        children: [
+          SafeArea(
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 40),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Row(
+                    children: [
+                      IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(
+                          Icons.arrow_back_ios_new,
+                          color: Colors.black45,
+                          size: 20,
+                        ),
                       ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'Your barangay captain will confirm you live in the barangay you select.',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Colors.grey[700],
-                        height: 1.35,
+                      const Text(
+                        'BACK TO LOGIN',
+                        style: TextStyle(
+                          color: Colors.black45,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 2,
+                        ),
                       ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 28),
-                TextFormField(
-                  controller: _firstNameController,
-                  textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(
-                    labelText: 'First name',
-                    prefixIcon: Icon(Icons.person_outline),
+                    ],
                   ),
-                  validator: (v) =>
-                      v == null || v.trim().isEmpty ? 'Required' : null,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _middleNameController,
-                  textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(
-                    labelText: 'Middle name',
-                    prefixIcon: Icon(Icons.person_outline),
-                  ),
-                  validator: (v) =>
-                      v == null || v.trim().isEmpty ? 'Required' : null,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _lastNameController,
-                  textCapitalization: TextCapitalization.words,
-                  decoration: const InputDecoration(
-                    labelText: 'Last name',
-                    prefixIcon: Icon(Icons.badge_outlined),
-                  ),
-                  validator: (v) =>
-                      v == null || v.trim().isEmpty ? 'Required' : null,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _addressController,
-                  maxLines: 3,
-                  textCapitalization: TextCapitalization.sentences,
-                  decoration: const InputDecoration(
-                    labelText: 'Permanent address',
-                    alignLabelWithHint: true,
-                    prefixIcon: Padding(
-                      padding: EdgeInsets.only(bottom: 48),
-                      child: Icon(Icons.home_outlined),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'Create Account',
+                    style: TextStyle(
+                      fontSize: 32,
+                      fontWeight: FontWeight.w900,
+                      color: Color(0xFF1E293B),
+                      letterSpacing: -1,
                     ),
                   ),
-                  validator: (v) =>
-                      v == null || v.trim().isEmpty ? 'Required' : null,
-                ),
-                const SizedBox(height: 16),
-                if (_barangayLoadError != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            _barangayLoadError!,
-                            style: TextStyle(color: AppTheme.errorColor, fontSize: 13),
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: _loadBarangays,
-                          child: const Text('Retry'),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Join your community’s disaster response network.',
+                    style: TextStyle(fontSize: 14, color: Colors.black54),
+                  ),
+                  const SizedBox(height: 48),
+
+                  // Registration Card
+                  Container(
+                    padding: const EdgeInsets.all(32),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(32),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.05),
+                          blurRadius: 20,
+                          offset: const Offset(0, 10),
                         ),
                       ],
+                      border: Border.all(color: Colors.grey.shade100),
                     ),
-                  ),
-                InputDecorator(
-                  decoration: const InputDecoration(
-                    labelText: 'Barangay',
-                    prefixIcon: Icon(Icons.maps_home_work_outlined),
-                  ),
-                  child: _loadingBarangays
-                      ? const Padding(
-                          padding: EdgeInsets.symmetric(vertical: 12),
-                          child: Center(
-                            child: SizedBox(
-                              width: 22,
-                              height: 22,
-                              child: CircularProgressIndicator(strokeWidth: 2),
+                    child: Form(
+                      key: _formKey,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _buildTextField(
+                            controller: _firstNameController,
+                            label: 'First Name',
+                            icon: Icons.person_outline,
+                          ),
+                          const SizedBox(height: 20),
+                          _buildTextField(
+                            controller: _lastNameController,
+                            label: 'Last Name',
+                            icon: Icons.badge_outlined,
+                          ),
+                          const SizedBox(height: 20),
+                          _buildTextField(
+                            controller: _addressController,
+                            label: 'Home Address',
+                            icon: Icons.home_outlined,
+                            maxLines: 2,
+                          ),
+                          const SizedBox(height: 20),
+
+                          // Barangay Picker
+                          const Text(
+                            'BARANGAY',
+                            style: TextStyle(
+                              color: Colors.black45,
+                              fontSize: 10,
+                              fontWeight: FontWeight.bold,
+                              letterSpacing: 1,
                             ),
                           ),
-                        )
-                      : DropdownButtonHideUnderline(
-                          child: DropdownButton<String>(
-                            isExpanded: true,
-                            hint: const Text('Select barangay'),
-                            value: _selectedBarangay,
-                            items: _barangays
-                                .map(
-                                  (b) => DropdownMenuItem(
-                                    value: b,
-                                    child: Text(b),
-                                  ),
-                                )
-                                .toList(),
-                            onChanged: (v) =>
-                                setState(() => _selectedBarangay = v),
+                          const SizedBox(height: 8),
+                          _buildBarangayDropdown(),
+
+                          const SizedBox(height: 24),
+                          const Divider(),
+                          const SizedBox(height: 24),
+
+                          _buildTextField(
+                            controller: _emailController,
+                            label: 'Account Email',
+                            icon: Icons.email_outlined,
+                            keyboardType: TextInputType.emailAddress,
                           ),
-                        ),
-                ),
-                if (!_loadingBarangays &&
-                    _barangays.isEmpty &&
-                    _barangayLoadError == null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Text(
-                      'No barangays are set up yet. Ask an administrator to add barangays first.',
-                      style: TextStyle(color: Colors.grey[700], fontSize: 13),
-                    ),
-                  ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _emailController,
-                  keyboardType: TextInputType.emailAddress,
-                  autocorrect: false,
-                  decoration: const InputDecoration(
-                    labelText: 'Email',
-                    prefixIcon: Icon(Icons.email_outlined),
-                  ),
-                  validator: (v) {
-                    if (v == null || v.trim().isEmpty) return 'Required';
-                    if (!v.contains('@')) return 'Enter a valid email';
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: _obscurePassword,
-                  decoration: InputDecoration(
-                    labelText: 'Password',
-                    prefixIcon: const Icon(Icons.lock_outline),
-                    suffixIcon: IconButton(
-                      icon: Icon(
-                        _obscurePassword
-                            ? Icons.visibility
-                            : Icons.visibility_off,
-                      ),
-                      onPressed: () => setState(
-                        () => _obscurePassword = !_obscurePassword,
-                      ),
-                    ),
-                  ),
-                  validator: (v) =>
-                      v == null || v.length < 6 ? 'At least 6 characters' : null,
-                ),
-                const SizedBox(height: 28),
-                Consumer<AuthProvider>(
-                  builder: (context, auth, _) {
-                    return FilledButton(
-                      onPressed: auth.isLoading ? null : _handleRegister,
-                      child: auth.isLoading
-                          ? const SizedBox(
-                              height: 22,
-                              width: 22,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
+                          const SizedBox(height: 20),
+                          _buildTextField(
+                            controller: _passwordController,
+                            label: 'Account Password',
+                            icon: Icons.lock_outline,
+                            isPassword: true,
+                          ),
+
+                          const SizedBox(height: 32),
+
+                          Consumer<AuthProvider>(
+                            builder: (context, auth, _) => ElevatedButton(
+                              onPressed: auth.isLoading
+                                  ? null
+                                  : _handleRegister,
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppTheme.primaryColor,
+                                foregroundColor: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(16),
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  vertical: 18,
+                                ),
+                                elevation: 0,
                               ),
-                            )
-                          : const Text('Create account'),
-                    );
-                  },
-                ),
-                if (Provider.of<AuthProvider>(context).error != null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 16),
-                    child: Text(
-                      Provider.of<AuthProvider>(context).error!,
-                      style: TextStyle(color: AppTheme.errorColor),
-                      textAlign: TextAlign.center,
+                              child: auth.isLoading
+                                  ? const SizedBox(
+                                      height: 20,
+                                      width: 20,
+                                      child: CircularProgressIndicator(
+                                        strokeWidth: 2,
+                                        color: Colors.white,
+                                      ),
+                                    )
+                                  : const Text(
+                                      'REGISTER ACCOUNT',
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w900,
+                                        letterSpacing: 1.2,
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          _buildErrorDisplay(),
+                        ],
+                      ),
                     ),
                   ),
-                const SizedBox(height: 16),
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Already have an account? Sign in'),
-                ),
-              ],
+                  const SizedBox(height: 40),
+                ],
+              ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    required IconData icon,
+    bool isPassword = false,
+    TextInputType? keyboardType,
+    int maxLines = 1,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label.toUpperCase(),
+          style: const TextStyle(
+            color: Colors.grey,
+            fontSize: 10,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1,
+          ),
+        ),
+        const SizedBox(height: 8),
+        TextFormField(
+          controller: controller,
+          obscureText: isPassword && _obscurePassword,
+          keyboardType: keyboardType,
+          maxLines: maxLines,
+          style: const TextStyle(
+            color: Colors.black,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+          decoration: InputDecoration(
+            filled: true,
+            fillColor: const Color(0xFFF8FAFC),
+            hintText: 'Enter $label',
+            hintStyle: TextStyle(
+              color: Colors.black.withOpacity(0.3),
+              fontSize: 14,
+            ),
+            prefixIcon: Icon(icon, color: Colors.black45, size: 20),
+            suffixIcon: isPassword
+                ? IconButton(
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility
+                          : Icons.visibility_off,
+                      color: Colors.black45,
+                    ),
+                    onPressed: () =>
+                        setState(() => _obscurePassword = !_obscurePassword),
+                  )
+                : null,
+            contentPadding: const EdgeInsets.symmetric(
+              vertical: 18,
+              horizontal: 16,
+            ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(color: Colors.grey.shade200),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(
+                color: AppTheme.primaryColor,
+                width: 2,
+              ),
+            ),
+            errorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: BorderSide(color: Colors.red.shade200),
+            ),
+            focusedErrorBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(16),
+              borderSide: const BorderSide(color: Color(0xFFEF4444), width: 2),
+            ),
+          ),
+          validator: (v) => v == null || v.trim().isEmpty ? 'Required' : null,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBarangayDropdown() {
+    return InkWell(
+      onTap: _loadingBarangays ? null : _showBarangayPicker,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8FAFC),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.location_city_outlined, color: Colors.black45, size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                _selectedBarangay ?? 'Select Barangay',
+                style: TextStyle(
+                  color: _selectedBarangay != null ? Colors.black : Colors.black38,
+                  fontSize: 14,
+                  fontWeight: _selectedBarangay != null ? FontWeight.w500 : FontWeight.normal,
+                ),
+              ),
+            ),
+            if (_loadingBarangays)
+              const SizedBox(
+                width: 16,
+                height: 16,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: AppTheme.primaryColor,
+                ),
+              )
+            else
+              const Icon(
+                Icons.keyboard_arrow_down,
+                color: Colors.black45,
+              ),
+          ],
         ),
       ),
     );
   }
 
+  void _showBarangayPicker() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      builder: (context) => Container(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'SELECT BARANGAY',
+              style: TextStyle(
+                color: Color(0xFF1E293B),
+                fontWeight: FontWeight.w900,
+                letterSpacing: 1,
+                fontSize: 14,
+              ),
+            ),
+            const SizedBox(height: 16),
+            ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.4,
+              ),
+              child: ListView.builder(
+                shrinkWrap: true,
+                itemCount: _barangays.length,
+                itemBuilder: (context, index) {
+                  final b = _barangays[index];
+                  final isSelected = _selectedBarangay == b;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      dense: true,
+                      tileColor: isSelected ? AppTheme.primaryColor.withOpacity(0.05) : Colors.grey.shade50,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                        side: BorderSide(
+                          color: isSelected ? AppTheme.primaryColor.withOpacity(0.2) : Colors.transparent,
+                        ),
+                      ),
+                      title: Text(
+                        b,
+                        style: TextStyle(
+                          color: isSelected ? AppTheme.primaryColor : const Color(0xFF1E293B),
+                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                        ),
+                      ),
+                      trailing: isSelected ? const Icon(Icons.check_circle, color: AppTheme.primaryColor, size: 20) : null,
+                      onTap: () {
+                        setState(() => _selectedBarangay = b);
+                        Navigator.pop(context);
+                      },
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildErrorDisplay() {
+    return Consumer<AuthProvider>(
+      builder: (context, auth, _) {
+        if (auth.error != null) {
+          return Text(
+            auth.error!,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              color: Color(0xFFEF4444),
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+            ),
+          );
+        }
+        return const SizedBox.shrink();
+      },
+    );
+  }
+
   Future<void> _handleRegister() async {
-    if (_selectedBarangay == null || _selectedBarangay!.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a barangay')),
-      );
+    if (_selectedBarangay == null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Select a barangay')));
       return;
     }
     if (!_formKey.currentState!.validate()) return;
@@ -323,13 +484,13 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
     if (success && mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Account created. Your barangay captain will verify your membership.',
-          ),
-        ),
+        const SnackBar(content: Text('Account created. Verification pending.')),
       );
-      Navigator.pushNamedAndRemoveUntil(context, '/user_dashboard', (route) => false);
+      Navigator.pushNamedAndRemoveUntil(
+        context,
+        '/user_dashboard',
+        (route) => false,
+      );
     }
   }
 }

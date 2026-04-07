@@ -14,6 +14,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
 import 'edit_profile_screen.dart';
 import '../common/reported_incidents_screen.dart';
+import '../common/settings_screen.dart';
 import '../common/profile_tab_sliver.dart';
 import '../common/notifications_tab_sliver.dart';
 import '../../widgets/safety_overlay.dart';
@@ -178,7 +179,11 @@ class _UserDashboardState extends State<UserDashboard> {
       final bool isTooOld = DateTime.now().difference(n.time).inDays >= 1;
 
       if (withinRange && !isTooOld) {
-        _showHazardAlertWindow(n, distance);
+        // Explicitly only show the intrusive popup window if it's within 5km radius
+        if (distance < 5000) {
+          _showHazardAlertWindow(n, distance);
+        }
+
         NotificationService.showNotification(
           id: n.id.hashCode,
           title: n.title,
@@ -621,7 +626,8 @@ class _UserDashboardState extends State<UserDashboard> {
 
       final bool isTooOld = DateTime.now().difference(reportedTime).inDays >= 1;
 
-      if (isWithinRange && !isTooOld &&
+      if (isWithinRange &&
+          !isTooOld &&
           !_notifiedIncidents.contains(report['id'].toString())) {
         final String type = report['type'] ?? 'Incident';
         final Color incidentColor = _disasterColors[type] ?? Colors.red;
@@ -1453,7 +1459,7 @@ class _UserDashboardState extends State<UserDashboard> {
                   width: itemWidth,
                   icon: Icons.edit_note,
                   label: 'Edit Profile',
-                  color: Colors.blue,
+                  color: Colors.orange,
                   onTap: !isVerified
                       ? () {}
                       : () => Navigator.push(
@@ -1480,10 +1486,17 @@ class _UserDashboardState extends State<UserDashboard> {
                 ),
                 _buildQuickActionItem(
                   width: itemWidth,
-                  icon: Icons.person_outline,
-                  label: 'Profile',
-                  color: Colors.teal,
-                  onTap: () => setState(() => _selectedIndex = 2),
+                  icon: Icons.settings_outlined,
+                  label: 'Settings',
+                  color: Colors.blueGrey,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const SettingsScreen(),
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
@@ -1897,7 +1910,7 @@ class _UserDashboardState extends State<UserDashboard> {
         ).currentUser?.barangayMemberStatus ==
         'verified';
     final Color displayColor = isVerified ? color : Colors.grey;
- 
+
     return InkWell(
       onTap: isVerified ? onTap : null,
       borderRadius: BorderRadius.circular(12),
@@ -1939,10 +1952,6 @@ class _UserDashboardState extends State<UserDashboard> {
         title: const Text('Logout'),
         content: const Text('Are you sure you want to logout?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             child: const Text('Logout'),
