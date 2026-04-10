@@ -63,6 +63,7 @@ interface Resident {
   isSafe: boolean;
   hasResponded: boolean;
   role: string;
+  barangayMemberStatus?: string;
   safetyUpdatedAt?: string | null;
   updatedAt?: string | null;
   evacuationCenterId?: string | null;
@@ -107,7 +108,7 @@ export default function BarangayHeadDashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<'all' | 'safe' | 'missing'>('all');
+  const [filter, setFilter] = useState<'all' | 'safe' | 'missing' | 'unverified'>('all');
   const [isActivating, setIsActivating] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [disasterType, setDisasterType] = useState('General Emergency');
@@ -305,7 +306,10 @@ export default function BarangayHeadDashboard() {
   const filteredResidents = useMemo(() => {
     return residents.filter(r => {
       const matchesSearch = `${r.firstName} ${r.lastName}`.toLowerCase().includes(search.toLowerCase());
-      const matchesFilter = filter === 'all' || (filter === 'safe' ? r.isSafe : !r.isSafe);
+      let matchesFilter = true;
+      if (filter === 'safe') matchesFilter = r.isSafe;
+      if (filter === 'missing') matchesFilter = !r.isSafe;
+      if (filter === 'unverified') matchesFilter = r.barangayMemberStatus === 'pending';
       return matchesSearch && matchesFilter;
     });
   }, [residents, search, filter]);
@@ -325,7 +329,7 @@ export default function BarangayHeadDashboard() {
       </div>
       <div className="flex flex-col items-center text-zinc-400">
         <Loader2 className="animate-spin mb-2" />
-        <p className="text-[10px] font-black uppercase tracking-[0.3em]">INITIALIZING COMMAND CENTER</p>
+        <p className="text-[10px] font-black uppercase tracking-[0.3em]"></p>
       </div>
     </div>
   );
@@ -376,13 +380,6 @@ export default function BarangayHeadDashboard() {
             >
               <UserPlus size={20} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
               <span className="hidden lg:block text-xs font-black uppercase tracking-wider">Add Account</span>
-            </button>
-            <button
-              onClick={() => router.push('/barangay-head/admin-add-user')}
-              className="w-full flex items-center gap-4 px-4 py-3 rounded-2xl transition-all duration-300 group text-zinc-400 hover:text-red-600 hover:bg-red-600/5 dark:hover:bg-red-600/10"
-            >
-              <ShieldAlert size={20} strokeWidth={2.5} className="group-hover:scale-110 transition-transform" />
-              <span className="hidden lg:block text-xs font-black uppercase tracking-wider">Admin Protocol</span>
             </button>
             <button
               onClick={() => setShowECManager(true)}
@@ -473,12 +470,12 @@ export default function BarangayHeadDashboard() {
                       </div>
                       <div>
                         <h3 className="text-3xl lg:text-5xl font-black tracking-tighter uppercase leading-none mb-4">
-                          {isActive ? <>CEASE ALL <span className="text-red-600 italic">NON-CRITICAL</span> OPERATIONS</> : <>ALL CITIZENS <span className="text-emerald-600">CONFIRMED SAFE</span></>}
+                          {isActive ? <>Disaster mode:<span className="text-red-600 italic"></span></> : <>DISASTER MODE:<span className="text-emerald-600">OFF</span></>}
                         </h3>
                         <p className="text-zinc-500 dark:text-zinc-400 text-xs lg:text-sm font-bold max-w-lg leading-relaxed uppercase tracking-wider">
                           {isActive
-                            ? `COMMENCING EVACUATION PROTOCOLS FOR BRGY. ${user?.barangay}. ${activeDisaster.type}: ${activeDisaster.description || 'Active hazard monitoring engaged.'}`
-                            : `SYSTEM MONITORING ACTIVE IN BRGY. ${user?.barangay}. No active hazards detected within jurisdictional boundaries.`}
+                            ? `COMMENCING EVACUATION PROTOCOLS FOR BRGY. ${user?.barangay}. ${activeDisaster.type}: ${activeDisaster.description || 'Monitoring engaged.'}`
+                            : `SYSTEM MONITORING ACTIVE IN BRGY. ${user?.barangay}.`}
                         </p>
                       </div>
 
@@ -495,8 +492,7 @@ export default function BarangayHeadDashboard() {
                             <Loader2 className="animate-spin" size={18} />
                           ) : (
                             <>
-                              {isActive ? 'DEACTIVATE EMERGENCY PROTOCOL' : 'ACTIVATE DISASTER MODE'}
-                              <Zap size={14} fill="currentColor" />
+                              {isActive ? 'DEACTIVATE DiSASTER MODE' : 'ACTIVATE DISASTER MODE'}
                             </>
                           )}
                         </button>
@@ -510,14 +506,16 @@ export default function BarangayHeadDashboard() {
                     </div>
 
                     <div className="md:col-span-2 grid grid-cols-2 gap-4">
-                      <div className="bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 rounded-[2rem] flex flex-col justify-center">
+                      <div className={`bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 rounded-[2rem] flex flex-col justify-center ${!isActive ? 'col-span-2' : ''}`}>
                         <p className="text-[10px] font-black tracking-widest text-zinc-500 uppercase mb-2">Total Citizens</p>
                         <p className="text-4xl font-black tracking-tighter">{stats.total}</p>
                       </div>
-                      <div className={`p-6 rounded-[2rem] border transition-all duration-700 ${isActive ? 'bg-red-600 border-red-700 text-white shadow-xl shadow-red-600/10' : 'bg-emerald-600 border-emerald-700 text-white'}`}>
-                        <p className="text-[10px] font-black tracking-widest opacity-60 uppercase mb-2">{isActive ? 'MISSING' : 'SAFE'}</p>
-                        <p className="text-4xl font-black tracking-tighter">{isActive ? stats.missing : stats.safe}</p>
-                      </div>
+                      {isActive && (
+                        <div className="p-6 rounded-[2rem] border transition-all duration-700 bg-red-600 border-red-700 text-white shadow-xl shadow-red-600/10">
+                          <p className="text-[10px] font-black tracking-widest opacity-60 uppercase mb-2">MISSING</p>
+                          <p className="text-4xl font-black tracking-tighter">{stats.missing}</p>
+                        </div>
+                      )}
                       <div className="bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 p-6 rounded-[2rem] flex flex-col justify-center">
                         <p className="text-[10px] font-black tracking-widest text-zinc-500 uppercase mb-2">Responders</p>
                         <p className="text-4xl font-black tracking-tighter">{stats.responders}</p>
@@ -549,7 +547,7 @@ export default function BarangayHeadDashboard() {
                         <div className="flex gap-2">
                           <button
                             onClick={() => setIsSettingLocation(!isSettingLocation)}
-                            className={`h-10 px-6 rounded-xl border font-black uppercase tracking-widest text-[9px] transition-all border-zinc-200 text-zinc-500 hover:border-zinc-900 hover:text-zinc-900`}
+                            className={`h-10 px-6 rounded-xl border font-black uppercase tracking-widest text-[9px] transition-all border-white text-white hover:border-white hover:text-black hover:bg-white`}
                           >
                             SET BARANGAY HALL
                           </button>
@@ -648,8 +646,8 @@ export default function BarangayHeadDashboard() {
                       <Users className="text-red-600" size={24} />
                     </div>
                     <div>
-                      <h3 className="text-2xl font-black tracking-tight uppercase">Citizen Directory</h3>
-                      <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Manage all registered households in your jurisdiction</p>
+                      <h3 className="text-2xl font-black tracking-tight uppercase">Residents</h3>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-zinc-400">Manage all members</p>
                     </div>
                   </div>
 
@@ -672,7 +670,7 @@ export default function BarangayHeadDashboard() {
                       />
                     </div>
                     <div className="flex p-1 bg-zinc-200 dark:bg-zinc-900 rounded-2xl border border-zinc-200 dark:border-zinc-800">
-                      {['all', 'safe', 'missing'].map((f) => (
+                      {['all', 'safe', 'missing', 'unverified'].map((f) => (
                         <button
                           key={f}
                           onClick={() => setFilter(f as any)}
@@ -750,6 +748,31 @@ export default function BarangayHeadDashboard() {
                                 {r.safetyUpdatedAt ? new Date(r.safetyUpdatedAt).toLocaleString() : 'N/A'}
                               </td>
                               <td className="px-8 py-6 text-right flex items-center justify-end gap-2">
+                                {r.barangayMemberStatus === 'pending' && (
+                                  <button
+                                    onClick={async (e) => {
+                                      e.stopPropagation();
+                                      if (!confirm(`Verify ${r.firstName} ${r.lastName} as a legitimate member of the barangay?`)) return;
+                                      try {
+                                        const res = await fetch('/api/profile', {
+                                          method: 'POST',
+                                          headers: { 'Content-Type': 'application/json' },
+                                          body: JSON.stringify({ id: r.id, barangayMemberStatus: 'verified' })
+                                        });
+                                        if (res.ok) {
+                                          setResidents(prev => prev.map(res => res.id === r.id ? { ...res, barangayMemberStatus: 'verified' } : res));
+                                        } else {
+                                          alert('Verification failed');
+                                        }
+                                      } catch (err) {
+                                        console.error(err);
+                                      }
+                                    }}
+                                    className="h-10 px-4 rounded-xl bg-emerald-600 text-white text-[9px] font-black uppercase tracking-widest hover:bg-emerald-700 transition-all shadow-lg shadow-emerald-900/10"
+                                  >
+                                    Verify
+                                  </button>
+                                )}
                                 <button
                                   onClick={() => router.push(`/barangay-head/edit-user/${r.id}`)}
                                   className="h-10 px-4 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-black text-[9px] font-black uppercase tracking-widest hover:bg-red-600 dark:hover:bg-red-600 hover:text-white transition-all shadow-lg shadow-zinc-900/5"
@@ -758,9 +781,9 @@ export default function BarangayHeadDashboard() {
                                 </button>
                                 <button
                                   onClick={() => handleDeleteUser(r.id)}
-                                  className="h-10 w-10 flex items-center justify-center rounded-xl bg-red-600/10 text-red-600 hover:bg-red-600 hover:text-white transition-all shadow-sm"
+                                  className="h-10 px-4 rounded-xl bg-zinc-900 dark:bg-white text-white dark:text-black text-[9px] font-black uppercase tracking-widest hover:bg-red-600 dark:hover:bg-red-600 hover:text-white transition-all shadow-lg shadow-zinc-900/5"
                                 >
-                                  <ShieldAlert size={16} />
+                                  Delete
                                 </button>
                                 <button
                                   onClick={() => {
@@ -770,7 +793,7 @@ export default function BarangayHeadDashboard() {
                                   }}
                                   className="h-10 px-4 rounded-xl border border-zinc-200 dark:border-zinc-800 text-[9px] font-black uppercase tracking-widest hover:bg-zinc-900 hover:text-white dark:hover:bg-white dark:hover:text-black transition-all"
                                 >
-                                  Radar
+                                  Track
                                 </button>
                               </td>
                             </tr>

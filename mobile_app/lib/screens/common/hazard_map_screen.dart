@@ -3453,8 +3453,9 @@ class _HazardMapScreenState extends State<HazardMapScreen>
           Navigator.pop(context); // Close modal
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Report published to all users!'),
+              content: Text('Submitted Report Successfully'),
               backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
             ),
           );
         }

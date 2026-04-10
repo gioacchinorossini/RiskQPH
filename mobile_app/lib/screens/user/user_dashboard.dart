@@ -1727,124 +1727,163 @@ class _UserDashboardState extends State<UserDashboard> {
       onTap: () => Navigator.of(
         context,
       ).push(MaterialPageRoute(builder: (_) => const HazardMapScreen())),
-      child: AbsorbPointer(
-        child: FlutterMap(
-          mapController: _previewMapController,
-          options: const MapOptions(
-            initialCenter: LatLng(14.5995, 120.9842),
-            initialZoom: 15,
-          ),
-          children: [
-            TileLayer(
-              urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
-              userAgentPackageName:
-                  'RiskQPH/1.0 (ph.gov.riskqph.mobile; contact: admin@riskqph.ph)',
-            ),
-            MarkerLayer(
-              markers: [
-                if (_previewLocation != null)
-                  Marker(
-                    point: _previewLocation!,
-                    width: 45,
-                    height: 45,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.blueAccent.withOpacity(0.2),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: Colors.blueAccent, width: 2),
-                      ),
-                      child: const Icon(
-                        Icons.person_pin_circle,
-                        color: Colors.blueAccent,
-                        size: 30,
-                      ),
-                    ),
-                  ),
-                if (_hqLocation != null)
-                  Marker(
-                    point: _hqLocation!,
-                    width: 30,
-                    height: 30,
-                    child: const Icon(
-                      Icons.account_balance,
-                      color: Colors.black,
-                      size: 20,
-                    ),
-                  ),
-                ..._residents
-                    .where(
-                      (r) =>
-                          r['latitude'] != null &&
-                          r['longitude'] != null &&
-                          (r['barangayMemberStatus'] == 'verified' ||
-                              r['barangayMemberStatus'] == null),
-                    )
-                    .map((r) {
-                      final bool isActive = _activeDisaster != null;
-                      final bool isSafeNow = (r['isSafe'] == true);
-                      final bool hasSOS = (r['hasResponded'] == true);
-                      final Color markerColor = !isActive
-                          ? AppTheme.primaryColor
-                          : (isSafeNow
-                                ? Colors.green
-                                : (hasSOS ? Colors.red : Colors.grey));
-
-                      return Marker(
-                        point: LatLng(
-                          (r['latitude'] as num).toDouble(),
-                          (r['longitude'] as num).toDouble(),
+      child: Stack(
+        children: [
+          AbsorbPointer(
+            child: FlutterMap(
+              mapController: _previewMapController,
+              options: const MapOptions(
+                initialCenter: LatLng(14.5995, 120.9842),
+                initialZoom: 15,
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName:
+                      'RiskQPH/1.0 (ph.gov.riskqph.mobile; contact: admin@riskqph.ph)',
+                ),
+                MarkerLayer(
+                  markers: [
+                    if (_previewLocation != null)
+                      Marker(
+                        point: _previewLocation!,
+                        width: 45,
+                        height: 45,
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: Colors.blueAccent.withOpacity(0.2),
+                            shape: BoxShape.circle,
+                            border:
+                                Border.all(color: Colors.blueAccent, width: 2),
+                          ),
+                          child: const Icon(
+                            Icons.person_pin_circle,
+                            color: Colors.blueAccent,
+                            size: 30,
+                          ),
                         ),
-                        width: 15,
-                        height: 15,
+                      ),
+                    if (_hqLocation != null)
+                      Marker(
+                        point: _hqLocation!,
+                        width: 30,
+                        height: 30,
+                        child: const Icon(
+                          Icons.account_balance,
+                          color: Colors.black,
+                          size: 20,
+                        ),
+                      ),
+                    ..._residents
+                        .where(
+                          (r) =>
+                              r['latitude'] != null &&
+                              r['longitude'] != null &&
+                              (r['barangayMemberStatus'] == 'verified' ||
+                                  r['barangayMemberStatus'] == null),
+                        )
+                        .map((r) {
+                          final bool isActive = _activeDisaster != null;
+                          final bool isSafeNow = (r['isSafe'] == true);
+                          final bool hasSOS = (r['hasResponded'] == true);
+                          final Color markerColor = !isActive
+                              ? AppTheme.primaryColor
+                              : (isSafeNow
+                                    ? Colors.green
+                                    : (hasSOS ? Colors.red : Colors.grey));
+
+                          return Marker(
+                            point: LatLng(
+                              (r['latitude'] as num).toDouble(),
+                              (r['longitude'] as num).toDouble(),
+                            ),
+                            width: 15,
+                            height: 15,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                border: Border.all(color: markerColor, width: 1),
+                                boxShadow: [
+                                  BoxShadow(
+                                    blurRadius: 2,
+                                    color: markerColor.withOpacity(0.3),
+                                  ),
+                                ],
+                              ),
+                              child: Icon(
+                                (isActive && isSafeNow)
+                                    ? Icons.check_circle
+                                    : Icons.person_pin_circle,
+                                color: markerColor,
+                                size: 8,
+                              ),
+                            ),
+                          );
+                        }),
+                    ..._userReports.map((r) {
+                      final color = _disasterColors[r['type']] ?? Colors.red;
+                      return Marker(
+                        point: r['pos'] as LatLng,
+                        width: 25,
+                        height: 25,
                         child: Container(
                           decoration: BoxDecoration(
                             color: Colors.white,
                             shape: BoxShape.circle,
-                            border: Border.all(color: markerColor, width: 1),
                             boxShadow: [
-                              BoxShadow(
-                                blurRadius: 2,
-                                color: markerColor.withOpacity(0.3),
-                              ),
+                              BoxShadow(blurRadius: 4, color: Colors.black26),
                             ],
+                            border: Border.all(color: color, width: 2),
                           ),
                           child: Icon(
-                            (isActive && isSafeNow)
-                                ? Icons.check_circle
-                                : Icons.person_pin_circle,
-                            color: markerColor,
-                            size: 8,
+                            _disasterIcons[r['type']] ?? Icons.report,
+                            color: color,
+                            size: 12,
                           ),
                         ),
                       );
                     }),
-                ..._userReports.map((r) {
-                  final color = _disasterColors[r['type']] ?? Colors.red;
-                  return Marker(
-                    point: r['pos'] as LatLng,
-                    width: 25,
-                    height: 25,
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(blurRadius: 4, color: Colors.black26),
-                        ],
-                        border: Border.all(color: color, width: 2),
-                      ),
-                      child: Icon(
-                        _disasterIcons[r['type']] ?? Icons.report,
-                        color: color,
-                        size: 12,
-                      ),
-                    ),
-                  );
-                }),
+                  ],
+                ),
               ],
             ),
-          ],
-        ),
+          ),
+          Positioned(
+            bottom: 12,
+            right: 12,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.black.withOpacity(0.6),
+                borderRadius: BorderRadius.circular(10),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.2),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.touch_app, color: Colors.white, size: 12),
+                  SizedBox(width: 6),
+                  Text(
+                    'PRESS MAP TO VIEW',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 0.8,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

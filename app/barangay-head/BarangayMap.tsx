@@ -3,14 +3,15 @@
 import { MapContainer, TileLayer, Marker, Popup, Circle, Polygon, useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { 
   User, ShieldCheck, ShieldAlert, MapPin, Landmark,
   Waves, Flame, Activity, Wind, Mountain, PersonStanding,
   Layers, History, Edit3, X, ZapOff, Droplets, 
   WifiOff, Construction, MoreHorizontal, Building2, 
   Navigation, Check, AlertTriangle, Camera,
-  Home, HeartPulse, GraduationCap, Church
+  Home, HeartPulse, GraduationCap, Church, ChevronRight,
+  Settings, Users, Share2, RefreshCw, Locate, MapPinned
 } from 'lucide-react';
 import { renderToStaticMarkup } from 'react-dom/server';
 
@@ -245,6 +246,7 @@ export default function BarangayMap({
   const [isReportsPanelOpen, setIsReportsPanelOpen] = useState(false);
   const [isLayersPanelOpen, setIsLayersPanelOpen] = useState(false);
   const [isReportMode, setIsReportMode] = useState(false);
+  const [isActionGroupExpanded, setIsActionGroupExpanded] = useState(false);
   const [showBarangayBoundaries, setShowBarangayBoundaries] = useState(true);
   const [reportingLocation, setReportingLocation] = useState<[number, number] | null>(null);
   const [locationTrigger, setLocationTrigger] = useState(0);
@@ -253,6 +255,7 @@ export default function BarangayMap({
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [description, setDescription] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [ecName, setEcName] = useState(''); // Added to avoid missing references
 
   const fetchReports = useCallback(async () => {
     try {
@@ -300,6 +303,7 @@ export default function BarangayMap({
         setReportingLocation(null);
         setSelectedType(null);
         setDescription('');
+        setIsReportMode(false);
         fetchReports();
       }
     } catch (e) {
@@ -319,107 +323,162 @@ export default function BarangayMap({
         : [12.8797, 121.7740];
 
 
-  return (
-    <div className="h-full w-full relative group/map">
-      {/* Top Right: Recent Reports (Offset to avoid clashing with Activity Log button) */}
-      <div className="absolute top-24 right-6 z-[1010] flex flex-col items-end gap-3">
-        <button
-          onClick={() => {
-            setIsReportsPanelOpen(!isReportsPanelOpen);
-            if (!isReportsPanelOpen) setIsLayersPanelOpen(false);
-          }}
-          className={`p-3 rounded-2xl shadow-xl border transition-all ${
-            isReportsPanelOpen ? 'bg-zinc-900 border-zinc-800 text-white' : 'bg-white/90 backdrop-blur-md border-zinc-200 text-zinc-900 group hover:bg-zinc-50'
-          }`}
-        >
-          {isReportsPanelOpen ? <X size={20} /> : <History size={20} className="hover:scale-110 transition-transform" />}
-        </button>
+  const hmrKey = useMemo(() => Math.random(), []);
 
-        {isReportsPanelOpen && (
-          <div className="w-64 max-h-[50vh] bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-zinc-200 overflow-hidden flex flex-col animate-in slide-in-from-right duration-300">
-            <div className="p-4 bg-zinc-900 text-white">
-              <h2 className="text-[10px] font-black uppercase tracking-widest flex items-center gap-2">
-                <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
-                Incident Feed
-              </h2>
+  return (
+    <div className="h-full w-full relative group/map overflow-hidden">
+      {/* Unified Action Menu (Top Left - matching users map layout) */}
+      <div className="absolute top-6 left-6 z-[1010] flex flex-col items-start gap-4">
+        <div className="flex items-center gap-2 p-1.5 bg-white/95 backdrop-blur-xl border border-blue-500/30 rounded-[24px] shadow-2xl">
+          <button
+            onClick={() => {
+              setIsActionGroupExpanded(!isActionGroupExpanded);
+              if (!isActionGroupExpanded) {
+                setIsLayersPanelOpen(false);
+                setIsReportsPanelOpen(false);
+              }
+            }}
+            className={`w-10 h-10 flex items-center justify-center rounded-full transition-all duration-300 ${
+              isActionGroupExpanded ? 'bg-[#1565C0] text-white shadow-lg' : 'bg-white text-[#1565C0] border border-blue-100'
+            }`}
+          >
+            {isActionGroupExpanded ? <X size={18} /> : <ChevronRight size={18} />}
+          </button>
+
+          {isActionGroupExpanded && (
+            <div className="flex items-center gap-2 pr-1 animate-in slide-in-from-left-4 duration-300">
+              <div className="w-[1px] h-6 bg-blue-100 mx-1" />
+              
+              <button
+                onClick={() => {
+                  setIsLayersPanelOpen(!isLayersPanelOpen);
+                  setIsReportsPanelOpen(false);
+                }}
+                className={`w-10 h-10 flex items-center justify-center rounded-full transition-all ${
+                  isLayersPanelOpen ? 'bg-zinc-800 text-white' : 'bg-white text-[#1565C0] hover:bg-zinc-50 border border-blue-50'
+                }`}
+                title="Map Config"
+              >
+                <Layers size={20} />
+              </button>
+
+              <button
+                onClick={() => {
+                  setIsReportsPanelOpen(!isReportsPanelOpen);
+                  setIsLayersPanelOpen(false);
+                }}
+                className={`w-10 h-10 flex items-center justify-center rounded-full transition-all ${
+                  isReportsPanelOpen ? 'bg-red-600 text-white' : 'bg-white text-[#1565C0] hover:bg-zinc-50 border border-blue-50'
+                }`}
+                title="Live Incidents"
+              >
+                <History size={20} />
+              </button>
             </div>
-            <div className="overflow-y-auto flex-1 p-2 space-y-1">
-              {reports.length === 0 ? (
-                <p className="text-[10px] text-zinc-500 text-center py-4 font-bold">STATION IDLE</p>
-              ) : (
-                reports.map((r) => {
-                  const config = disasterTypeConfig[r.type] || { color: '#6366f1', icon: MapPin };
-                  return (
-                    <button
-                      key={r.id}
-                      onClick={() => setFocusCenter([r.latitude, r.longitude])}
-                      className="w-full text-left p-2.5 rounded-xl hover:bg-zinc-100 transition-all border border-transparent hover:border-zinc-200 group"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="p-2 rounded-lg bg-zinc-50 group-hover:bg-white transition-colors flex-shrink-0" style={{ color: config.color }}>
-                          <config.icon size={14} />
+          )}
+        </div>
+
+        {/* Floating Panels Aligned with Top Left Menu */}
+        <div className="flex flex-col gap-3">
+          {isReportsPanelOpen && (
+            <div className="w-72 max-h-[60vh] bg-white/95 backdrop-blur-xl rounded-[28px] shadow-2xl border border-zinc-200/50 overflow-hidden flex flex-col animate-in slide-in-from-top-4 duration-300">
+              <div className="p-5 bg-zinc-900 text-white flex items-center justify-between">
+                <h2 className="text-xs font-black uppercase tracking-widest flex items-center gap-2">
+                  <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse"></span>
+                  Live Reports
+                </h2>
+                <button onClick={() => setIsReportsPanelOpen(false)} className="p-1 hover:bg-zinc-800 rounded-full transition-colors">
+                  <X size={14} />
+                </button>
+              </div>
+              <div className="overflow-y-auto flex-1 p-3 space-y-2">
+                {reports.length === 0 ? (
+                  <p className="text-[10px] text-zinc-500 text-center py-8 font-medium italic">No active incidents</p>
+                ) : (
+                  reports.filter(r => !r.isResolved).map((r) => {
+                    const config = disasterTypeConfig[r.type] || { color: '#6366f1', icon: MapPin };
+                    return (
+                      <button
+                        key={r.id}
+                        onClick={() => setFocusCenter([r.latitude, r.longitude])}
+                        className="w-full text-left p-3 rounded-2xl hover:bg-zinc-50 transition-all border border-transparent hover:border-zinc-100 group flex items-center gap-3"
+                      >
+                        <div className="w-10 h-10 rounded-xl bg-zinc-100 group-hover:bg-white transition-colors flex items-center justify-center flex-shrink-0" style={{ color: config.color }}>
+                          <config.icon size={18} />
                         </div>
                         <div className="min-w-0">
-                          <p className="text-[10px] font-black text-zinc-900 truncate uppercase">{r.type}</p>
-                          <p className="text-[9px] text-zinc-500 truncate font-medium">{r.description || 'No data reported'}</p>
+                          <p className="text-[11px] font-bold text-zinc-900 truncate">{r.type}</p>
+                          <p className="text-[10px] text-zinc-500 truncate">{r.description || 'Verified point'}</p>
                         </div>
-                      </div>
-                    </button>
-                  );
-                })
-              )}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+
+          {isLayersPanelOpen && (
+            <div className="w-64 bg-white/95 backdrop-blur-xl rounded-[28px] shadow-2xl border border-zinc-200/50 overflow-hidden animate-in slide-in-from-top-4 duration-300">
+              <div className="p-5 bg-zinc-900 text-white flex items-center justify-between">
+                <h2 className="text-xs font-black uppercase tracking-widest">Map Layers</h2>
+                <button onClick={() => setIsLayersPanelOpen(false)} className="p-1 hover:bg-zinc-800 rounded-full transition-colors">
+                  <X size={14} />
+                </button>
+              </div>
+              <div className="p-4 space-y-4">
+                <div 
+                  onClick={() => setShowBarangayBoundaries(!showBarangayBoundaries)}
+                  className="flex items-center justify-between p-3 rounded-2xl hover:bg-zinc-50 cursor-pointer transition-all group border border-transparent hover:border-zinc-100"
+                >
+                  <div className="flex flex-col">
+                    <span className="text-[11px] font-bold text-zinc-900">Barangay Boundaries</span>
+                    <span className="text-[9px] text-zinc-500">Risk Level Shading</span>
+                  </div>
+                  <div className={`w-10 h-6 rounded-full transition-all flex items-center px-1 ${showBarangayBoundaries ? 'bg-zinc-900' : 'bg-zinc-200'}`}>
+                    <div className={`w-4 h-4 rounded-full bg-white transition-all shadow-sm ${showBarangayBoundaries ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Top Left: Layers & Report Mode (Offset to avoid clashing with Legend) */}
-      <div className="absolute top-40 left-6 z-[1010] flex flex-col items-start gap-4">
-        {/* Layers Toggle */}
+      {/* Tactical HUD Cluster (Bottom Right - matching users map layout) */}
+      <div className="absolute bottom-10 right-10 z-[1010] flex flex-col items-end gap-3">
+        {/* Refresh Button */}
         <button
-          onClick={() => {
-            setIsLayersPanelOpen(!isLayersPanelOpen);
-            if (!isLayersPanelOpen) setIsReportsPanelOpen(false);
-          }}
-          className={`p-3 rounded-2xl shadow-xl border transition-all ${
-            isLayersPanelOpen ? 'bg-zinc-900 border-zinc-800 text-white' : 'bg-white/90 backdrop-blur-md border-zinc-200 text-zinc-900 group hover:bg-zinc-50'
-          }`}
+          onClick={() => fetchReports()}
+          className="w-10 h-10 bg-white border border-blue-100 text-[#1565C0] rounded-full shadow-2xl hover:bg-zinc-50 transition-all flex items-center justify-center"
+          title="Refresh Map Data"
         >
-          {isLayersPanelOpen ? <X size={20} /> : <Layers size={20} className="hover:scale-110 transition-transform" />}
+          <RefreshCw size={18} />
         </button>
 
-        {isLayersPanelOpen && (
-          <div className="w-56 bg-white/95 backdrop-blur-md rounded-2xl shadow-2xl border border-zinc-200 overflow-hidden animate-in slide-in-from-left duration-300">
-            <div className="p-4 bg-zinc-900 text-white">
-              <h2 className="text-[10px] font-black uppercase tracking-widest">Map Configuration</h2>
-            </div>
-            <div className="p-3">
-               <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest text-center py-2 opacity-50">Map Overlays Active</p>
-            </div>
-          </div>
-        )}
+        <div className="flex items-center gap-3">
+          {/* Manual Incident Dispatch */}
+          <button
+            onClick={() => setIsReportMode(!isReportMode)}
+            className={`w-10 h-10 flex items-center justify-center rounded-full shadow-2xl transition-all ${
+              isReportMode 
+                ? 'bg-red-600 text-white' 
+                : 'bg-white border border-blue-100 text-[#1565C0] hover:bg-zinc-50'
+            }`}
+            title="Toggle Manual Reporting"
+          >
+            {isReportMode ? <MapPin size={18} /> : <MapPinned size={18} />}
+          </button>
 
-        {/* Report Mode Toggle */}
-        <button
-          onClick={() => setIsReportMode(!isReportMode)}
-          className={`p-3 rounded-2xl shadow-xl border transition-all ${
-            isReportMode ? 'bg-red-600 border-red-700 text-white ring-4 ring-red-100 animate-pulse' : 'bg-white/90 backdrop-blur-md border-zinc-200 text-zinc-900 group hover:bg-zinc-50'
-          }`}
-          title="Toggle Manual Reporting"
-        >
-          <Edit3 size={20} className={isReportMode ? 'animate-bounce' : 'group-hover:scale-110 transition-transform'} />
-        </button>
-      </div>
-
-      {/* Bottom Right: Location Toggle */}
-      <div className="absolute bottom-10 right-6 z-[1010]">
-        <button
-          onClick={() => setLocationTrigger(prev => prev + 1)}
-          className="p-4 bg-white border border-zinc-200 text-zinc-900 rounded-full shadow-2xl group hover:bg-zinc-50 transition-all hover:scale-110 active:scale-95"
-          title="Focus Location"
-        >
-          <Navigation size={22} className="group-hover:text-blue-600 transition-colors" />
-        </button>
+          {/* Location Focus */}
+          <button
+            onClick={() => setLocationTrigger(prev => prev + 1)}
+            className="w-10 h-10 border border-blue-100 rounded-full shadow-2xl transition-all flex items-center justify-center bg-white text-[#1565C0] hover:bg-zinc-50"
+            title="Find My Location"
+          >
+            <Locate size={18} />
+          </button>
+        </div>
       </div>
 
       {/* Manual Report Modal */}
@@ -483,6 +542,7 @@ export default function BarangayMap({
       )}
 
       <MapContainer
+        key={hmrKey}
         center={center}
         zoom={validResidents.length > 0 ? 15 : 6}
         scrollWheelZoom={true}

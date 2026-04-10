@@ -16,7 +16,6 @@ export async function GET(req: NextRequest) {
       where: {
         barangay,
         role: { in: ['resident', 'responder'] },
-        barangayMemberStatus: 'verified',
       },
       select: {
         id: true,
@@ -24,6 +23,7 @@ export async function GET(req: NextRequest) {
         lastName: true,
         middleName: true,
         role: true,
+        barangayMemberStatus: true,
         latitude: true,
         longitude: true,
         updatedAt: true,

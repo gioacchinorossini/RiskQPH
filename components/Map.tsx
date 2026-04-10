@@ -19,10 +19,11 @@ const fixLeafletIcon = () => {
 import { 
   Waves, Flame, Activity, Wind, Mountain, PersonStanding, 
   MapPin, ThumbsUp, ThumbsDown, CheckCircle, Flag, 
-  Layers, History, Edit3, X, ZapOff, Droplets, 
+  Layers, History, X, ZapOff, Droplets, 
   WifiOff, Construction, MoreHorizontal, Building2, 
   Navigation, Check, AlertTriangle, Camera,
-  Settings, Users, ChevronRight, ClipboardList
+  Settings, Users, ChevronRight,
+  Share2, RefreshCw, Locate, MapPinned
 } from 'lucide-react';
 
 const disasterTypeConfig: Record<string, { color: string, icon: any }> = {
@@ -266,13 +267,14 @@ const Map = ({ showBarangays: initialShowBarangays = true }: { showBarangays?: b
           description,
           latitude: reportingLocation[0],
           longitude: reportingLocation[1],
-          reporterName: 'Web User', // Should ideally come from auth
+          reporterName: user?.firstName || 'Web User',
         }),
       });
       if (res.ok) {
         setReportingLocation(null);
         setSelectedType(null);
         setDescription('');
+        setIsReportMode(false); // Disable report mode after submission
         fetchReports();
       }
     } catch (e) {
@@ -288,9 +290,10 @@ const Map = ({ showBarangays: initialShowBarangays = true }: { showBarangays?: b
     <div className="relative h-full w-full overflow-hidden">
       {/* Unified Action Menu (Top Left - Horizontal, matching mobile app) */}
       <div className="absolute top-6 left-6 z-[2000] flex flex-col items-start gap-4">
-        <div className="flex items-center gap-2 p-1.5 bg-zinc-900/90 backdrop-blur-xl border border-zinc-800 rounded-[24px] shadow-2xl">
+        <div className="flex items-center gap-2 p-1.5 bg-white/95 backdrop-blur-xl border border-blue-500/30 rounded-[24px] shadow-2xl">
           <button
             onClick={() => {
+              if (!user) return; // Locked for guest
               setIsActionGroupExpanded(!isActionGroupExpanded);
               if (!isActionGroupExpanded) {
                 setIsLayersPanelOpen(false);
@@ -299,15 +302,16 @@ const Map = ({ showBarangays: initialShowBarangays = true }: { showBarangays?: b
               }
             }}
             className={`w-10 h-10 flex items-center justify-center rounded-full transition-all duration-300 ${
-              isActionGroupExpanded ? 'bg-red-600 text-white rotate-90' : 'bg-white text-zinc-900'
+              !user ? 'opacity-40 grayscale cursor-not-allowed bg-zinc-100 text-zinc-400' :
+              isActionGroupExpanded ? 'bg-[#1565C0] text-white shadow-lg' : 'bg-white text-[#1565C0] border border-blue-100'
             }`}
           >
-            {isActionGroupExpanded ? <X size={20} /> : <ChevronRight size={20} />}
+            {isActionGroupExpanded ? <X size={18} /> : <ChevronRight size={18} />}
           </button>
 
           {isActionGroupExpanded && (
             <div className="flex items-center gap-2 pr-1 animate-in slide-in-from-left-4 duration-300">
-              <div className="w-[1px] h-6 bg-zinc-800 mx-1" />
+              <div className="w-[1px] h-6 bg-blue-100 mx-1" />
               
               {/* Settings/Layers */}
               <button
@@ -317,29 +321,12 @@ const Map = ({ showBarangays: initialShowBarangays = true }: { showBarangays?: b
                   setIsFamilyPanelOpen(false);
                 }}
                 className={`w-10 h-10 flex items-center justify-center rounded-full transition-all ${
-                  isLayersPanelOpen ? 'bg-zinc-700 text-white' : 'bg-transparent text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                  isLayersPanelOpen ? 'bg-zinc-800 text-white' : 'bg-white text-[#1565C0] hover:bg-zinc-50 border border-blue-50'
                 }`}
                 title="Settings/Layers"
               >
                 <Settings size={20} />
               </button>
-
-              {/* Family (Resident Only) */}
-              {user?.role === 'resident' && (
-                <button
-                  onClick={() => {
-                    setIsFamilyPanelOpen(!isFamilyPanelOpen);
-                    setIsLayersPanelOpen(false);
-                    setIsReportsPanelOpen(false);
-                  }}
-                  className={`w-10 h-10 flex items-center justify-center rounded-full transition-all ${
-                    isFamilyPanelOpen ? 'bg-zinc-700 text-white' : 'bg-transparent text-zinc-400 hover:bg-zinc-800 hover:text-white'
-                  }`}
-                  title="My Family"
-                >
-                  <Users size={20} />
-                </button>
-              )}
 
               {/* Reports List */}
               <button
@@ -349,25 +336,43 @@ const Map = ({ showBarangays: initialShowBarangays = true }: { showBarangays?: b
                   setIsFamilyPanelOpen(false);
                 }}
                 className={`w-10 h-10 flex items-center justify-center rounded-full transition-all ${
-                  isReportsPanelOpen ? 'bg-zinc-700 text-white' : 'bg-transparent text-zinc-400 hover:bg-zinc-800 hover:text-white'
+                  isReportsPanelOpen ? 'bg-red-600 text-white' : 'bg-white text-[#1565C0] hover:bg-zinc-50 border border-blue-50'
                 }`}
                 title="Recent Reports"
               >
-                <ClipboardList size={20} />
+                <History size={20} />
               </button>
 
-              {/* Report Mode */}
-              <button
-                onClick={() => {
-                  setIsReportMode(!isReportMode);
-                }}
-                className={`w-10 h-10 flex items-center justify-center rounded-full transition-all ${
-                  isReportMode ? 'bg-red-600 text-white drop-shadow-[0_0_10px_rgba(239,68,68,0.4)]' : 'bg-transparent text-zinc-400 hover:bg-zinc-800 hover:text-white'
-                }`}
-                title="Report Incident Mode"
-              >
-                <Edit3 size={20} className={isReportMode ? 'animate-pulse' : ''} />
-              </button>
+              {/* Family (Resident/Responder Only) */}
+              {(user?.role === 'resident' || user?.role === 'responder') && (
+                <button
+                  onClick={() => {
+                    setIsFamilyPanelOpen(!isFamilyPanelOpen);
+                    setIsLayersPanelOpen(false);
+                    setIsReportsPanelOpen(false);
+                  }}
+                  className={`w-10 h-10 flex items-center justify-center rounded-full transition-all ${
+                    isFamilyPanelOpen ? 'bg-emerald-600 text-white' : 'bg-white text-[#1565C0] hover:bg-zinc-50 border border-blue-50'
+                  }`}
+                  title="My Family"
+                >
+                  <Users size={20} />
+                </button>
+              )}
+
+              {/* Share Location */}
+              {user?.role === 'resident' && (
+                <button
+                  onClick={() => {
+                    // This could trigger a location share logic if implemented
+                    setLocationTrigger(prev => prev + 1);
+                  }}
+                  className="w-10 h-10 flex items-center justify-center rounded-full bg-white text-[#1565C0] hover:bg-zinc-50 border border-blue-50 transition-all"
+                  title="Share Location"
+                >
+                  <Share2 size={20} />
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -439,16 +444,52 @@ const Map = ({ showBarangays: initialShowBarangays = true }: { showBarangays?: b
         </div>
       </div>
 
-      {/* Bottom Right: Location Toggle */}
-      <div className="absolute bottom-10 right-10 z-[1000]">
+      {/* Tactical HUD Cluster (Bottom Right - matching mobile app) */}
+      <div className="absolute bottom-10 right-10 z-[1000] flex flex-col items-end gap-3">
+        {/* Refresh Button */}
         <button
-          onClick={() => setLocationTrigger(prev => prev + 1)}
-          className="w-14 h-14 bg-white border border-zinc-200 text-zinc-900 rounded-full shadow-2xl group hover:bg-zinc-900 hover:text-white transition-all hover:scale-110 active:scale-95 flex items-center justify-center overflow-hidden relative"
-          title="Find My Location"
+          onClick={() => fetchReports()}
+          className="w-10 h-10 bg-white border border-blue-100 text-[#1565C0] rounded-full shadow-2xl hover:bg-zinc-50 transition-all flex items-center justify-center"
+          title="Refresh Map Data"
         >
-          <Navigation size={24} className="group-hover:translate-x-1 group-hover:-translate-y-1 transition-transform" />
-          <div className="absolute inset-x-0 bottom-0 h-1 bg-blue-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+          <RefreshCw size={18} />
         </button>
+
+        <div className="flex items-center gap-3">
+          {/* Report Mode Button */}
+          <button
+            onClick={() => {
+              if (!user) return;
+              setIsReportMode(!isReportMode);
+            }}
+            className={`w-10 h-10 flex items-center justify-center rounded-full shadow-2xl transition-all ${
+              !user 
+                ? 'opacity-40 grayscale cursor-not-allowed bg-zinc-100 text-zinc-400'
+                : isReportMode 
+                ? 'bg-red-600 text-white' 
+                : 'bg-white border border-blue-100 text-[#1565C0] hover:bg-zinc-50'
+            }`}
+            title={!user ? "Login Required" : "Report Mode"}
+          >
+            {isReportMode ? <MapPin size={18} /> : <MapPinned size={18} />}
+          </button>
+
+          {/* Location Toggle */}
+          <button
+            onClick={() => {
+              if (!user) return;
+              setLocationTrigger(prev => prev + 1);
+            }}
+            className={`w-10 h-10 border border-blue-100 rounded-full shadow-2xl transition-all flex items-center justify-center ${
+              !user 
+                ? 'opacity-40 grayscale cursor-not-allowed bg-zinc-100 text-zinc-400'
+                : 'bg-white text-[#1565C0] hover:bg-zinc-50'
+            }`}
+            title={!user ? "Login Required" : "Find My Location"}
+          >
+            <Locate size={18} />
+          </button>
+        </div>
       </div>
 
       {/* Report Modal */}
@@ -599,22 +640,29 @@ const Map = ({ showBarangays: initialShowBarangays = true }: { showBarangays?: b
 
                     <div className="flex items-center gap-2 pt-3 border-t border-zinc-100">
                       <button
-                        onClick={() => handleAction(r.id, 'upvote')}
-                        className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-extrabold transition-all ${isOwnReport
-                            ? 'bg-emerald-50 text-emerald-600 opacity-50 cursor-not-allowed'
+                        onClick={() => {
+                          if (!user) return;
+                          handleAction(r.id, 'upvote');
+                        }}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl text-[10px] font-extrabold transition-all ${(!user || isOwnReport)
+                            ? 'bg-zinc-50 text-zinc-400 opacity-50 cursor-not-allowed'
                             : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white border border-emerald-100'
                           }`}
+                        title={!user ? "Login Required" : ""}
                       >
                         <CheckCircle size={14} />
                         Agree ({r.upvotes})
                       </button>
                       <button
-                        onClick={() => handleAction(r.id, 'flag')}
-                        className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all ${isOwnReport
+                        onClick={() => {
+                          if (!user) return;
+                          handleAction(r.id, 'flag');
+                        }}
+                        className={`flex items-center justify-center w-10 h-10 rounded-xl transition-all ${(!user || isOwnReport)
                             ? 'bg-zinc-50 text-zinc-400 opacity-50 cursor-not-allowed'
                             : 'bg-amber-50 text-amber-600 hover:bg-amber-500 hover:text-white border border-amber-100'
                           }`}
-                        title="Flag as false info"
+                        title={!user ? "Login Required" : "Flag as false info"}
                       >
                         <Flag size={14} />
                       </button>
@@ -622,8 +670,16 @@ const Map = ({ showBarangays: initialShowBarangays = true }: { showBarangays?: b
 
                     {!r.isResolved && (
                       <button
-                        onClick={() => handleAction(r.id, 'resolve')}
-                        className="w-full mt-2 font-black text-[9px] py-2.5 rounded-xl border-2 border-emerald-600 text-emerald-600 hover:bg-emerald-600 hover:text-white transition-all uppercase tracking-widest bg-white"
+                        onClick={() => {
+                          if (!user) return;
+                          handleAction(r.id, 'resolve');
+                        }}
+                        className={`w-full mt-2 font-black text-[9px] py-2.5 rounded-xl border-2 transition-all uppercase tracking-widest bg-white ${
+                          !user 
+                            ? 'border-zinc-200 text-zinc-300 cursor-not-allowed' 
+                            : 'border-emerald-600 text-emerald-600 hover:bg-emerald-600 hover:text-white'
+                        }`}
+                        disabled={!user}
                       >
                         Mark as Resolved
                       </button>

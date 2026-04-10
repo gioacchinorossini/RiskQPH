@@ -22,8 +22,10 @@ export default function LoginPage() {
   //   }
   // }, [router]);
 
-  const handleLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const performLogin = async (loginEmail?: string, loginPassword?: string) => {
+    const finalEmail = loginEmail || email;
+    const finalPassword = loginPassword || password;
+
     setLoading(true);
     setError('');
 
@@ -31,7 +33,7 @@ export default function LoginPage() {
       const response = await fetch('/api/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+        body: JSON.stringify({ email: finalEmail, password: finalPassword }),
       });
 
       const data = await response.json();
@@ -50,6 +52,11 @@ export default function LoginPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    performLogin();
   };
 
   return (
@@ -131,6 +138,41 @@ export default function LoginPage() {
               )}
             </button>
           </form>
+
+          {/* Quick Login for Developers */}
+          <div className="mt-8 pt-8 border-t border-zinc-200 dark:border-zinc-800">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-zinc-400 mb-4 text-center">Quick Developer Access</p>
+            <div className="grid grid-cols-1 gap-2">
+              <button
+                onClick={() => {
+                  setEmail('head@test.com');
+                  setPassword('password123');
+                  performLogin('longnoxian4@gmail.com', 'gwapoko4321');
+                }}
+                className="flex items-center justify-between p-3 rounded-xl bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 transition-all group"
+              >
+                <div className="flex items-center gap-3">
+                  <Shield size={16} className="text-red-600" />
+                  <span className="text-[10px] font-black uppercase tracking-wider">Barangay Head</span>
+                </div>
+                <span className="text-[9px] font-bold text-zinc-400 group-hover:text-red-600 dark:group-hover:text-red-500 transition-colors uppercase">Login</span>
+              </button>
+              <button
+                onClick={() => {
+                  setEmail('resident@test.com');
+                  setPassword('password123');
+                  performLogin('longnoxian5@gmail.com', 'gwapoko4321');
+                }}
+                className="flex items-center justify-between p-3 rounded-xl bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 transition-all group"
+              >
+                <div className="flex items-center gap-3">
+                  <Mail size={16} className="text-blue-500" />
+                  <span className="text-[10px] font-black uppercase tracking-wider">Resident</span>
+                </div>
+                <span className="text-[9px] font-bold text-zinc-400 group-hover:text-red-600 dark:group-hover:text-red-500 transition-colors uppercase">Login</span>
+              </button>
+            </div>
+          </div>
         </div>
 
         <footer className="mt-12 text-center text-zinc-400">
@@ -138,6 +180,7 @@ export default function LoginPage() {
             © 2026 RISKQPH
           </p>
         </footer>
+
       </div>
     </div>
   );

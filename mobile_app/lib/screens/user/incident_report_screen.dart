@@ -1,4 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+import 'package:http/http.dart' as http;
+import 'package:geolocator/geolocator.dart';
+import 'dart:convert';
+import '../../providers/auth_provider.dart';
+import '../../config/api_config.dart';
 
 class IncidentReportScreen extends StatefulWidget {
   const IncidentReportScreen({super.key});
@@ -9,20 +15,50 @@ class IncidentReportScreen extends StatefulWidget {
 
 class _IncidentReportScreenState extends State<IncidentReportScreen> {
   String? _selectedType;
-  final TextEditingController _customDescriptionController = TextEditingController();
+  final TextEditingController _customDescriptionController =
+      TextEditingController();
   final TextEditingController _otherTypeController = TextEditingController();
+  bool _isSubmitting = false;
 
   final List<Map<String, dynamic>> _incidentTypes = [
     {'label': 'Flooding', 'icon': Icons.water, 'color': Colors.blue},
     {'label': 'Fire', 'icon': Icons.local_fire_department, 'color': Colors.red},
-    {'label': 'Collapsed buildings', 'icon': Icons.home_work, 'color': Colors.brown},
-    {'label': 'Landslide / soil erosion', 'icon': Icons.landscape, 'color': Colors.orange},
-    {'label': 'Volcanic activity', 'icon': Icons.volcano, 'color': Colors.deepOrange},
+    {
+      'label': 'Collapsed buildings',
+      'icon': Icons.home_work,
+      'color': Colors.brown,
+    },
+    {
+      'label': 'Landslide / soil erosion',
+      'icon': Icons.landscape,
+      'color': Colors.orange,
+    },
+    {
+      'label': 'Volcanic activity',
+      'icon': Icons.volcano,
+      'color': Colors.deepOrange,
+    },
     {'label': 'Power outage', 'icon': Icons.power_off, 'color': Colors.amber},
-    {'label': 'Water supply disruption', 'icon': Icons.water_damage, 'color': Colors.lightBlue},
-    {'label': 'Signal failure (cell network down)', 'icon': Icons.cell_tower, 'color': Colors.grey},
-    {'label': 'Road blockage / impassable routes', 'icon': Icons.traffic, 'color': Colors.deepPurple},
-    {'label': 'Other (custom entry)', 'icon': Icons.more_horiz, 'color': Colors.blueGrey},
+    {
+      'label': 'Water supply disruption',
+      'icon': Icons.water_damage,
+      'color': Colors.lightBlue,
+    },
+    {
+      'label': 'Signal failure (cell network down)',
+      'icon': Icons.cell_tower,
+      'color': Colors.grey,
+    },
+    {
+      'label': 'Road blockage / impassable routes',
+      'icon': Icons.traffic,
+      'color': Colors.deepPurple,
+    },
+    {
+      'label': 'Other (custom entry)',
+      'icon': Icons.more_horiz,
+      'color': Colors.blueGrey,
+    },
   ];
 
   @override
@@ -38,7 +74,10 @@ class _IncidentReportScreenState extends State<IncidentReportScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Report Incident', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Report Incident',
+          style: TextStyle(fontWeight: FontWeight.bold),
+        ),
         backgroundColor: Colors.white,
         foregroundColor: Colors.black,
         elevation: 0,
@@ -50,10 +89,7 @@ class _IncidentReportScreenState extends State<IncidentReportScreen> {
           children: [
             const Text(
               'Select Incident Type',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -61,7 +97,7 @@ class _IncidentReportScreenState extends State<IncidentReportScreen> {
               style: TextStyle(color: Colors.grey),
             ),
             const SizedBox(height: 24),
-            
+
             // Circular Grid selection
             GridView.builder(
               shrinkWrap: true,
@@ -76,7 +112,7 @@ class _IncidentReportScreenState extends State<IncidentReportScreen> {
               itemBuilder: (context, index) {
                 final type = _incidentTypes[index];
                 final isSelected = _selectedType == type['label'];
-                
+
                 return GestureDetector(
                   onTap: () {
                     setState(() {
@@ -91,14 +127,15 @@ class _IncidentReportScreenState extends State<IncidentReportScreen> {
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: isSelected ? type['color'] : Colors.transparent,
+                            color:
+                                isSelected ? type['color'] : Colors.transparent,
                             width: 2,
                           ),
                         ),
                         child: CircleAvatar(
                           radius: 28,
-                          backgroundColor: isSelected 
-                              ? type['color'].withOpacity(0.1) 
+                          backgroundColor: isSelected
+                              ? type['color'].withOpacity(0.1)
                               : Colors.grey[100],
                           child: Icon(
                             type['icon'],
@@ -115,7 +152,8 @@ class _IncidentReportScreenState extends State<IncidentReportScreen> {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 10,
-                          fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                          fontWeight:
+                              isSelected ? FontWeight.bold : FontWeight.normal,
                           color: isSelected ? Colors.black : Colors.grey[600],
                         ),
                       ),
@@ -124,9 +162,9 @@ class _IncidentReportScreenState extends State<IncidentReportScreen> {
                 );
               },
             ),
-            
+
             const SizedBox(height: 32),
-            
+
             if (_selectedType == 'Other (custom entry)') ...[
               const Text(
                 'Specify Other Type',
@@ -161,7 +199,8 @@ class _IncidentReportScreenState extends State<IncidentReportScreen> {
               controller: _customDescriptionController,
               maxLines: 4,
               decoration: InputDecoration(
-                hintText: 'Provide more information to help responders (e.g., location specifics, immediate danger level)...',
+                hintText:
+                    'Provide more information to help responders (e.g., location specifics, immediate danger level)...',
                 filled: true,
                 fillColor: Colors.grey[50],
                 border: OutlineInputBorder(
@@ -174,30 +213,42 @@ class _IncidentReportScreenState extends State<IncidentReportScreen> {
                 ),
               ),
             ),
-            
+
             const SizedBox(height: 48),
-            
+
             SizedBox(
               width: double.infinity,
               height: 56,
               child: ElevatedButton(
-                onPressed: _selectedType == null ? null : _submitReport,
+                onPressed:
+                    (_selectedType == null || _isSubmitting)
+                        ? null
+                        : _submitReport,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: _selectedType == 'Other' ? Colors.blueGrey : 
-                      (_selectedType != null ? _incidentTypes.firstWhere((t) => t['label'] == _selectedType)['color'] : primaryColor),
+                  backgroundColor:
+                      _selectedType == 'Other'
+                          ? Colors.blueGrey
+                          : (_selectedType != null
+                              ? _incidentTypes.firstWhere(
+                                (t) => t['label'] == _selectedType,
+                              )['color']
+                              : primaryColor),
                   foregroundColor: Colors.white,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                   ),
                   elevation: 2,
                 ),
-                child: const Text(
-                  'SUBMIT INCIDENT REPORT',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: 1.2,
-                  ),
-                ),
+                child:
+                    _isSubmitting
+                        ? const CircularProgressIndicator(color: Colors.white)
+                        : const Text(
+                          'SUBMIT INCIDENT REPORT',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: 1.2,
+                          ),
+                        ),
               ),
             ),
           ],
@@ -206,23 +257,75 @@ class _IncidentReportScreenState extends State<IncidentReportScreen> {
     );
   }
 
-  void _submitReport() {
-    // Show success dialog
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Report Submitted'),
-        content: const Text('Responders have been notified of this incident. Please stay safe.'),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-            },
-            child: const Text('OK'),
+  Future<void> _submitReport() async {
+    setState(() => _isSubmitting = true);
+
+    try {
+      final authProvider = Provider.of<AuthProvider>(context, listen: false);
+      final String? userId = authProvider.currentUser?.id;
+
+      // Check permissions
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          throw Exception('Location permissions are denied');
+        }
+      }
+
+      // Get current location
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      final String type =
+          _selectedType == 'Other (custom entry)'
+              ? _otherTypeController.text
+              : _selectedType!;
+
+      final response = await http.post(
+        Uri.parse('${ApiConfig.baseUrl}/api/reports'),
+        headers: {
+          'Content-Type': 'application/json',
+          'ngrok-skip-browser-warning': 'true',
+        },
+        body: jsonEncode({
+          'type': type,
+          'description': _customDescriptionController.text,
+          'latitude': position.latitude,
+          'longitude': position.longitude,
+          'userId': userId,
+        }),
+      );
+
+      if (response.statusCode == 201 || response.statusCode == 200) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Submitted Report Successfully'),
+              backgroundColor: Colors.green,
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+          Navigator.pop(context);
+        }
+      } else {
+        throw Exception('Failed to submit report: ${response.statusCode}');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
           ),
-        ],
-      ),
-    );
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSubmitting = false);
+      }
+    }
   }
 }
